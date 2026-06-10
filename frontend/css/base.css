@@ -1,0 +1,101 @@
+/* 전역 색상 변수 및 기본 스타일 */
+:root {
+  --navy:   #1B365D;
+  --red:    #E8192C;
+  --dark:   #3D3D3D;
+  --white:  #ffffff;
+  --gray-100: #f4f6f9;
+  --gray-200: #e2e8f0;
+  --gray-400: #94a3b8;
+  --gray-600: #64748b;
+  --shadow: 0 2px 12px rgba(27,54,93,0.10);
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+  background: var(--gray-100);
+  color: var(--dark);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* 버튼 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity .15s, transform .1s;
+}
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-primary   { background: var(--navy); color: var(--white); }
+.btn-danger    { background: var(--red);  color: var(--white); }
+.btn-outline   { background: transparent; color: var(--navy); border: 1.5px solid var(--navy); }
+.btn-ghost     { background: transparent; color: var(--gray-600); }
+.btn-sm        { padding: 6px 14px; font-size: 13px; }
+.btn-full      { width: 100%; }
+
+/* 카드 */
+.card {
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+/* 배지 */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-pending  { background: #fef3c7; color: #92400e; }
+.badge-active   { background: #d1fae5; color: #065f46; }
+.badge-rejected { background: #fee2e2; color: #991b1b; }
+.badge-red      { background: var(--red); color: var(--white); }
+
+/* 폼 */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 13px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--dark);
+  transition: border-color .15s;
+}
+.form-input:focus { outline: none; border-color: var(--navy); }
+.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+/* 구분선 */
+.divider { border: none; border-top: 1px solid var(--gray-200); margin: 16px 0; }
+
+/* 유틸리티 */
+.text-center { text-align: center; }
+.text-sm     { font-size: 13px; }
+.text-muted  { color: var(--gray-400); }
+.mt-1 { margin-top: 8px; }
+.mt-2 { margin-top: 16px; }
+.mt-3 { margin-top: 24px; }
+.hidden { display: none !important; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.gap-2 { gap: 8px; }

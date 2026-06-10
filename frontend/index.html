@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1B365D">
+  <title>AJ 고소작업대 운영시스템</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+
+  <!-- Google Fonts (Noto Sans KR) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    /* 로그인 화면 */
+    .login-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1B365D 0%, #2d5a9e 100%);
+      padding: 20px;
+    }
+    .login-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px 32px;
+      text-align: center;
+      max-width: 380px;
+      width: 100%;
+      box-shadow: 0 8px 40px rgba(0,0,0,.25);
+    }
+    .login-logo {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+    .login-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1B365D;
+      margin-bottom: 4px;
+    }
+    .login-sub {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+    .login-divider {
+      margin: 24px 0 20px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 12px;
+    }
+    .login-sites {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    .login-site-badge {
+      background: #f4f6f9;
+      color: #1B365D;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* 대시보드 그리드 */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+    .dashboard-card { display: flex; flex-direction: column; }
+    .dash-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #f4f6f9;
+    }
+    .dash-icon  { font-size: 24px; }
+    .dash-label { font-size: 16px; font-weight: 700; color: #1B365D; }
+    .dash-content { flex: 1; }
+    .dash-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f4f6f9;
+    }
+    .dash-stat-row:last-child { border-bottom: none; }
+    .dash-stat-label { font-size: 13px; color: #64748b; }
+    .dash-stat-value { font-size: 16px; font-weight: 700; color: #1B365D; }
+    .text-red { color: #E8192C !important; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     로그인 페이지
+══════════════════════════════════════ -->
+<div id="page-login" class="page login-page">
+  <div class="login-box">
+    <div class="login-logo">🏗️</div>
+    <div class="login-title">AJ 고소작업대 운영시스템</div>
+    <div class="login-sub">
+      고소작업대 임대 운영 협업 플랫폼<br>
+      Google 계정으로 로그인하세요
+    </div>
+    <div class="login-sites">
+      <span class="login-site-badge">P4 복합동</span>
+      <span class="login-site-badge">P5 복합동</span>
+    </div>
+    <!-- Google 로그인 버튼 (GSI가 자동으로 렌더링) -->
+    <div id="google-btn" style="display:flex;justify-content:center"></div>
+    <div class="login-divider">구글 계정으로 1초 만에 로그인</div>
+    <p style="font-size:12px;color:#94a3b8">
+      처음 로그인 시 역할과 현장을 선택합니다.<br>
+      협력사·AS기사는 AJ관리자 승인 후 이용 가능합니다.
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     승인 대기 화면
+══════════════════════════════════════ -->
+<div id="page-pending" class="page hidden" style="min-height:100vh;background:var(--gray-100);display:flex;align-items:center;justify-content:center">
+  <div class="card pending-screen" style="max-width:400px;width:100%;margin:20px">
+    <div class="pending-icon">⏳</div>
+    <div class="pending-title">승인 대기 중</div>
+    <div class="pending-desc">
+      AJ관리자 검토 후 승인됩니다.<br>
+      승인 완료 시 알림이 발송됩니다.<br><br>
+      승인 완료 후 이 페이지를 새로고침하세요.
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="window.location.reload()">새로고침</button>
+    <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">로그아웃</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     거절 화면
+══════════════════════════════════════ -->
+<div id="page-rejected" class="page hidden" style="min-height:100vh;background:var(--gray-100);display:flex;align-items:center;justify-content:center">
+  <div class="card pending-screen" style="max-width:400px;width:100%;margin:20px">
+    <div class="pending-icon">❌</div>
+    <div class="pending-title">가입이 거절되었습니다</div>
+    <div class="pending-desc" id="reject-reason-text"></div>
+    <button class="btn btn-primary btn-sm" onclick="Auth.logout()">재신청하기</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     헤더
+══════════════════════════════════════ -->
+<header id="app-header" class="app-header hidden">
+  <div class="logo">🏗️ AJ 운영시스템</div>
+  <div class="header-right">
+    <span class="site-badge" id="header-site"></span>
+    <span id="header-name" style="font-size:13px"></span>
+    <!-- 알림 버튼 -->
+    <button class="notif-btn" onclick="App.toggleNotifPanel()" title="알림">
+      🔔
+      <span class="notif-dot hidden" id="notif-dot"></span>
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="Auth.logout()" style="color:#fff;font-size:12px">로그아웃</button>
+  </div>
+  <!-- 알림 패널 -->
+  <div id="notif-panel" class="notif-dropdown hidden" style="position:absolute;top:56px;right:0">
+    <div style="padding:12px 16px;font-weight:700;font-size:14px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between">
+      알림
+      <button class="btn btn-ghost btn-sm" onclick="Api.patch('/notifications/read-all',{}).then(()=>Notifications.loadNotifications())" style="font-size:12px">모두 읽음</button>
+    </div>
+    <div id="notif-list"></div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════
+     메인 레이아웃 (사이드바 + 콘텐츠)
+══════════════════════════════════════ -->
+<div id="app-layout" class="app-layout hidden">
+
+  <!-- 사이드바 (PC) -->
+  <nav class="sidebar">
+    <div class="sidebar-item active" data-page="home" onclick="App.showPage('home')">
+      <span class="sidebar-icon">🏠</span> 홈 대시보드
+    </div>
+    <div class="sidebar-item" data-page="transit" onclick="App.showPage('transit')">
+      <span class="sidebar-icon">🚛</span> 반입/반출 관리
+    </div>
+    <div class="sidebar-item" data-page="equipment" onclick="App.showPage('equipment')">
+      <span class="sidebar-icon">🏗️</span> 장비 관리
+    </div>
+    <div class="sidebar-item" data-page="as-request" onclick="App.showPage('as-request')">
+      <span class="sidebar-icon">🔧</span> AS 요청
+    </div>
+    <div class="sidebar-item" data-page="usage-log" onclick="App.showPage('usage-log')">
+      <span class="sidebar-icon">⏱️</span> 사용 기록
+    </div>
+    <div class="sidebar-item" data-page="analytics" onclick="App.showPage('analytics')">
+      <span class="sidebar-icon">📊</span> 분석 리포트
+    </div>
+    <hr class="divider" style="margin:8px 16px">
+    <div class="sidebar-item" data-page="admin" onclick="App.showPage('admin')">
+      <span class="sidebar-icon">👤</span> 사용자 관리
+    </div>
+  </nav>
+
+  <!-- 페이지 콘텐츠 -->
+  <main class="main-content">
+
+    <!-- 홈 -->
+    <div id="page-home" class="page hidden"></div>
+
+    <!-- 반입/반출 (S2에서 구현) -->
+    <div id="page-transit" class="page hidden">
+      <h2 class="section-title">반입/반출 관리</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S2에서 구현 예정입니다</div></div>
+    </div>
+
+    <!-- 장비 관리 (S2에서 구현) -->
+    <div id="page-equipment" class="page hidden">
+      <h2 class="section-title">장비 관리</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S2에서 구현 예정입니다</div></div>
+    </div>
+
+    <!-- AS 요청 (S3에서 구현) -->
+    <div id="page-as-request" class="page hidden">
+      <h2 class="section-title">AS 요청</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S3에서 구현 예정입니다</div></div>
+    </div>
+
+    <!-- 사용 기록 (S4에서 구현) -->
+    <div id="page-usage-log" class="page hidden">
+      <h2 class="section-title">장비 사용 기록</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S4에서 구현 예정입니다</div></div>
+    </div>
+
+    <!-- 분석 리포트 (S5에서 구현) -->
+    <div id="page-analytics" class="page hidden">
+      <h2 class="section-title">분석 리포트</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S5에서 구현 예정입니다</div></div>
+    </div>
+
+    <!-- 사용자 관리 -->
+    <div id="page-admin" class="page hidden"></div>
+
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════
+     하단 네비 (모바일)
+══════════════════════════════════════ -->
+<nav id="bottom-nav" class="bottom-nav hidden">
+  <div class="bottom-nav-inner">
+    <button class="bottom-nav-item active" data-page="home" onclick="App.showPage('home')">
+      <span class="nav-icon">🏠</span>홈
+    </button>
+    <button class="bottom-nav-item" data-page="transit" onclick="App.showPage('transit')">
+      <span class="nav-icon">🚛</span>반입반출
+    </button>
+    <button class="bottom-nav-item" data-page="as-request" onclick="App.showPage('as-request')">
+      <span class="nav-icon">🔧</span>AS요청
+    </button>
+    <button class="bottom-nav-item" data-page="usage-log" onclick="App.showPage('usage-log')">
+      <span class="nav-icon">⏱️</span>사용기록
+    </button>
+    <button class="bottom-nav-item" data-page="admin" onclick="App.showPage('admin')">
+      <span class="nav-icon">👤</span>관리
+    </button>
+  </div>
+</nav>
+
+<!-- JS — 의존 순서대로 로드 -->
+<script src="/js/components/toast.js"></script>
+<script src="/js/components/modal.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/notifications.js"></script>
+<script src="/js/pages/home.js"></script>
+<script src="/js/pages/admin.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/app.js"></script>
+
+<script>
+  // Service Worker 등록
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(console.warn);
+  }
+
+  // 로그인 페이지일 때 Google 버튼 렌더링
+  window.addEventListener('load', () => {
+    if (document.getElementById('page-login') &&
+        !document.getElementById('page-login').classList.contains('hidden')) {
+      Auth.renderGoogleBtn('google-btn');
+    }
+  });
+</script>
+
+</body>
+</html>
