@@ -60,6 +60,7 @@ const App = (() => {
       home:       () => HomePage.render(),
       transit:    () => TransitPage.render(),
       equipment:  () => EquipmentPage.render(),
+      'as-request': () => AsRequestPage.render(),
       admin:      () => AdminPage.render(),
     };
     renderers[pageId]?.();

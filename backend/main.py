@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import FRONTEND_URL
 from database import supabase
-from routers import users, notifications, transit, equipment
+from routers import users, notifications, transit, equipment, as_requests
 from passlib.context import CryptContext
 
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -51,6 +51,7 @@ app.include_router(users.router,         prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(transit.router,       prefix="/api")
 app.include_router(equipment.router,     prefix="/api")
+app.include_router(as_requests.router,   prefix="/api")
 
 # 프론트엔드 정적 파일 서빙 (같은 서버에서 배포할 때)
 # app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
