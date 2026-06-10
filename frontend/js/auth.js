@@ -44,6 +44,43 @@ const Auth = (() => {
       document.getElementById(containerId),
       { theme: 'outline', size: 'large', text: 'signin_with', locale: 'ko', width: 280 }
     );
+
+    // 관리자 로그인 버튼 이벤트 연결
+    document.getElementById('btn-admin-login')?.addEventListener('click', adminLogin);
+    // Enter 키로도 로그인
+    document.getElementById('admin-pw-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') adminLogin();
+    });
+  }
+
+  // ── 관리자 ID/PW 로그인 ───────────────────────────────────
+  async function adminLogin() {
+    const adminId  = document.getElementById('admin-id-input').value.trim();
+    const password = document.getElementById('admin-pw-input').value;
+
+    if (!adminId || !password) {
+      Toast.error('아이디와 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-admin-login');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> 로그인 중...';
+
+    try {
+      const res = await Api.post('/users/auth/admin', { admin_id: adminId, password });
+
+      localStorage.setItem('app_token', res.token);
+      localStorage.setItem('app_user', JSON.stringify(res.user));
+      _user = res.user;
+
+      Notifications.requestPermission();
+      App.showPage('home');
+      Toast.success(`환영합니다, ${res.user.name}님!`);
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = '관리자 로그인';
+    }
   }
 
   // ── Google 콜백 → 역할 선택 모달 ─────────────────────────

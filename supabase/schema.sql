@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS app_users (
   site_id       text CHECK (site_id IN ('P4','P5','ALL')) NOT NULL,
   status        text DEFAULT 'pending' CHECK (status IN ('pending','active','rejected')),
   reject_reason text,
+  local_id      text UNIQUE,            -- 관리자 전용 ID (Google 없이 로그인)
+  pw_hash       text,                   -- 관리자 전용 비밀번호 해시 (bcrypt)
   push_sub      jsonb,                   -- PWA Push 구독 정보
   notif_prefs   jsonb DEFAULT '{"transit":true,"as":true,"approval":true}',
   created_at    timestamptz DEFAULT now(),

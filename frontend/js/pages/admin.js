@@ -16,6 +16,17 @@ const AdminPage = (() => {
     document.getElementById('page-admin').innerHTML = `
       <h2 class="section-title">사용자 관리</h2>
 
+      <!-- 관리자 계정 설정 카드 -->
+      <div class="card" style="margin-bottom:20px;border-left:4px solid var(--navy)">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-weight:700;font-size:15px;color:var(--navy)">🔐 관리자 계정 설정</div>
+            <div class="text-sm text-muted" style="margin-top:3px">관리자 로그인 아이디와 비밀번호를 변경합니다.</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="AdminPage.openCredentialsModal()">계정 정보 변경</button>
+        </div>
+      </div>
+
       <div class="search-bar">
         <select id="admin-filter-status" class="form-input form-select" style="max-width:160px">
           <option value="">전체</option>
@@ -194,5 +205,68 @@ const AdminPage = (() => {
     };
   }
 
-  return { render, loadUsers, approveUser, rejectUser, changeRole };
+  // ── 관리자 계정 ID/PW 변경 ──────────────────────────────────
+  function openCredentialsModal() {
+    Modal.open({
+      title: '🔐 관리자 계정 정보 변경',
+      body: `
+        <p class="text-sm text-muted" style="margin-bottom:16px">
+          현재 비밀번호 확인 후 아이디·비밀번호를 변경할 수 있습니다.<br>
+          변경하지 않을 항목은 비워두세요.
+        </p>
+        <div class="form-group">
+          <label class="form-label">현재 비밀번호 <span style="color:var(--red)">*</span></label>
+          <input id="inp-cur-pw" type="password" class="form-input" placeholder="현재 비밀번호 입력">
+        </div>
+        <hr class="divider">
+        <div class="form-group">
+          <label class="form-label">새 아이디 (변경 시 입력)</label>
+          <input id="inp-new-id" type="text" class="form-input" placeholder="새 아이디">
+        </div>
+        <div class="form-group">
+          <label class="form-label">새 비밀번호 (변경 시 입력)</label>
+          <input id="inp-new-pw" type="password" class="form-input" placeholder="새 비밀번호 (4자 이상)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">새 비밀번호 확인</label>
+          <input id="inp-new-pw2" type="password" class="form-input" placeholder="새 비밀번호 재입력">
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-cred">변경 저장</button>
+      `,
+    });
+
+    document.getElementById('btn-save-cred').onclick = async () => {
+      const curPw  = document.getElementById('inp-cur-pw').value;
+      const newId  = document.getElementById('inp-new-id').value.trim();
+      const newPw  = document.getElementById('inp-new-pw').value;
+      const newPw2 = document.getElementById('inp-new-pw2').value;
+
+      if (!curPw) { Toast.error('현재 비밀번호를 입력해주세요.'); return; }
+      if (newPw && newPw !== newPw2) { Toast.error('새 비밀번호가 일치하지 않습니다.'); return; }
+      if (newPw && newPw.length < 4) { Toast.error('비밀번호는 4자 이상이어야 합니다.'); return; }
+      if (!newId && !newPw) { Toast.error('변경할 아이디 또는 비밀번호를 입력해주세요.'); return; }
+
+      const btn = document.getElementById('btn-save-cred');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>';
+
+      try {
+        await Api.patch('/users/me/credentials', {
+          current_password: curPw,
+          new_admin_id: newId || undefined,
+          new_password: newPw || undefined,
+        });
+        Modal.close();
+        Toast.success('계정 정보가 변경되었습니다.');
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '변경 저장';
+      }
+    };
+  }
+
+  return { render, loadUsers, approveUser, rejectUser, changeRole, openCredentialsModal };
 })();

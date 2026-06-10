@@ -1,17 +1,22 @@
 """
 사용자 관리 라우터
 - Google 로그인/가입
+- 관리자 ID/PW 로그인
 - 승인/거절 (AJ관리자)
 - 역할 변경 (AJ관리자)
 - 알림 설정 변경
+- 관리자 계정 ID/PW 변경
 """
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
+from passlib.context import CryptContext
 
 from auth import verify_google_token, create_app_token, get_current_user, require_role
 from database import supabase
 from models.user import (
     GoogleLoginRequest,
+    AdminLoginRequest,
+    ChangeCredentialsRequest,
     ApproveUserRequest,
     UpdateRoleRequest,
     UpdateNotifPrefsRequest,
@@ -19,6 +24,7 @@ from models.user import (
 from services.push_service import send_push
 
 router = APIRouter(prefix="/users", tags=["users"])
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ROLE_LABELS = {
     "tech": "기술인",
@@ -227,6 +233,80 @@ async def save_push_subscription(
     """PWA Push 구독 정보를 저장합니다."""
     supabase.table("app_users").update({"push_sub": body}).eq("id", current_user["sub"]).execute()
     return {"ok": True}
+
+
+# ─── 관리자 ID/PW 로그인 ────────────────────────────────────
+
+
+@router.post("/auth/admin")
+async def admin_login(body: AdminLoginRequest):
+    """
+    관리자 ID/PW 로그인입니다.
+    Google 계정 없이도 관리자 기능을 사용할 수 있습니다.
+    """
+    res = supabase.table("app_users").select("*").eq("local_id", body.admin_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+
+    user = res.data[0]
+
+    if not user.get("pw_hash") or not _pwd.verify(body.password, user["pw_hash"]):
+        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+
+    if user["status"] != "active":
+        raise HTTPException(status_code=403, detail="비활성화된 계정입니다.")
+
+    token = create_app_token(user["id"], user["role"], user["site_id"])
+    return {
+        "status": "active",
+        "token": token,
+        "user": {
+            "id":      user["id"],
+            "name":    user["name"],
+            "email":   user["email"],
+            "role":    user["role"],
+            "site_id": user["site_id"],
+        },
+    }
+
+
+# ─── 관리자 계정 ID/PW 변경 ─────────────────────────────────
+
+
+@router.patch("/me/credentials")
+async def change_credentials(
+    body: ChangeCredentialsRequest,
+    current_user: dict = Depends(require_role("aj")),
+):
+    """
+    관리자 아이디와 비밀번호를 변경합니다.
+    현재 비밀번호 확인 후 변경됩니다.
+    """
+    res = supabase.table("app_users").select("local_id,pw_hash").eq("id", current_user["sub"]).single().execute()
+    user = res.data
+    if not user or not user.get("pw_hash"):
+        raise HTTPException(status_code=400, detail="이 계정은 ID/PW 변경이 지원되지 않습니다.")
+
+    if not _pwd.verify(body.current_password, user["pw_hash"]):
+        raise HTTPException(status_code=401, detail="현재 비밀번호가 올바르지 않습니다.")
+
+    update_data = {}
+    if body.new_admin_id:
+        # 중복 아이디 체크
+        dup = supabase.table("app_users").select("id").eq("local_id", body.new_admin_id).execute()
+        if dup.data and dup.data[0]["id"] != current_user["sub"]:
+            raise HTTPException(status_code=409, detail="이미 사용 중인 아이디입니다.")
+        update_data["local_id"] = body.new_admin_id
+    if body.new_password:
+        if len(body.new_password) < 4:
+            raise HTTPException(status_code=400, detail="비밀번호는 4자 이상이어야 합니다.")
+        update_data["pw_hash"] = _pwd.hash(body.new_password)
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="변경할 내용이 없습니다.")
+
+    supabase.table("app_users").update(update_data).eq("id", current_user["sub"]).execute()
+    return {"ok": True, "message": "계정 정보가 변경되었습니다."}
 
 
 # ─── 내부 헬퍼 ──────────────────────────────────────────────

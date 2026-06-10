@@ -1,18 +1,40 @@
 """
 고소작업대 운영 앱 — FastAPI 백엔드 진입점
 """
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from config import FRONTEND_URL
+from database import supabase
 from routers import users, notifications
+from passlib.context import CryptContext
+
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """서버 시작 시 기본 관리자 계정이 없으면 자동 생성합니다."""
+    existing = supabase.table("app_users").select("id").eq("local_id", "admin").execute()
+    if not existing.data:
+        supabase.table("app_users").insert({
+            "google_id": "__admin_local__",
+            "email":     "admin@local",
+            "name":      "관리자",
+            "role":      "aj",
+            "site_id":   "ALL",
+            "status":    "active",
+            "local_id":  "admin",
+            "pw_hash":   _pwd.hash("aj1234"),
+        }).execute()
+    yield
 
 app = FastAPI(
     title="AJ 고소작업대 운영 API",
     version="1.0.0",
-    docs_url="/api/docs",   # Swagger UI
+    docs_url="/api/docs",
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 # CORS — 프론트엔드 도메인만 허용

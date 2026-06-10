@@ -28,3 +28,16 @@ class UpdateNotifPrefsRequest(BaseModel):
     transit: bool = True
     as_: bool = True
     approval: bool = True
+
+
+class AdminLoginRequest(BaseModel):
+    """관리자 ID/PW 로그인 요청"""
+    admin_id: str   # 관리자가 설정한 아이디
+    password: str   # 평문 패스워드 (전송 후 서버에서 해시 비교)
+
+
+class ChangeCredentialsRequest(BaseModel):
+    """관리자 계정 ID/PW 변경 요청"""
+    current_password: str          # 현재 패스워드 확인
+    new_admin_id: Optional[str] = None   # 새 아이디 (변경 안 하면 생략)
+    new_password: Optional[str] = None  # 새 패스워드 (변경 안 하면 생략)
