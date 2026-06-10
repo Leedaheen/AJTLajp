@@ -1,0 +1,333 @@
+/**
+ * 사용 기록 페이지
+ * - 오늘의 가동 현황 요약 (총 가동시간, 장비 수)
+ * - 기록 목록 (날짜/현장/장비 필터)
+ * - 가동 시작 (tech·partner·aj)
+ * - 가동 종료
+ */
+const UsageLogPage = (() => {
+  const LS = 'usage_form_';
+
+  function _saveField(key, val) { if (val) localStorage.setItem(LS + key, val); }
+  function _load(key)           { return localStorage.getItem(LS + key) || ''; }
+
+  // ── 렌더 ─────────────────────────────────────────────────
+  async function render() {
+    const user = Auth.getUser();
+    const canStart = ['tech','partner','aj'].includes(user.role);
+    const today = new Date().toISOString().slice(0, 10);
+
+    document.getElementById('page-usage-log').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <h2 class="section-title" style="margin:0">장비 사용 기록</h2>
+        ${canStart ? `<button class="btn btn-primary btn-sm" onclick="UsageLogPage.openStartForm()">+ 가동 시작</button>` : ''}
+      </div>
+
+      <!-- 요약 카드 -->
+      <div id="usage-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px"></div>
+
+      <!-- 필터 -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <input id="filter-date" type="date" class="form-input" value="${today}" style="width:160px">
+        <select id="filter-site" class="form-input form-select" style="width:130px">
+          <option value="">전체 현장</option>
+          <option value="P4">P4 복합동</option>
+          <option value="P5">P5 복합동</option>
+        </select>
+        <input id="filter-equip" type="text" class="form-input" placeholder="장비번호 검색" style="width:160px">
+        <button class="btn btn-primary btn-sm" onclick="UsageLogPage.loadList()">검색</button>
+      </div>
+
+      <!-- 가동 중 섹션 -->
+      <div id="active-logs-section" style="margin-bottom:20px"></div>
+
+      <!-- 전체 기록 -->
+      <div class="card" style="overflow:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>날짜</th>
+              <th>장비번호</th>
+              <th>현장</th>
+              <th>업체</th>
+              <th>층/위치</th>
+              <th>기록자</th>
+              <th>시작</th>
+              <th>종료</th>
+              <th>사용시간</th>
+              <th>상태</th>
+              ${canStart ? '<th></th>' : ''}
+            </tr>
+          </thead>
+          <tbody id="log-tbody">
+            <tr><td colspan="11" class="text-center">
+              <span class="spinner" style="display:block;margin:16px auto"></span>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    document.getElementById('filter-date').addEventListener('change', loadList);
+    document.getElementById('filter-equip').addEventListener('keydown', e => {
+      if (e.key === 'Enter') loadList();
+    });
+
+    await Promise.all([loadSummary(), loadList()]);
+  }
+
+  // ── 요약 ─────────────────────────────────────────────────
+  async function loadSummary() {
+    const date   = document.getElementById('filter-date')?.value || new Date().toISOString().slice(0,10);
+    const siteId = document.getElementById('filter-site')?.value || '';
+    const params = new URLSearchParams({ date });
+    if (siteId) params.set('site_id', siteId);
+
+    try {
+      const s = await Api.get(`/usage-logs/summary?${params}`);
+      document.getElementById('usage-summary').innerHTML = `
+        <div class="card" style="text-align:center;padding:16px">
+          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">총 가동시간</div>
+          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.total_hours}<span style="font-size:14px;margin-left:2px">h</span></div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px">
+          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">가동 장비 수</div>
+          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.equip_count}<span style="font-size:14px;margin-left:2px">대</span></div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px">
+          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">기록 건수</div>
+          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.record_count}<span style="font-size:14px;margin-left:2px">건</span></div>
+        </div>
+      `;
+    } catch {
+      document.getElementById('usage-summary').innerHTML = '';
+    }
+  }
+
+  // ── 목록 ─────────────────────────────────────────────────
+  async function loadList() {
+    const date   = document.getElementById('filter-date')?.value || '';
+    const siteId = document.getElementById('filter-site')?.value || '';
+    const equip  = document.getElementById('filter-equip')?.value.trim() || '';
+
+    const tbody = document.getElementById('log-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center"><span class="spinner" style="display:block;margin:16px auto"></span></td></tr>';
+
+    const params = new URLSearchParams({ limit: 200 });
+    if (date)   params.set('date', date);
+    if (siteId) params.set('site_id', siteId);
+    if (equip)  params.set('equip', equip);
+
+    try {
+      const list = await Api.get(`/usage-logs?${params}`);
+      const user = Auth.getUser();
+      const canStart = ['tech','partner','aj'].includes(user.role);
+
+      // 가동 중 항목 별도 표시
+      const active = list.filter(r => r.status === 'using');
+      _renderActiveSection(active, canStart);
+
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted" style="padding:24px">기록이 없습니다</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = list.map(r => `
+        <tr style="${r.status==='using'?'background:#f0f9ff':''}">
+          <td class="text-sm">${r.date || '-'}</td>
+          <td><strong>${r.equip || '-'}</strong></td>
+          <td class="text-sm">${r.site_name || r.site_id || '-'}</td>
+          <td class="text-sm">${r.company || '-'}</td>
+          <td class="text-sm">${r.floor || '-'}</td>
+          <td class="text-sm">${r.recorder || '-'}</td>
+          <td class="text-sm">${r.start_time || '-'}</td>
+          <td class="text-sm">${r.end_time || '-'}</td>
+          <td style="font-weight:600;color:var(--navy)">
+            ${r.status === 'using' ? '<span class="badge badge-active">가동중</span>' : `${r.used_hours || 0}h`}
+          </td>
+          <td>
+            ${r.status === 'using'
+              ? '<span class="badge badge-active">가동중</span>'
+              : '<span class="badge" style="background:#f3f4f6;color:#374151">완료</span>'
+            }
+          </td>
+          ${canStart ? `
+            <td>
+              ${r.status === 'using'
+                ? `<button class="btn btn-danger btn-sm" onclick="UsageLogPage.openEndForm(${r.id},'${r.equip}')">종료</button>`
+                : ''
+              }
+            </td>
+          ` : '<td></td>'}
+        </tr>
+      `).join('');
+
+      // 요약도 갱신
+      loadSummary();
+    } catch {
+      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">불러오기 실패</td></tr>';
+    }
+  }
+
+  function _renderActiveSection(active, canStart) {
+    const el = document.getElementById('active-logs-section');
+    if (!el || !active.length) { if (el) el.innerHTML = ''; return; }
+
+    el.innerHTML = `
+      <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:8px">
+        현재 가동 중 (${active.length}대)
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        ${active.map(r => `
+          <div class="card" style="padding:12px 16px;min-width:200px;border-left:3px solid var(--navy)">
+            <div style="font-weight:700;font-size:14px;color:var(--navy)">${r.equip}</div>
+            <div style="font-size:12px;color:var(--gray-400);margin-top:2px">${r.site_name || r.site_id} · ${r.floor}</div>
+            <div style="font-size:12px;margin-top:4px">시작: <strong>${r.start_time}</strong> · ${r.recorder}</div>
+            ${canStart ? `<button class="btn btn-danger btn-sm" style="margin-top:8px;width:100%"
+              onclick="UsageLogPage.openEndForm(${r.id},'${r.equip}')">가동 종료</button>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // ── 가동 시작 폼 ─────────────────────────────────────────
+  function openStartForm() {
+    Modal.open({
+      title: '가동 시작',
+      body: `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
+            <select id="sl-site" class="form-input form-select">
+              <option value="P4">P4 복합동</option>
+              <option value="P5">P5 복합동</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
+            <input id="sl-company" class="form-input" placeholder="업체명" value="${_load('company') || localStorage.getItem('saved_company') || ''}">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
+            <input id="sl-equip" class="form-input" placeholder="예: GF123" value="${_load('equip')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">층/위치 <span style="color:var(--red)">*</span></label>
+            <input id="sl-floor" class="form-input" placeholder="예: 5층 A구역" value="${_load('floor')}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">기록자 <span style="color:var(--red)">*</span></label>
+          <input id="sl-recorder" class="form-input" placeholder="이름" value="${_load('recorder')}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">미터기 시작값</label>
+          <input id="sl-meter-start" class="form-input" placeholder="시작 미터값 (선택)">
+        </div>
+        <div style="font-size:12px;color:var(--gray-400);margin-top:4px">
+          시작 시각은 지금 시각으로 자동 기록됩니다.
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-do-start">가동 시작</button>
+      `,
+    });
+
+    document.getElementById('btn-do-start').onclick = async () => {
+      const siteId   = document.getElementById('sl-site').value;
+      const company  = document.getElementById('sl-company').value.trim();
+      const equip    = document.getElementById('sl-equip').value.trim();
+      const floor    = document.getElementById('sl-floor').value.trim();
+      const recorder = document.getElementById('sl-recorder').value.trim();
+
+      if (!company || !equip || !floor || !recorder) {
+        Toast.error('필수 항목을 모두 입력해주세요.'); return;
+      }
+
+      // 자동완성 저장
+      _saveField('company',  company);
+      _saveField('equip',    equip);
+      _saveField('floor',    floor);
+      _saveField('recorder', recorder);
+
+      const btn = document.getElementById('btn-do-start');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+      try {
+        await Api.post('/usage-logs', {
+          site_id:     siteId,
+          site_name:   siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
+          company, equip, floor, recorder,
+          meter_start: document.getElementById('sl-meter-start').value.trim(),
+        });
+        Modal.close();
+        Toast.success(`${equip} 가동이 시작되었습니다.`);
+        loadList();
+      } catch (e) {
+        // 409: 이미 가동 중
+        btn.disabled = false; btn.textContent = '가동 시작';
+      }
+    };
+  }
+
+  // ── 가동 종료 폼 ─────────────────────────────────────────
+  function openEndForm(logId, equipNo) {
+    const now = new Date();
+    const nowTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    Modal.open({
+      title: `가동 종료 — ${equipNo}`,
+      body: `
+        <div class="form-group">
+          <label class="form-label">종료 시각 <span style="color:var(--red)">*</span></label>
+          <input id="el-end-time" type="time" class="form-input" value="${nowTime}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">미터기 종료값</label>
+          <input id="el-meter-end" class="form-input" placeholder="종료 미터값 (선택)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">종료 사유</label>
+          <select id="el-off-reason" class="form-input form-select">
+            <option value="">정상 종료</option>
+            <option value="작업 완료">작업 완료</option>
+            <option value="점심 휴식">점심 휴식</option>
+            <option value="퇴근">퇴근</option>
+            <option value="장비 고장">장비 고장</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-danger btn-sm" id="btn-do-end">가동 종료</button>
+      `,
+    });
+
+    document.getElementById('btn-do-end').onclick = async () => {
+      const endTime = document.getElementById('el-end-time').value;
+      if (!endTime) { Toast.error('종료 시각을 입력해주세요.'); return; }
+
+      const btn = document.getElementById('btn-do-end');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+      try {
+        const res = await Api.patch(`/usage-logs/${logId}/end`, {
+          end_time:   endTime,
+          meter_end:  document.getElementById('el-meter-end').value.trim(),
+          off_reason: document.getElementById('el-off-reason').value,
+        });
+        Modal.close();
+        Toast.success(`가동 종료 완료 · 사용시간 ${res.used_hours}h`);
+        loadList();
+      } catch { btn.disabled = false; btn.textContent = '가동 종료'; }
+    };
+  }
+
+  return { render, loadList, loadSummary, openStartForm, openEndForm };
+})();

@@ -61,6 +61,7 @@ const App = (() => {
       transit:    () => TransitPage.render(),
       equipment:  () => EquipmentPage.render(),
       'as-request': () => AsRequestPage.render(),
+      'usage-log':  () => UsageLogPage.render(),
       admin:      () => AdminPage.render(),
     };
     renderers[pageId]?.();
