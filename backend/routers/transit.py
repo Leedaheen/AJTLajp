@@ -1,0 +1,345 @@
+"""
+반입/반출 신청 라우터
+- 신청 등록 (협력사·AJ)
+- 목록/상세 조회
+- 일정 확정 + 배차 (AJ)
+- 수정 (변경이력 자동기록)
+- 완료 처리 (AJ) → 반입 시 QR 자동 생성
+- 취소
+"""
+from datetime import datetime, timezone
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from auth import get_current_user, require_role
+from database import supabase
+from models.transit import (
+    TransitCreateRequest,
+    TransitScheduleRequest,
+    TransitUpdateRequest,
+    TransitCancelRequest,
+)
+from services.push_service import send_push
+
+router = APIRouter(prefix="/transit", tags=["transit"])
+
+SITE_NAMES = {"P4": "P4 복합동", "P5": "P5 복합동"}
+SPEC_OPTIONS = ["6M","8M","10M","12M","14M","16M","16M굴절","18M","20M굴절"]
+
+
+# ─── 목록 조회 ────────────────────────────────────────────────
+@router.get("")
+async def list_transit(
+    status: str = None,
+    type: str = None,
+    site_id: str = None,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
+):
+    query = supabase.table("transit").select("*").order("created_at", desc=True).limit(limit)
+
+    # 협력사는 본인 현장만
+    if current_user["role"] == "partner":
+        query = query.eq("site_id", current_user["site_id"])
+
+    if status:  query = query.eq("status", status)
+    if type:    query = query.eq("type", type)
+    if site_id: query = query.eq("site_id", site_id)
+
+    return (query.execute()).data
+
+
+# ─── 상세 조회 ────────────────────────────────────────────────
+@router.get("/{transit_id}")
+async def get_transit(transit_id: int, current_user: dict = Depends(get_current_user)):
+    res = supabase.table("transit").select("*").eq("id", transit_id).single().execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="신청 내역을 찾을 수 없습니다.")
+    return res.data
+
+
+# ─── 신청 등록 ────────────────────────────────────────────────
+@router.post("")
+async def create_transit(body: TransitCreateRequest, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] not in ("partner", "aj"):
+        raise HTTPException(status_code=403, detail="반입/반출 신청 권한이 없습니다.")
+
+    record_id = f"TR-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
+
+    data = {
+        "record_id":       record_id,
+        "type":            body.type,
+        "site_id":         body.site_id,
+        "site_name":       SITE_NAMES.get(body.site_id, body.site_id),
+        "company":         body.company,
+        "equip_specs":     [s.dict() for s in body.equip_specs],
+        "reporter_name":   body.reporter_name,
+        "reporter_phone":  body.reporter_phone,
+        "manager_name":    body.manager_name,
+        "manager_phone":   body.manager_phone,
+        "manager_location":body.manager_location,
+        "requested_date":  body.requested_date,
+        "note":            body.note,
+        "status":          "requested",
+        "change_log":      [],
+        "created_by":      current_user["sub"],
+    }
+    res = supabase.table("transit").insert(data).execute()
+    transit = res.data[0]
+
+    # AJ관리자 전원에게 알림
+    _notify_aj(
+        type_="transit",
+        title=f"[{'반입' if body.type=='in' else '반출'} 신청] {body.company}",
+        body=f"{body.site_name} / {_specs_str(body.equip_specs)} / 희망일: {body.requested_date or '미정'}",
+        ref_id=str(transit["id"]),
+    )
+    return transit
+
+
+# ─── 일정 확정 + 배차 (AJ) ────────────────────────────────────
+@router.patch("/{transit_id}/schedule")
+async def schedule_transit(
+    transit_id: int,
+    body: TransitScheduleRequest,
+    current_user: dict = Depends(require_role("aj")),
+):
+    old = _get_or_404(transit_id)
+    now_str = _now_str()
+
+    log_entry = {
+        "who":    f"{_me_name(current_user)}(AJ관리자)",
+        "when":   now_str,
+        "before": f"확정일: {old.get('scheduled_date','미정')} / 배차: {old.get('driver_info','미정')}",
+        "after":  f"확정일: {body.scheduled_date} / 배차: {body.driver_info or '미정'}",
+    }
+    change_log = (old.get("change_log") or []) + [log_entry]
+
+    update = {
+        "status":         "scheduled",
+        "scheduled_date": body.scheduled_date,
+        "vehicle_info":   body.vehicle_info,
+        "driver_info":    body.driver_info,
+        "change_log":     change_log,
+    }
+    if body.note is not None:
+        update["note"] = body.note
+
+    supabase.table("transit").update(update).eq("id", transit_id).execute()
+
+    # 협력사에게 알림
+    _notify_partner(
+        old=old,
+        type_="transit",
+        title=f"[일정 확정] {old['company']}",
+        body=f"확정일: {body.scheduled_date} / 배차: {body.driver_info or '미정'}",
+        ref_id=str(transit_id),
+    )
+    return {"ok": True}
+
+
+# ─── 수정 (변경이력 자동기록) ─────────────────────────────────
+@router.patch("/{transit_id}")
+async def update_transit(
+    transit_id: int,
+    body: TransitUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] not in ("partner", "aj"):
+        raise HTTPException(status_code=403, detail="수정 권한이 없습니다.")
+
+    old = _get_or_404(transit_id)
+    changes = []
+    update = {}
+
+    field_labels = {
+        "scheduled_date": "확정일",
+        "requested_date": "희망일",
+        "vehicle_info":   "배차차량",
+        "driver_info":    "배차기사",
+        "manager_name":   "양중담당자",
+        "manager_phone":  "양중담당자 연락처",
+        "note":           "비고",
+    }
+
+    for field, label in field_labels.items():
+        new_val = getattr(body, field)
+        if new_val is not None and new_val != old.get(field):
+            changes.append({
+                "who":    f"{_me_name(current_user)}({_role_label(current_user['role'])})",
+                "when":   _now_str(),
+                "before": f"{label}: {old.get(field, '') or '없음'}",
+                "after":  f"{label}: {new_val}",
+            })
+            update[field] = new_val
+
+    if not update:
+        return {"ok": True, "message": "변경 사항 없음"}
+
+    change_log = (old.get("change_log") or []) + changes
+    update["change_log"] = change_log
+    supabase.table("transit").update(update).eq("id", transit_id).execute()
+
+    # 관련자 알림
+    _notify_related(
+        old=old,
+        actor=current_user,
+        type_="transit",
+        title=f"[일정 변경] {old['company']}",
+        body=" | ".join([f"{c['before']} → {c['after']}" for c in changes]),
+        ref_id=str(transit_id),
+    )
+    return {"ok": True}
+
+
+# ─── 완료 처리 (AJ) ──────────────────────────────────────────
+@router.patch("/{transit_id}/complete")
+async def complete_transit(
+    transit_id: int,
+    current_user: dict = Depends(require_role("aj")),
+):
+    old = _get_or_404(transit_id)
+    now = datetime.now(timezone.utc)
+
+    update = {
+        "status":       "completed",
+        "completed_at": now.isoformat(),
+    }
+
+    # 반입 완료 → 장비별 QR 코드 생성
+    if old["type"] == "in":
+        equip_specs = old.get("equip_specs") or []
+        created_equips = []
+        for spec_item in equip_specs:
+            for i in range(spec_item.get("qty", 1)):
+                qr_code = f"AJ-{uuid.uuid4().hex[:8].upper()}"
+                equip_no = f"{old['site_id']}-{spec_item['spec']}-{uuid.uuid4().hex[:4].upper()}"
+                record_id = f"EQ-{uuid.uuid4().hex[:8].upper()}"
+                eq = {
+                    "record_id": record_id,
+                    "equip_no":  equip_no,
+                    "spec":      spec_item["spec"],
+                    "site_id":   old["site_id"],
+                    "site_name": old["site_name"],
+                    "company":   old["company"],
+                    "status":    "stock",
+                    "qr_code":   qr_code,
+                    "in_date":   now.strftime("%Y-%m-%d"),
+                    "transit_id":transit_id,
+                }
+                supabase.table("equipment").insert(eq).execute()
+                created_equips.append(equip_no)
+        update["aj_equip"] = ", ".join(created_equips)
+
+    # 반출 완료 → QR 삭제
+    elif old["type"] == "out":
+        supabase.table("equipment")\
+            .update({"qr_code": None, "status": "returned", "out_date": now.strftime("%Y-%m-%d")})\
+            .eq("transit_id", transit_id).execute()
+
+    supabase.table("transit").update(update).eq("id", transit_id).execute()
+
+    _notify_partner(
+        old=old,
+        type_="transit",
+        title=f"[{'반입' if old['type']=='in' else '반출'} 완료] {old['company']}",
+        body=f"{old['site_name']} 반{'입' if old['type']=='in' else '출'} 처리가 완료되었습니다.",
+        ref_id=str(transit_id),
+    )
+    return {"ok": True}
+
+
+# ─── 취소 ─────────────────────────────────────────────────────
+@router.patch("/{transit_id}/cancel")
+async def cancel_transit(
+    transit_id: int,
+    body: TransitCancelRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] not in ("partner", "aj"):
+        raise HTTPException(status_code=403, detail="취소 권한이 없습니다.")
+
+    old = _get_or_404(transit_id)
+    log_entry = {
+        "who":    f"{_me_name(current_user)}({_role_label(current_user['role'])})",
+        "when":   _now_str(),
+        "before": f"상태: {old['status']}",
+        "after":  "취소",
+    }
+    change_log = (old.get("change_log") or []) + [log_entry]
+
+    supabase.table("transit").update({
+        "status":           "cancelled",
+        "cancelled_reason": body.cancelled_reason,
+        "change_log":       change_log,
+    }).eq("id", transit_id).execute()
+
+    _notify_related(
+        old=old, actor=current_user,
+        type_="transit",
+        title=f"[신청 취소] {old['company']}",
+        body=f"취소 사유: {body.cancelled_reason}",
+        ref_id=str(transit_id),
+    )
+    return {"ok": True}
+
+
+# ─── 내부 헬퍼 ────────────────────────────────────────────────
+def _get_or_404(transit_id: int) -> dict:
+    res = supabase.table("transit").select("*").eq("id", transit_id).single().execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="신청 내역을 찾을 수 없습니다.")
+    return res.data
+
+def _now_str() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+
+def _me_name(user: dict) -> str:
+    res = supabase.table("app_users").select("name").eq("id", user["sub"]).single().execute()
+    return res.data["name"] if res.data else "알 수 없음"
+
+def _role_label(role: str) -> str:
+    return {"tech":"기술인","partner":"협력사","aj":"AJ관리자","as_tech":"AS기사"}.get(role, role)
+
+def _specs_str(specs) -> str:
+    return ", ".join([f"{s.spec}×{s.qty}" for s in specs])
+
+def _save_notif(target_id, type_, title, body, ref_id=None):
+    supabase.table("notifications").insert({
+        "target_id": target_id, "type": type_,
+        "title": title, "body": body, "ref_id": ref_id,
+    }).execute()
+
+def _notify_aj(type_, title, body, ref_id=None):
+    ajs = supabase.table("app_users").select("id,push_sub,notif_prefs").eq("role","aj").eq("status","active").execute()
+    for u in ajs.data or []:
+        _save_notif(u["id"], type_, title, body, ref_id)
+        if u.get("push_sub") and (u.get("notif_prefs") or {}).get("transit", True):
+            try: send_push(u["push_sub"], title, body)
+            except: pass
+
+def _notify_partner(old, type_, title, body, ref_id=None):
+    if not old.get("created_by"): return
+    user = supabase.table("app_users").select("id,push_sub,notif_prefs").eq("id", old["created_by"]).single().execute()
+    if user.data:
+        _save_notif(user.data["id"], type_, title, body, ref_id)
+        if user.data.get("push_sub") and (user.data.get("notif_prefs") or {}).get("transit", True):
+            try: send_push(user.data["push_sub"], title, body)
+            except: pass
+
+def _notify_related(old, actor, type_, title, body, ref_id=None):
+    notified = set()
+    # 신청자
+    if old.get("created_by") and old["created_by"] != actor["sub"]:
+        _save_notif(old["created_by"], type_, title, body, ref_id)
+        notified.add(old["created_by"])
+    # AJ관리자
+    ajs = supabase.table("app_users").select("id,push_sub,notif_prefs").eq("role","aj").eq("status","active").execute()
+    for u in ajs.data or []:
+        if u["id"] not in notified and u["id"] != actor["sub"]:
+            _save_notif(u["id"], type_, title, body, ref_id)
+            notified.add(u["id"])
+            if u.get("push_sub") and (u.get("notif_prefs") or {}).get("transit", True):
+                try: send_push(u["push_sub"], title, body)
+                except: pass

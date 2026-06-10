@@ -58,6 +58,8 @@ const App = (() => {
     // 페이지별 렌더 함수 호출
     const renderers = {
       home:       () => HomePage.render(),
+      transit:    () => TransitPage.render(),
+      equipment:  () => EquipmentPage.render(),
       admin:      () => AdminPage.render(),
     };
     renderers[pageId]?.();
