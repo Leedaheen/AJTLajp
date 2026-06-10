@@ -18,8 +18,7 @@ const HomePage = (() => {
         <!-- 반입반출 일정 -->
         <div class="card dashboard-card">
           <div class="dash-card-header">
-            <span class="dash-icon">🚛</span>
-            <span class="dash-label">반입반출 일정</span>
+            <span class="dash-label">반입/반출 일정</span>
           </div>
           <div id="dash-transit" class="dash-content">
             <div class="spinner" style="margin:20px auto;display:block"></div>
@@ -30,14 +29,13 @@ const HomePage = (() => {
             onclick="App.showPage('transit')"
             ${!ROLE_TRANSIT_ACCESS.includes(user.role) ? 'disabled title="접근 권한이 없습니다"' : ''}
           >
-            ${!ROLE_TRANSIT_ACCESS.includes(user.role) ? '🔒 권한 없음' : '바로가기 →'}
+            ${!ROLE_TRANSIT_ACCESS.includes(user.role) ? '접근 권한 없음' : '바로가기 →'}
           </button>
         </div>
 
         <!-- 장비 가동 현황 -->
         <div class="card dashboard-card">
           <div class="dash-card-header">
-            <span class="dash-icon">🏗️</span>
             <span class="dash-label">장비 가동 현황</span>
           </div>
           <div id="dash-equip" class="dash-content">
@@ -49,14 +47,13 @@ const HomePage = (() => {
             onclick="App.showPage('equipment')"
             ${!ROLE_EQUIP_ACCESS.includes(user.role) ? 'disabled title="접근 권한이 없습니다"' : ''}
           >
-            ${!ROLE_EQUIP_ACCESS.includes(user.role) ? '🔒 권한 없음' : '바로가기 →'}
+            ${!ROLE_EQUIP_ACCESS.includes(user.role) ? '접근 권한 없음' : '바로가기 →'}
           </button>
         </div>
 
         <!-- AS 처리 현황 -->
         <div class="card dashboard-card">
           <div class="dash-card-header">
-            <span class="dash-icon">🔧</span>
             <span class="dash-label">AS 처리 현황</span>
           </div>
           <div id="dash-as" class="dash-content">
