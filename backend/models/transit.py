@@ -13,7 +13,8 @@ class TransitCreateRequest(BaseModel):
     site_id: str                       # P4 / P5
     site_name: str
     company: str
-    equip_specs: List[EquipSpec]
+    equip_specs: List[EquipSpec] = []
+    equip_nos: Optional[str] = ""      # 반출 시 장비번호 (쉼표 구분)
     reporter_name: str
     reporter_phone: str
     manager_name: Optional[str] = ""   # 양중담당자
@@ -21,6 +22,11 @@ class TransitCreateRequest(BaseModel):
     manager_location: Optional[str] = ""
     requested_date: Optional[str] = ""
     note: Optional[str] = ""
+
+
+class TransitCompleteRequest(BaseModel):
+    """AJ관리자: 완료 처리 — 반입 시 장비번호 입력"""
+    equip_nos: Optional[str] = ""      # 쉼표 구분 장비번호 (반입 시 필수)
 
 
 class TransitScheduleRequest(BaseModel):

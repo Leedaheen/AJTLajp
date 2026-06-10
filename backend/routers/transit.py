@@ -19,6 +19,7 @@ from models.transit import (
     TransitScheduleRequest,
     TransitUpdateRequest,
     TransitCancelRequest,
+    TransitCompleteRequest,
 )
 from services.push_service import send_push
 
@@ -74,6 +75,7 @@ async def create_transit(body: TransitCreateRequest, current_user: dict = Depend
         "site_name":       SITE_NAMES.get(body.site_id, body.site_id),
         "company":         body.company,
         "equip_specs":     [s.dict() for s in body.equip_specs],
+        "aj_equip":        body.equip_nos or "",
         "reporter_name":   body.reporter_name,
         "reporter_phone":  body.reporter_phone,
         "manager_name":    body.manager_name,
@@ -197,46 +199,52 @@ async def update_transit(
 @router.patch("/{transit_id}/complete")
 async def complete_transit(
     transit_id: int,
+    body: TransitCompleteRequest,
     current_user: dict = Depends(require_role("aj")),
 ):
     old = _get_or_404(transit_id)
     now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
 
     update = {
         "status":       "completed",
         "completed_at": now.isoformat(),
     }
 
-    # 반입 완료 → 장비별 QR 코드 생성
     if old["type"] == "in":
-        equip_specs = old.get("equip_specs") or []
-        created_equips = []
+        # AJ가 입력한 쉼표 구분 장비번호로 장비 레코드 생성
+        equip_no_list = [s.strip() for s in (body.equip_nos or "").split(",") if s.strip()]
+        equip_specs   = old.get("equip_specs") or []
+        flat_specs    = []
         for spec_item in equip_specs:
-            for i in range(spec_item.get("qty", 1)):
-                qr_code = f"AJ-{uuid.uuid4().hex[:8].upper()}"
-                equip_no = f"{old['site_id']}-{spec_item['spec']}-{uuid.uuid4().hex[:4].upper()}"
-                record_id = f"EQ-{uuid.uuid4().hex[:8].upper()}"
-                eq = {
-                    "record_id": record_id,
-                    "equip_no":  equip_no,
-                    "spec":      spec_item["spec"],
-                    "site_id":   old["site_id"],
-                    "site_name": old["site_name"],
-                    "company":   old["company"],
-                    "status":    "stock",
-                    "qr_code":   qr_code,
-                    "in_date":   now.strftime("%Y-%m-%d"),
-                    "transit_id":transit_id,
-                }
-                supabase.table("equipment").insert(eq).execute()
-                created_equips.append(equip_no)
-        update["aj_equip"] = ", ".join(created_equips)
+            flat_specs.extend([spec_item.get("spec", "")] * spec_item.get("qty", 1))
 
-    # 반출 완료 → QR 삭제
+        for i, equip_no in enumerate(equip_no_list):
+            spec = flat_specs[i] if i < len(flat_specs) else ""
+            supabase.table("equipment").insert({
+                "record_id":  f"EQ-{uuid.uuid4().hex[:8].upper()}",
+                "equip_no":   equip_no,
+                "spec":       spec,
+                "site_id":    old["site_id"],
+                "site_name":  old["site_name"],
+                "company":    old["company"],
+                "status":     "in_use",
+                "qr_code":    f"AJ-{uuid.uuid4().hex[:8].upper()}",
+                "in_date":    today,
+                "transit_id": transit_id,
+            }).execute()
+
+        update["aj_equip"] = ", ".join(equip_no_list)
+
     elif old["type"] == "out":
-        supabase.table("equipment")\
-            .update({"qr_code": None, "status": "returned", "out_date": now.strftime("%Y-%m-%d")})\
-            .eq("transit_id", transit_id).execute()
+        # 신청 시 등록된 장비번호로 반출 처리
+        equip_nos_raw = old.get("aj_equip") or body.equip_nos or ""
+        for equip_no in [s.strip() for s in equip_nos_raw.split(",") if s.strip()]:
+            supabase.table("equipment").update({
+                "status":   "returned",
+                "qr_code":  None,
+                "out_date": today,
+            }).eq("equip_no", equip_no).execute()
 
     supabase.table("transit").update(update).eq("id", transit_id).execute()
 

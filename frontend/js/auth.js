@@ -112,6 +112,10 @@ const Auth = (() => {
           </select>
         </div>
         <div class="form-group">
+          <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
+          <input id="inp-company" class="form-input" placeholder="소속 업체명">
+        </div>
+        <div class="form-group">
           <label class="form-label">연락처</label>
           <input id="inp-phone" type="tel" class="form-input" placeholder="010-0000-0000">
         </div>
@@ -141,11 +145,13 @@ const Auth = (() => {
 
   // ── 백엔드로 로그인 요청 ──────────────────────────────────
   async function _submitLogin(credential) {
-    const role  = document.getElementById('sel-role').value;
-    const siteId = document.getElementById('sel-site').value;
-    const phone = document.getElementById('inp-phone').value;
+    const role    = document.getElementById('sel-role').value;
+    const siteId  = document.getElementById('sel-site').value;
+    const phone   = document.getElementById('inp-phone').value;
+    const company = document.getElementById('inp-company')?.value.trim();
 
     if (!role) { Toast.error('역할을 선택해주세요.'); return; }
+    if (company) localStorage.setItem('saved_company', company);
 
     const btn = document.getElementById('btn-role-confirm');
     btn.disabled = true;
