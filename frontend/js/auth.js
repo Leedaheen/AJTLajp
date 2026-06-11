@@ -11,11 +11,25 @@ const Auth = (() => {
     // 프리뷰 전용 세션 (로컬 테스트용)
     const preview = localStorage.getItem('aj_user');
     if (preview) {
-      _user = JSON.parse(preview);
-      return true;
+      try {
+        const parsed = JSON.parse(preview);
+        if (parsed && parsed.id && parsed.role) {
+          _user = parsed;
+          return true;
+        }
+      } catch (_) {}
+      localStorage.removeItem('aj_user');
     }
 
-    const { data: { session } } = await _sb.auth.getSession();
+    let session = null;
+    try {
+      const { data, error } = await _sb.auth.getSession();
+      if (error) { console.warn('[Auth] getSession error:', error.message); return false; }
+      session = data.session;
+    } catch (e) {
+      console.warn('[Auth] getSession threw:', e.message);
+      return false;
+    }
     if (!session) return false;
 
     const profile = await _loadProfile(session.user.id);

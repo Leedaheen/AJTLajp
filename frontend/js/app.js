@@ -27,14 +27,19 @@ const App = (() => {
   ];
 
   async function init() {
-    const loggedIn = await Auth.init();
-    if (!loggedIn) { showPage('login'); return; }
-    _buildLayout();
-    showPage('home');
-    Notifications.loadNotifications();
-    Storage.init();
-    window.addEventListener('offline', () => Toast.error('오프라인 상태입니다.'));
-    window.addEventListener('online',  () => Toast.success('인터넷에 연결되었습니다.'));
+    try {
+      const loggedIn = await Auth.init();
+      if (!loggedIn) { showPage('login'); return; }
+      _buildLayout();
+      showPage('home');
+      Notifications.loadNotifications();
+      Storage.init();
+      window.addEventListener('offline', () => Toast.error('오프라인 상태입니다.'));
+      window.addEventListener('online',  () => Toast.success('인터넷에 연결되었습니다.'));
+    } catch (e) {
+      console.error('[App] init 오류:', e);
+      showPage('login');
+    }
   }
 
   function showPage(pageId, params = {}) {
