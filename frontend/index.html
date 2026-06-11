@@ -10,7 +10,7 @@
 
   <!-- CSS -->
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/layout.css?v=5">
+  <link rel="stylesheet" href="/css/layout.css?v=6">
   <link rel="stylesheet" href="/css/components.css">
 
   <!-- Google Fonts (Noto Sans KR) -->
@@ -239,9 +239,12 @@
   </div>
   <!-- 알림 패널 -->
   <div id="notif-panel" class="notif-dropdown hidden" style="position:absolute;top:56px;right:0">
-    <div style="padding:12px 16px;font-weight:700;font-size:14px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between">
+    <div style="padding:12px 16px;font-weight:700;font-size:14px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center">
       알림
-      <button class="btn btn-ghost btn-sm" onclick="Api.patch('/notifications/read-all',{}).then(()=>Notifications.loadNotifications())" style="font-size:12px">모두 읽음</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="Notifications.markAllRead()" style="font-size:12px">모두 읽음</button>
+        <button onclick="App.toggleNotifPanel()" style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:18px;line-height:1;padding:2px 4px" title="닫기">&times;</button>
+      </div>
     </div>
     <div id="notif-list"></div>
   </div>
@@ -349,22 +352,22 @@
 </div>
 
 <!-- JS — 의존 순서대로 로드 -->
-<script src="/js/db.js?v=5"></script>
-<script src="/js/storage.js?v=5"></script>
-<script src="/js/components/toast.js?v=5"></script>
-<script src="/js/components/modal.js?v=5"></script>
-<script src="/js/api.js?v=5"></script>
-<script src="/js/notifications.js?v=5"></script>
-<script src="/js/pages/home.js?v=5"></script>
-<script src="/js/pages/transit.js?v=5"></script>
-<script src="/js/pages/equipment.js?v=5"></script>
-<script src="/js/pages/as_request.js?v=5"></script>
-<script src="/js/pages/usage_log.js?v=5"></script>
-<script src="/js/pages/analytics.js?v=5"></script>
-<script src="/js/pages/support.js?v=5"></script>
-<script src="/js/pages/admin.js?v=5"></script>
-<script src="/js/auth.js?v=5"></script>
-<script src="/js/app.js?v=5"></script>
+<script src="/js/db.js?v=6"></script>
+<script src="/js/storage.js?v=6"></script>
+<script src="/js/components/toast.js?v=6"></script>
+<script src="/js/components/modal.js?v=6"></script>
+<script src="/js/api.js?v=6"></script>
+<script src="/js/notifications.js?v=6"></script>
+<script src="/js/pages/home.js?v=6"></script>
+<script src="/js/pages/transit.js?v=6"></script>
+<script src="/js/pages/equipment.js?v=6"></script>
+<script src="/js/pages/as_request.js?v=6"></script>
+<script src="/js/pages/usage_log.js?v=6"></script>
+<script src="/js/pages/analytics.js?v=6"></script>
+<script src="/js/pages/support.js?v=6"></script>
+<script src="/js/pages/admin.js?v=6"></script>
+<script src="/js/auth.js?v=6"></script>
+<script src="/js/app.js?v=6"></script>
 
 <script>
   // Service Worker 등록 + Background Sync 메시지 수신

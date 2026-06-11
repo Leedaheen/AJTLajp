@@ -60,6 +60,13 @@ const Notifications = (() => {
     loadNotifications();
   }
 
+  async function markAllRead() {
+    const uid = Auth.getUser()?.id;
+    if (!uid) return;
+    await _sb?.from('notifications').update({ is_read: true }).eq('target_id', uid);
+    loadNotifications();
+  }
+
   // ── 유틸 ─────────────────────────────────────────────────
   function _urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -76,5 +83,5 @@ const Notifications = (() => {
     return new Date(iso).toLocaleDateString('ko-KR');
   }
 
-  return { requestPermission, loadNotifications, markRead };
+  return { requestPermission, loadNotifications, markRead, markAllRead };
 })();

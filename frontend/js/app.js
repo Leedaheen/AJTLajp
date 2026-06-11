@@ -183,8 +183,36 @@ const App = (() => {
   // ── 알림 패널 ────────────────────────────────────────────────
   function toggleNotifPanel() {
     const panel = document.getElementById('notif-panel');
-    panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) Notifications.loadNotifications();
+    const isHidden = panel.classList.contains('hidden');
+
+    if (isHidden) {
+      panel.classList.remove('hidden');
+      Notifications.loadNotifications();
+      // 패널 외부 클릭 시 닫기 (한 번만 실행)
+      setTimeout(() => {
+        document.addEventListener('click', _closeNotifOnOutside, { once: true, capture: true });
+      }, 0);
+    } else {
+      _closeNotifPanel();
+    }
+  }
+
+  function _closeNotifPanel() {
+    document.getElementById('notif-panel')?.classList.add('hidden');
+    document.removeEventListener('click', _closeNotifOnOutside, { capture: true });
+  }
+
+  function _closeNotifOnOutside(e) {
+    const panel = document.getElementById('notif-panel');
+    const btn   = document.querySelector('.notif-btn');
+    if (panel && !panel.contains(e.target) && !btn?.contains(e.target)) {
+      _closeNotifPanel();
+    } else {
+      // 패널 내부 클릭 — 리스너 재등록
+      setTimeout(() => {
+        document.addEventListener('click', _closeNotifOnOutside, { once: true, capture: true });
+      }, 0);
+    }
   }
 
   return { init, showPage, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel };
