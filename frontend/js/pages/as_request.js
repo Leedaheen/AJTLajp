@@ -44,6 +44,19 @@ const AsRequestPage = (() => {
         `).join('')}
       </div>
 
+      <!-- 검색 필터 -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <input id="as-search" type="text" class="search-input" style="flex:1;min-width:180px"
+          placeholder="장비번호, 업체명, 고장유형 검색"
+          onkeydown="if(event.key==='Enter')AsRequestPage.loadList()">
+        <select id="as-site" class="form-input form-select" style="width:120px">
+          <option value="">전체 현장</option>
+          <option value="P4">P4 복합동</option>
+          <option value="P5">P5 복합동</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="AsRequestPage.loadList()">검색</button>
+      </div>
+
       <div id="as-list"></div>
     `;
 
@@ -63,10 +76,14 @@ const AsRequestPage = (() => {
     try {
       const params = new URLSearchParams({ limit: 100 });
       if (_currentTab !== 'all') params.set('status', _currentTab);
+      const q = document.getElementById('as-search')?.value.trim();
+      const site = document.getElementById('as-site')?.value;
+      if (q)    params.set('q', q);
+      if (site) params.set('site_id', site);
       const list = await Api.get(`/as-requests?${params}`);
 
       if (!list.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔧</div><div>AS 요청 내역이 없습니다</div></div>';
+        container.innerHTML = '<div class="empty-state"><div>AS 요청 내역이 없습니다</div></div>';
         return;
       }
       container.innerHTML = list.map(r => _renderCard(r)).join('');

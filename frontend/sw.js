@@ -1,13 +1,27 @@
 /**
- * Service Worker — 오프라인 캐시 + PWA Push 수신
+ * Service Worker — 오프라인 캐시 + PWA Push 수신 + Background Sync
  */
-const CACHE_NAME = 'ajtl-v1';
-const CACHE_URLS = ['/', '/index.html', '/css/base.css', '/css/layout.css', '/css/components.css'];
+const CACHE_NAME = 'ajtl-v2';
+const CACHE_URLS = [
+  '/', '/index.html',
+  '/css/base.css', '/css/layout.css', '/css/components.css',
+  '/js/components/toast.js', '/js/components/modal.js',
+  '/js/api.js', '/js/auth.js', '/js/app.js', '/js/storage.js',
+  '/js/notifications.js',
+  '/js/pages/home.js', '/js/pages/transit.js', '/js/pages/equipment.js',
+  '/js/pages/as_request.js', '/js/pages/usage_log.js',
+  '/js/pages/analytics.js', '/js/pages/admin.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+];
+const SYNC_TAG = 'ajtl-offline-sync';
 
 // 설치: 정적 파일 캐시
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(CACHE_URLS))
+    caches.open(CACHE_NAME).then(cache =>
+      // 외부 CDN 실패해도 설치 중단하지 않음
+      Promise.allSettled(CACHE_URLS.map(url => cache.add(url)))
+    )
   );
   self.skipWaiting();
 });
@@ -22,15 +36,41 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// fetch: 캐시 우선, 없으면 네트워크
+// fetch: 캐시 우선 전략 (API 제외)
 self.addEventListener('fetch', e => {
-  // API 요청은 캐시하지 않음
   if (e.request.url.includes('/api/')) return;
 
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(resp => {
+        // GET 요청만 캐시에 저장
+        if (e.request.method === 'GET' && resp.status === 200) {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        }
+        return resp;
+      }).catch(() => {
+        // 오프라인 + 캐시 없음 → index.html 반환 (SPA 폴백)
+        if (e.request.mode === 'navigate') {
+          return caches.match('/index.html');
+        }
+      });
+    })
   );
 });
+
+// Background Sync — 오프라인 큐 재전송
+self.addEventListener('sync', e => {
+  if (e.tag === SYNC_TAG) {
+    e.waitUntil(_notifyClientsToFlush());
+  }
+});
+
+async function _notifyClientsToFlush() {
+  const all = await self.clients.matchAll({ type: 'window' });
+  all.forEach(client => client.postMessage({ type: 'FLUSH_QUEUE' }));
+}
 
 // Push 알림 수신
 self.addEventListener('push', e => {

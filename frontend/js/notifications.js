@@ -29,7 +29,7 @@ const Notifications = (() => {
   // ── 알림 목록 로드 ───────────────────────────────────────
   async function loadNotifications() {
     try {
-      const list = await Api.get('/notifications');
+      const list = await Api.get('/notifications', { silent: true });
       _renderNotifDropdown(list);
       const unread = list.filter(n => !n.is_read).length;
       const dot = document.getElementById('notif-dot');
@@ -42,7 +42,7 @@ const Notifications = (() => {
     if (!container) return;
 
     if (!list.length) {
-      container.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-icon">🔔</div><div>알림이 없습니다</div></div>';
+      container.innerHTML = '<div class="empty-state" style="padding:24px"><div>알림이 없습니다</div></div>';
       return;
     }
 

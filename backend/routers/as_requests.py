@@ -34,6 +34,7 @@ async def list_as_requests(
     status: str = None,
     site_id: str = None,
     tech_id: str = None,
+    q: str = None,       # 통합 검색: 장비번호/업체명/고장유형
     limit: int = 100,
     current_user: dict = Depends(get_current_user),
 ):
@@ -50,6 +51,10 @@ async def list_as_requests(
     if status:  query = query.eq("status", status)
     if site_id: query = query.eq("site_id", site_id)
     if tech_id: query = query.eq("tech_id", tech_id)
+    if q:
+        query = query.or_(
+            f"equip_no.ilike.%{q}%,company.ilike.%{q}%,fault_type.ilike.%{q}%"
+        )
 
     return (query.execute()).data or []
 

@@ -3,27 +3,36 @@
  * 페이지 전환, 사이드바/하단 네비 상태 관리를 담당합니다.
  */
 const App = (() => {
-  const PAGES = ['home', 'transit', 'equipment', 'as-request', 'usage-log', 'analytics', 'admin'];
+  const PAGES = ['home', 'transit', 'equipment', 'as-request', 'usage-log',
+    'analytics-equipment', 'analytics-as', 'analytics-usage', 'admin', 'support'];
 
-  // 역할별 접근 가능 페이지
   const ACCESS = {
-    tech:    ['home', 'as-request', 'usage-log'],
-    partner: ['home', 'transit', 'as-request', 'usage-log'],
-    aj:      ['home', 'transit', 'equipment', 'as-request', 'usage-log', 'analytics', 'admin'],
-    as_tech: ['home', 'as-request'],
+    tech:    ['home', 'as-request', 'usage-log', 'support'],
+    partner: ['home', 'transit', 'as-request', 'usage-log', 'support'],
+    aj:      ['home', 'transit', 'equipment', 'as-request', 'usage-log',
+               'analytics-equipment', 'analytics-as', 'analytics-usage', 'admin', 'support'],
+    as_tech: ['home', 'as-request', 'support'],
   };
+
+  // 더보기 시트 항목 정의
+  const MORE_ITEMS = [
+    { type: 'item',    page: 'equipment',           label: '장비 관리',      abbr: '장비', bg: '#dbeafe' },
+    { type: 'section', label: '분석 리포트' },
+    { type: 'item',    page: 'analytics-equipment', label: '장비 사용내역',  abbr: '장비', bg: '#ede9fe', sub: true },
+    { type: 'item',    page: 'analytics-as',        label: 'AS 요청 분석',   abbr: 'AS',   bg: '#fef3c7', sub: true },
+    { type: 'item',    page: 'analytics-usage',     label: '사용 기록 분석', abbr: '사용', bg: '#d1fae5', sub: true },
+    { type: 'divider' },
+    { type: 'item',    page: 'admin',               label: '사용자 관리',    abbr: '관리', bg: '#fce7f3' },
+    { type: 'item',    page: 'support',             label: '고객지원 게시판', abbr: '지원', bg: '#f0fdf4' },
+  ];
 
   function init() {
     const loggedIn = Auth.init();
-    if (!loggedIn) {
-      showPage('login');
-      return;
-    }
+    if (!loggedIn) { showPage('login'); return; }
     _buildLayout();
     showPage('home');
     Notifications.loadNotifications();
-
-    // 오프라인/온라인 감지
+    Storage.init();
     window.addEventListener('offline', () => Toast.error('오프라인 상태입니다.'));
     window.addEventListener('online',  () => Toast.success('인터넷에 연결되었습니다.'));
   }
@@ -31,38 +40,51 @@ const App = (() => {
   function showPage(pageId, params = {}) {
     const user = Auth.getUser();
 
-    // 비로그인 상태
     if (pageId !== 'login' && pageId !== 'pending' && pageId !== 'rejected' && !user) {
-      showPage('login');
-      return;
+      showPage('login'); return;
     }
-
-    // 권한 체크
     if (user && ACCESS[user.role] && !ACCESS[user.role].includes(pageId)
         && !['login','pending','rejected'].includes(pageId)) {
-      Toast.error('접근 권한이 없습니다.');
-      return;
+      Toast.error('접근 권한이 없습니다.'); return;
     }
 
-    // 모든 페이지 숨기기
     document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
-
     const target = document.getElementById(`page-${pageId}`);
     if (target) target.classList.remove('hidden');
 
-    // 사이드바 활성 상태 갱신
-    document.querySelectorAll('.sidebar-item, .bottom-nav-item').forEach(el => {
+    // 사이드바 active
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
+      el.classList.toggle('active', el.dataset.page === pageId);
+    });
+    document.querySelectorAll('.sidebar-subitem').forEach(el => {
+      el.classList.toggle('active', el.dataset.page === pageId);
+    });
+    document.querySelectorAll('.bottom-nav-item[data-page]').forEach(el => {
       el.classList.toggle('active', el.dataset.page === pageId);
     });
 
-    // 페이지별 렌더 함수 호출
+    // 분석 아코디언 — 해당 페이지 진입 시 자동 펼치기
+    const isAnalytics = pageId.startsWith('analytics');
+    const parent  = document.getElementById('sidebar-analytics-parent');
+    const submenu = document.getElementById('sidebar-analytics-submenu');
+    if (parent && submenu && isAnalytics && !submenu.classList.contains('open')) {
+      parent.classList.add('open');
+      submenu.classList.add('open');
+    }
+    // 분석 부모 항목 active 상태
+    if (parent) parent.classList.toggle('open', isAnalytics || parent.classList.contains('open'));
+
     const renderers = {
-      home:       () => HomePage.render(),
-      transit:    () => TransitPage.render(),
-      equipment:  () => EquipmentPage.render(),
-      'as-request': () => AsRequestPage.render(),
-      'usage-log':  () => UsageLogPage.render(),
-      admin:      () => AdminPage.render(),
+      home:                  () => HomePage.render(),
+      transit:               () => TransitPage.render(),
+      equipment:             () => EquipmentPage.render(),
+      'as-request':          () => AsRequestPage.render(),
+      'usage-log':           () => UsageLogPage.render(),
+      'analytics-equipment': () => AnalyticsEquipmentPage.render(),
+      'analytics-as':        () => AnalyticsAsPage.render(),
+      'analytics-usage':     () => AnalyticsUsagePage.render(),
+      support:               () => SupportPage.render(),
+      admin:                 () => AdminPage.render(),
     };
     renderers[pageId]?.();
   }
@@ -71,48 +93,101 @@ const App = (() => {
     const user = Auth.getUser();
     if (!user) return;
 
-    const header = document.getElementById('app-header');
-    header.classList.remove('hidden');
+    document.getElementById('app-header').classList.remove('hidden');
     document.getElementById('header-site').textContent = user.site_id;
     document.getElementById('header-name').textContent = user.name;
-
-    const layout = document.getElementById('app-layout');
-    layout.classList.remove('hidden');
-
-    const nav = document.getElementById('bottom-nav');
-    nav.classList.remove('hidden');
+    document.getElementById('app-layout').classList.remove('hidden');
+    document.getElementById('bottom-nav').classList.remove('hidden');
 
     _setSidebarAccess(user);
     _setBottomNavAccess(user);
   }
 
   function _setSidebarAccess(user) {
-    document.querySelectorAll('.sidebar-item').forEach(el => {
-      const page = el.dataset.page;
-      const allowed = !page || ACCESS[user.role]?.includes(page);
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
+      const allowed = ACCESS[user.role]?.includes(el.dataset.page);
       el.classList.toggle('disabled', !allowed);
       if (!allowed) el.title = '접근 권한이 없습니다';
     });
+    document.querySelectorAll('.sidebar-subitem').forEach(el => {
+      el.classList.toggle('disabled', !ACCESS[user.role]?.includes(el.dataset.page));
+    });
+    // 분석 아코디언 부모 — 접근 불가 시 숨김
+    const analyticsAllowed = ['analytics-equipment','analytics-as','analytics-usage']
+      .some(p => ACCESS[user.role]?.includes(p));
+    const parent  = document.getElementById('sidebar-analytics-parent');
+    const submenu = document.getElementById('sidebar-analytics-submenu');
+    if (parent)  parent.style.display  = analyticsAllowed ? '' : 'none';
+    if (submenu) submenu.style.display = analyticsAllowed ? '' : 'none';
   }
 
   function _setBottomNavAccess(user) {
-    document.querySelectorAll('.bottom-nav-item').forEach(el => {
-      const page = el.dataset.page;
-      const allowed = !page || ACCESS[user.role]?.includes(page);
-      el.classList.toggle('disabled', !allowed);
+    document.querySelectorAll('.bottom-nav-item[data-page]').forEach(el => {
+      el.classList.toggle('disabled', !ACCESS[user.role]?.includes(el.dataset.page));
     });
   }
 
+  // ── 아코디언 토글 ────────────────────────────────────────────
+  function toggleAnalyticsMenu() {
+    const parent  = document.getElementById('sidebar-analytics-parent');
+    const submenu = document.getElementById('sidebar-analytics-submenu');
+    const isOpen  = submenu.classList.contains('open');
+    parent.classList.toggle('open', !isOpen);
+    submenu.classList.toggle('open', !isOpen);
+  }
+
+  // ── 모바일 더보기 시트 ────────────────────────────────────────
+  function openMoreSheet() {
+    const user  = Auth.getUser();
+    const items = MORE_ITEMS.filter(it =>
+      it.type !== 'item' || ACCESS[user.role]?.includes(it.page)
+    );
+
+    // 연속된 section/divider만 남는 경우 제거
+    const cleaned = items.filter((it, i) => {
+      if (it.type !== 'section' && it.type !== 'divider') return true;
+      const next = items[i + 1];
+      return next && next.type === 'item';
+    });
+
+    document.getElementById('sheet-items').innerHTML = cleaned.map(it => {
+      if (it.type === 'section') {
+        return `<div class="sheet-section">${it.label}</div>`;
+      }
+      if (it.type === 'divider') {
+        return `<hr style="margin:6px 20px;border:none;border-top:1px solid var(--gray-100)">`;
+      }
+      return `
+        <div class="sheet-item${it.sub ? ' sheet-item-sub' : ''}"
+             onclick="App.showPage('${it.page}'); App.closeMoreSheet()">
+          <div class="sheet-item-icon" style="background:${it.bg}">${it.abbr}</div>
+          ${it.label}
+        </div>`;
+    }).join('');
+
+    const backdrop = document.getElementById('sheet-backdrop');
+    const sheet    = document.getElementById('more-sheet');
+    backdrop.classList.add('open');
+    sheet.classList.add('open');
+
+    // 더보기 버튼 active
+    document.getElementById('btn-more')?.classList.add('active');
+  }
+
+  function closeMoreSheet() {
+    document.getElementById('sheet-backdrop').classList.remove('open');
+    document.getElementById('more-sheet').classList.remove('open');
+    document.getElementById('btn-more')?.classList.remove('active');
+  }
+
+  // ── 알림 패널 ────────────────────────────────────────────────
   function toggleNotifPanel() {
     const panel = document.getElementById('notif-panel');
     panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) {
-      Notifications.loadNotifications();
-    }
+    if (!panel.classList.contains('hidden')) Notifications.loadNotifications();
   }
 
-  return { init, showPage, toggleNotifPanel };
+  return { init, showPage, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel };
 })();
 
-// 앱 시작
 document.addEventListener('DOMContentLoaded', () => App.init());

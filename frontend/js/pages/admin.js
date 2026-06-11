@@ -20,7 +20,7 @@ const AdminPage = (() => {
       <div class="card" style="margin-bottom:20px;border-left:4px solid var(--navy)">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
           <div>
-            <div style="font-weight:700;font-size:15px;color:var(--navy)">🔐 관리자 계정 설정</div>
+            <div style="font-weight:700;font-size:15px;color:var(--navy)">관리자 계정 설정</div>
             <div class="text-sm text-muted" style="margin-top:3px">관리자 로그인 아이디와 비밀번호를 변경합니다.</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="AdminPage.openCredentialsModal()">계정 정보 변경</button>
@@ -208,7 +208,7 @@ const AdminPage = (() => {
   // ── 관리자 계정 ID/PW 변경 ──────────────────────────────────
   function openCredentialsModal() {
     Modal.open({
-      title: '🔐 관리자 계정 정보 변경',
+      title: '관리자 계정 정보 변경',
       body: `
         <p class="text-sm text-muted" style="margin-bottom:16px">
           현재 비밀번호 확인 후 아이디·비밀번호를 변경할 수 있습니다.<br>

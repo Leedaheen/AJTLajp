@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "frontend",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "frontend", "-p", "5501", "--no-clipboard"],
-      "port": 5501
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["G:/내 드라이브/2.개발/5.TL system/frontend/devserver.py"],
+      "port": 5500
     }
   ]
 }

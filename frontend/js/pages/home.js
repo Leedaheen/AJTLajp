@@ -83,7 +83,7 @@ const HomePage = (() => {
 
   async function _loadTransitSummary() {
     try {
-      const data = await Api.get('/transit?limit=5');
+      const data = await Api.get('/transit?limit=5', { silent: true });
       const scheduled  = data.filter(d => d.status === 'scheduled').length;
       const completed  = data.filter(d => d.status === 'completed').length;
       const requested  = data.filter(d => d.status === 'requested').length;
@@ -109,7 +109,7 @@ const HomePage = (() => {
 
   async function _loadEquipSummary() {
     try {
-      const data = await Api.get('/equipment?status=in_use');
+      const data = await Api.get('/equipment?status=in_use', { silent: true });
       const p4 = data.filter(e => e.site_id === 'P4').length;
       const p5 = data.filter(e => e.site_id === 'P5').length;
 
@@ -134,7 +134,7 @@ const HomePage = (() => {
 
   async function _loadAsSummary() {
     try {
-      const data = await Api.get('/as-requests?limit=100');
+      const data = await Api.get('/as-requests?limit=100', { silent: true });
       const requested = data.filter(d => d.status === 'requested').length;
       const inProg    = data.filter(d => d.status === 'in_progress').length;
       const material  = data.filter(d => d.status === 'material_pending').length;

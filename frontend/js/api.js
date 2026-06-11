@@ -14,10 +14,12 @@ const Api = (() => {
     return localStorage.getItem('app_token');
   }
 
-  async function request(method, path, body = null) {
+  async function request(method, path, body = null, opts = {}) {
+    const silent = opts.silent === true;
+
     // 오프라인 체크
     if (!navigator.onLine) {
-      Toast.error('현재 오프라인 상태입니다. 인터넷 연결 후 다시 시도해 주세요.');
+      if (!silent) Toast.error('현재 오프라인 상태입니다. 인터넷 연결 후 다시 시도해 주세요.');
       throw new Error('OFFLINE');
     }
 
@@ -32,12 +34,11 @@ const Api = (() => {
       const res = await fetch(`${API_BASE}${path}`, options);
 
       if (res.status === 401) {
-        // 토큰 만료 → 로그아웃
         Auth.logout();
         return;
       }
       if (res.status === 403) {
-        Toast.error('접근 권한이 없습니다. 관리자에게 문의하세요.');
+        if (!silent) Toast.error('접근 권한이 없습니다. 관리자에게 문의하세요.');
         throw new Error('FORBIDDEN');
       }
       if (!res.ok) {
@@ -48,19 +49,21 @@ const Api = (() => {
       return await res.json();
     } catch (e) {
       if (e.message === 'OFFLINE' || e.message === 'FORBIDDEN') throw e;
-      if (e.name === 'TypeError') {
-        Toast.error('네트워크 연결을 확인해주세요.');
-      } else {
-        Toast.error(e.message);
+      if (!silent) {
+        if (e.name === 'TypeError') {
+          Toast.error('네트워크 연결을 확인해주세요.');
+        } else {
+          Toast.error(e.message);
+        }
       }
       throw e;
     }
   }
 
   return {
-    get:    (path)        => request('GET',    path),
-    post:   (path, body)  => request('POST',   path, body),
-    patch:  (path, body)  => request('PATCH',  path, body),
-    delete: (path)        => request('DELETE', path),
+    get:    (path, opts)        => request('GET',    path, null, opts),
+    post:   (path, body, opts)  => request('POST',   path, body, opts),
+    patch:  (path, body, opts)  => request('PATCH',  path, body, opts),
+    delete: (path, opts)        => request('DELETE', path, null, opts),
   };
 })();
