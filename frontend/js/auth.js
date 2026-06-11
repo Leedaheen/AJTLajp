@@ -161,7 +161,8 @@ const Auth = (() => {
 
     const needApproval = ['partner', 'as_tech'].includes(role);
     const { data, error } = await _sb.from('app_users').insert({
-      google_id: session.user.id,
+      id:        session.user.id,
+      google_id: session.user.user_metadata?.provider_id || session.user.id,
       email:     session.user.email,
       name:      session.user.user_metadata?.full_name || session.user.email.split('@')[0],
       phone,
@@ -243,7 +244,7 @@ const Auth = (() => {
     const { data } = await _sb
       .from('app_users')
       .select('*')
-      .eq('google_id', supabaseUserId)
+      .eq('id', supabaseUserId)
       .single();
     return data || null;
   }
