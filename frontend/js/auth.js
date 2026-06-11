@@ -245,7 +245,7 @@ const Auth = (() => {
       .from('app_users')
       .select('*')
       .eq('id', supabaseUserId)
-      .single();
+      .maybeSingle();
     return data || null;
   }
 
