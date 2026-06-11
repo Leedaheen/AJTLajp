@@ -10,7 +10,7 @@
 
   <!-- CSS -->
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/layout.css?v=4">
+  <link rel="stylesheet" href="/css/layout.css?v=5">
   <link rel="stylesheet" href="/css/components.css">
 
   <!-- Google Fonts (Noto Sans KR) -->
@@ -20,8 +20,8 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
   <style>
     /* 로그인 화면 */
@@ -349,21 +349,22 @@
 </div>
 
 <!-- JS — 의존 순서대로 로드 -->
-<script src="/js/storage.js?v=4"></script>
-<script src="/js/components/toast.js?v=4"></script>
-<script src="/js/components/modal.js?v=4"></script>
-<script src="/js/api.js?v=4"></script>
-<script src="/js/notifications.js?v=4"></script>
-<script src="/js/pages/home.js?v=4"></script>
-<script src="/js/pages/transit.js?v=4"></script>
-<script src="/js/pages/equipment.js?v=4"></script>
-<script src="/js/pages/as_request.js?v=4"></script>
-<script src="/js/pages/usage_log.js?v=4"></script>
-<script src="/js/pages/analytics.js?v=4"></script>
-<script src="/js/pages/support.js?v=4"></script>
-<script src="/js/pages/admin.js?v=4"></script>
-<script src="/js/auth.js?v=4"></script>
-<script src="/js/app.js?v=4"></script>
+<script src="/js/db.js?v=5"></script>
+<script src="/js/storage.js?v=5"></script>
+<script src="/js/components/toast.js?v=5"></script>
+<script src="/js/components/modal.js?v=5"></script>
+<script src="/js/api.js?v=5"></script>
+<script src="/js/notifications.js?v=5"></script>
+<script src="/js/pages/home.js?v=5"></script>
+<script src="/js/pages/transit.js?v=5"></script>
+<script src="/js/pages/equipment.js?v=5"></script>
+<script src="/js/pages/as_request.js?v=5"></script>
+<script src="/js/pages/usage_log.js?v=5"></script>
+<script src="/js/pages/analytics.js?v=5"></script>
+<script src="/js/pages/support.js?v=5"></script>
+<script src="/js/pages/admin.js?v=5"></script>
+<script src="/js/auth.js?v=5"></script>
+<script src="/js/app.js?v=5"></script>
 
 <script>
   // Service Worker 등록 + Background Sync 메시지 수신

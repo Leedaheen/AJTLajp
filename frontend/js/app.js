@@ -26,8 +26,8 @@ const App = (() => {
     { type: 'item',    page: 'support',             label: '고객지원 게시판', abbr: '지원', bg: '#f0fdf4' },
   ];
 
-  function init() {
-    const loggedIn = Auth.init();
+  async function init() {
+    const loggedIn = await Auth.init();
     if (!loggedIn) { showPage('login'); return; }
     _buildLayout();
     showPage('home');
