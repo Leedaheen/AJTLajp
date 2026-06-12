@@ -1,16 +1,12 @@
 /**
  * 장비 관리 페이지
- * - 장비 목록 (검색: 장비번호/업체명/제원/상태)
- * - QR 코드 표시
- * - AJ관리자: 장비 추가/수정
  */
 const EquipmentPage = (() => {
   const SPEC_OPTIONS = ['6M','8M','10M','12M','14M','16M','16M굴절','18M','20M굴절'];
   const STATUS_MAP = {
-    stock:    { label:'재고',    style:'background:#d1fae5;color:#065f46' },
-    in_use:   { label:'사용중',  style:'background:#dbeafe;color:#1e40af' },
-    transit:  { label:'이동중',  style:'background:#fef3c7;color:#92400e' },
-    returned: { label:'반출완료',style:'background:#f3f4f6;color:#374151' },
+    in_use:   { label:'사용중',   style:'background:#dbeafe;color:#1e40af' },
+    transit:  { label:'이동중',   style:'background:#fef3c7;color:#92400e' },
+    returned: { label:'반출완료', style:'background:#f3f4f6;color:#374151' },
   };
 
   async function render() {
@@ -25,10 +21,9 @@ const EquipmentPage = (() => {
 
       <!-- 검색 / 필터 -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-        <input id="eq-search" type="text" class="search-input" style="flex:1;min-width:180px" placeholder="장비번호, 업체명, 제원 검색">
+        <input id="eq-search" type="text" class="search-input" style="flex:1;min-width:180px" placeholder="장비번호, 업체명 검색">
         <select id="eq-status" class="form-input form-select" style="width:120px">
           <option value="">전체 상태</option>
-          <option value="stock">재고</option>
           <option value="in_use">사용중</option>
           <option value="returned">반출완료</option>
         </select>
@@ -38,8 +33,6 @@ const EquipmentPage = (() => {
         </select>
         <select id="eq-site" class="form-input form-select" style="width:120px">
           <option value="">전체 현장</option>
-          <option value="P4">P4 복합동</option>
-          <option value="P5">P5 복합동</option>
         </select>
         <button class="btn btn-primary btn-sm" onclick="EquipmentPage.loadList()">검색</button>
       </div>
@@ -55,28 +48,40 @@ const EquipmentPage = (() => {
               <th>장비번호</th>
               <th>제원</th>
               <th>현장</th>
+              <th>프로젝트</th>
               <th>업체</th>
               <th>상태</th>
               <th>반입일</th>
-              <th>QR코드</th>
+              <th>반출일</th>
               ${isAj ? '<th>관리</th>' : ''}
             </tr>
           </thead>
           <tbody id="eq-tbody">
-            <tr><td colspan="8" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>
+            <tr><td colspan="9" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>
           </tbody>
         </table>
       </div>
     `;
+
+    // 현장 드롭다운 동적 로드
+    _loadSiteFilter();
 
     document.getElementById('eq-search').addEventListener('keydown', e => {
       if (e.key === 'Enter') loadList();
     });
 
     await loadList();
-
-    // 실시간 구독 — equipment 테이블 변경 시 목록 자동 갱신
     Realtime.on('equipment', 'equipment', loadList);
+  }
+
+  async function _loadSiteFilter() {
+    try {
+      const sites = await Api.get('/sites');
+      const sel = document.getElementById('eq-site');
+      if (!sel) return;
+      sel.innerHTML = `<option value="">전체 현장</option>` +
+        sites.map(s => `<option value="${s.code}">${s.name}</option>`).join('');
+    } catch {}
   }
 
   async function loadList() {
@@ -91,25 +96,25 @@ const EquipmentPage = (() => {
     if (siteId) params.set('site_id', siteId);
     if (q)      params.set('q', q);
 
+    const colspan = Auth.getUser()?.role === 'aj' ? 9 : 8;
     const tbody = document.getElementById('eq-tbody');
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>`;
 
     try {
       const list = await Api.get(`/equipment?${params}`);
       _renderSummary(list);
       _renderTable(list);
     } catch {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">불러오기 실패</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center text-muted">불러오기 실패</td></tr>`;
     }
   }
 
   function _renderSummary(list) {
-    const counts = { stock:0, in_use:0, returned:0 };
+    const counts = { in_use: 0, returned: 0 };
     list.forEach(e => { if (counts[e.status] !== undefined) counts[e.status]++; });
     const el = document.getElementById('eq-summary');
     if (!el) return;
     el.innerHTML = `
-      <span class="badge" style="background:#d1fae5;color:#065f46">재고 ${counts.stock}대</span>
       <span class="badge" style="background:#dbeafe;color:#1e40af">사용중 ${counts.in_use}대</span>
       <span class="badge" style="background:#f3f4f6;color:#374151">반출완료 ${counts.returned}대</span>
       <span class="badge" style="background:var(--navy);color:#fff">전체 ${list.length}대</span>
@@ -117,12 +122,13 @@ const EquipmentPage = (() => {
   }
 
   function _renderTable(list) {
-    const user = Auth.getUser();
-    const isAj = user.role === 'aj';
+    const user  = Auth.getUser();
+    const isAj  = user.role === 'aj';
     const tbody = document.getElementById('eq-tbody');
+    const colspan = isAj ? 9 : 8;
 
     if (!list.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding:32px">장비 없음</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center text-muted" style="padding:32px">장비 없음</td></tr>`;
       return;
     }
 
@@ -133,18 +139,17 @@ const EquipmentPage = (() => {
           <td><strong>${e.equip_no}</strong></td>
           <td>${e.spec || '-'}</td>
           <td>${e.site_name || e.site_id || '-'}</td>
+          <td>${e.project || '-'}</td>
           <td>${e.company || '-'}</td>
           <td><span class="badge" style="${st.style}">${st.label}</span></td>
           <td class="text-sm">${e.in_date || '-'}</td>
-          <td>
-            ${e.qr_code
-              ? `<span class="text-sm" style="font-family:monospace;color:var(--navy)">${e.qr_code}</span>`
-              : '<span class="text-muted text-sm">-</span>'
-            }
-          </td>
+          <td class="text-sm">${e.out_date || '-'}</td>
           ${isAj ? `
             <td>
-              <button class="btn btn-outline btn-sm" onclick="EquipmentPage.openEditForm(${e.id},'${e.equip_no}','${e.spec||''}','${e.site_id||''}','${e.company||''}','${e.status}')">수정</button>
+              <button class="btn btn-outline btn-sm"
+                onclick="EquipmentPage.openEditForm(${e.id},'${(e.equip_no||'').replace(/'/g,"\\'")}','${e.spec||''}','${e.site_id||''}','${(e.company||'').replace(/'/g,"\\'")}','${e.status}')">
+                수정
+              </button>
             </td>
           ` : ''}
         </tr>
@@ -153,14 +158,15 @@ const EquipmentPage = (() => {
   }
 
   // ── 장비 추가 (AJ) ──────────────────────────────────────
-  function openAddForm() {
+  async function openAddForm() {
+    const sites = await Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]);
     Modal.open({
       title: '장비 추가',
       body: `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
-            <input id="add-equip-no" class="form-input" placeholder="예: P4-8M-A001">
+            <input id="add-equip-no" class="form-input" placeholder="예: GK111">
           </div>
           <div class="form-group">
             <label class="form-label">제원 <span style="color:var(--red)">*</span></label>
@@ -173,8 +179,7 @@ const EquipmentPage = (() => {
           <div class="form-group">
             <label class="form-label">현장</label>
             <select id="add-site" class="form-input form-select">
-              <option value="P4">P4 복합동</option>
-              <option value="P5">P5 복합동</option>
+              ${sites.map(s=>`<option value="${s.code}" data-name="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -195,7 +200,9 @@ const EquipmentPage = (() => {
     document.getElementById('btn-do-add').onclick = async () => {
       const equip_no = document.getElementById('add-equip-no').value.trim();
       if (!equip_no) { Toast.error('장비번호를 입력해주세요.'); return; }
-      const siteId = document.getElementById('add-site').value;
+      const siteEl = document.getElementById('add-site');
+      const siteId = siteEl.value;
+      const siteName = siteEl.options[siteEl.selectedIndex]?.getAttribute('data-name') || siteId;
       const btn = document.getElementById('btn-do-add');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
       try {
@@ -204,8 +211,9 @@ const EquipmentPage = (() => {
           spec:      document.getElementById('add-spec').value,
           model:     document.getElementById('add-model').value.trim(),
           site_id:   siteId,
-          site_name: siteId==='P4' ? 'P4 복합동' : 'P5 복합동',
+          site_name: siteName,
           company:   document.getElementById('add-company').value.trim(),
+          status:    'in_use',
         });
         Modal.close();
         Toast.success('장비가 추가되었습니다.');
@@ -233,8 +241,7 @@ const EquipmentPage = (() => {
           <div class="form-group">
             <label class="form-label">상태</label>
             <select id="ed-status" class="form-input form-select">
-              <option value="stock" ${status==='stock'?'selected':''}>재고</option>
-              <option value="in_use" ${status==='in_use'?'selected':''}>사용중</option>
+              <option value="in_use"   ${status==='in_use'  ?'selected':''}>사용중</option>
               <option value="returned" ${status==='returned'?'selected':''}>반출완료</option>
             </select>
           </div>
@@ -253,12 +260,18 @@ const EquipmentPage = (() => {
       const btn = document.getElementById('btn-do-edit');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
       try {
-        await Api.patch(`/equipment/${id}`, {
+        const newStatus = document.getElementById('ed-status').value;
+        const updateBody = {
           equip_no: document.getElementById('ed-equip-no').value.trim(),
           spec:     document.getElementById('ed-spec').value,
-          status:   document.getElementById('ed-status').value,
+          status:   newStatus,
           company:  document.getElementById('ed-company').value.trim(),
-        });
+        };
+        // 반출완료로 변경 시 out_date 자동 기록
+        if (newStatus === 'returned' && status !== 'returned') {
+          updateBody.out_date = new Date().toISOString().slice(0, 10);
+        }
+        await Api.patch(`/equipment/${id}`, updateBody);
         Modal.close();
         Toast.success('장비 정보가 수정되었습니다.');
         loadList();

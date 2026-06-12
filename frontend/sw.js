@@ -1,7 +1,7 @@
 /**
  * Service Worker — 오프라인 캐시 + PWA Push 수신 + Background Sync
  */
-const CACHE_NAME = 'ajtl-v5';
+const CACHE_NAME = 'ajtl-v6';
 const CACHE_URLS = [
   '/', '/index.html',
   '/css/base.css', '/css/layout.css', '/css/components.css',
@@ -11,6 +11,7 @@ const CACHE_URLS = [
   '/js/pages/home.js', '/js/pages/transit.js', '/js/pages/equipment.js',
   '/js/pages/as_request.js', '/js/pages/usage_log.js',
   '/js/pages/analytics.js', '/js/pages/support.js', '/js/pages/admin.js',
+  '/js/pages/admin_settings.js',
   '/icon-72.png', '/icon-192.png', '/icon-512.png',
   '/img/aj-logo.png',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',

@@ -15,18 +15,19 @@ const Api = (() => {
   }
 
   function _applyFilters(query, params) {
-    if (params.status)   query = query.eq('status', params.status);
-    if (params.site_id)  query = query.eq('site_id', params.site_id);
-    if (params.type)     query = query.eq('type', params.type);
-    if (params.equip_id) query = query.eq('equip_id', Number(params.equip_id));
-    if (params.spec)     query = query.eq('spec', params.spec);
-    if (params.date)     query = query.eq('date', params.date);
-    if (params.equip)    query = query.ilike('equip_no', `%${params.equip}%`);
-    if (params.role)     query = query.eq('role', params.role);
-    if (params.q)        query = query.or(
+    if (params.status)    query = query.eq('status', params.status);
+    if (params.site_id)   query = query.eq('site_id', params.site_id);
+    if (params.type)      query = query.eq('type', params.type);
+    if (params.equip_id)  query = query.eq('equip_id', Number(params.equip_id));
+    if (params.spec)      query = query.eq('spec', params.spec);
+    if (params.date)      query = query.eq('date', params.date);
+    if (params.equip)     query = query.ilike('equip_no', `%${params.equip}%`);
+    if (params.equip_no)  query = query.eq('equip_no', params.equip_no);
+    if (params.role)      query = query.eq('role', params.role);
+    if (params.q)         query = query.or(
       `equip_no.ilike.%${params.q}%,company.ilike.%${params.q}%`
     );
-    if (params.limit)    query = query.limit(Number(params.limit));
+    if (params.limit)     query = query.limit(Number(params.limit));
     return query;
   }
 
@@ -102,6 +103,14 @@ const Api = (() => {
       if (params.status) q = q.eq('status', params.status);
       if (params.role)   q = q.eq('role', params.role);
       ({ data, error } = await q);
+    } else if (base === 'sites') {
+      ({ data, error } = await _sb.from('sites').select('*').eq('active', true).order('id'));
+    } else if (base === 'projects') {
+      ({ data, error } = await _sb.from('projects').select('*').eq('active', true).order('id'));
+    } else if (base === 'sites/all') {
+      ({ data, error } = await _sb.from('sites').select('*').order('id'));
+    } else if (base === 'projects/all') {
+      ({ data, error } = await _sb.from('projects').select('*').order('id'));
     } else if (base.startsWith('analytics/')) {
       return await _analytics(base.split('/')[1], params);
     } else {
@@ -138,6 +147,12 @@ const Api = (() => {
       ({ data, error } = await _sb.from('app_users')
         .update({ push_sub: body }).eq('id', uid).select().single()
       );
+    } else if (base === 'notifications') {
+      ({ data, error } = await _sb.from('notifications').insert(body).select().single());
+    } else if (base === 'sites') {
+      ({ data, error } = await _sb.from('sites').insert(body).select().single());
+    } else if (base === 'projects') {
+      ({ data, error } = await _sb.from('projects').insert(body).select().single());
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
       throw new Error('UNKNOWN_PATH');
@@ -156,8 +171,16 @@ const Api = (() => {
     // transit
     if (base.match(/^transit\/\d+\/schedule$/)) {
       const id = Number(base.split('/')[1]);
+      const { status: bodyStatus, ...rest } = body;
+      const status = bodyStatus || 'scheduled';
       ({ data, error } = await _sb.from('transit')
-        .update({ status: 'scheduled', ...body })
+        .update({ status, ...rest })
+        .eq('id', id).select().single()
+      );
+    } else if (base.match(/^transit\/\d+\/partner-confirm$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('transit')
+        .update({ status: 'confirmed', partner_confirmed_at: new Date().toISOString() })
         .eq('id', id).select().single()
       );
     } else if (base.match(/^transit\/\d+\/complete$/)) {
@@ -260,6 +283,17 @@ const Api = (() => {
     } else if (base.match(/^equipment\/\d+$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('equipment').update(body).eq('id', id).select().single());
+
+    // sites
+    } else if (base.match(/^sites\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('sites').update(body).eq('id', id).select().single());
+
+    // projects
+    } else if (base.match(/^projects\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('projects').update(body).eq('id', id).select().single());
+
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
       throw new Error('UNKNOWN_PATH');

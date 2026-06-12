@@ -4,13 +4,14 @@
  */
 const App = (() => {
   const PAGES = ['home', 'transit', 'equipment', 'as-request', 'usage-log',
-    'analytics-equipment', 'analytics-as', 'analytics-usage', 'admin', 'support'];
+    'analytics-equipment', 'analytics-as', 'analytics-usage', 'admin', 'admin-settings', 'support'];
 
   const ACCESS = {
     tech:    ['home', 'as-request', 'usage-log', 'support'],
     partner: ['home', 'transit', 'as-request', 'usage-log', 'support'],
     aj:      ['home', 'transit', 'equipment', 'as-request', 'usage-log',
-               'analytics-equipment', 'analytics-as', 'analytics-usage', 'admin', 'support'],
+               'analytics-equipment', 'analytics-as', 'analytics-usage',
+               'admin', 'admin-settings', 'support'],
     as_tech: ['home', 'as-request', 'support'],
   };
 
@@ -23,6 +24,7 @@ const App = (() => {
     { type: 'item',    page: 'analytics-usage',     label: '사용 기록 분석', abbr: '사용', bg: '#d1fae5', sub: true },
     { type: 'divider' },
     { type: 'item',    page: 'admin',               label: '사용자 관리',    abbr: '관리', bg: '#fce7f3' },
+    { type: 'item',    page: 'admin-settings',      label: '관리자설정',     abbr: '설정', bg: '#e0f2fe' },
     { type: 'item',    page: 'support',             label: '고객지원 게시판', abbr: '지원', bg: '#f0fdf4' },
   ];
 
@@ -77,7 +79,6 @@ const App = (() => {
       parent.classList.add('open');
       submenu.classList.add('open');
     }
-    // 분석 부모 항목 active 상태
     if (parent) parent.classList.toggle('open', isAnalytics || parent.classList.contains('open'));
 
     // 페이지 이동 시 이전 페이지 realtime 구독 해제
@@ -94,6 +95,7 @@ const App = (() => {
       'analytics-usage':     () => AnalyticsUsagePage.render(),
       support:               () => SupportPage.render(),
       admin:                 () => AdminPage.render(),
+      'admin-settings':      () => AdminSettingsPage.render(),
     };
     renderers[pageId]?.();
   }
@@ -128,6 +130,10 @@ const App = (() => {
     const submenu = document.getElementById('sidebar-analytics-submenu');
     if (parent)  parent.style.display  = analyticsAllowed ? '' : 'none';
     if (submenu) submenu.style.display = analyticsAllowed ? '' : 'none';
+
+    // 관리자설정 사이드바 항목 — AJ만 표시
+    const settingsEl = document.querySelector('.sidebar-item[data-page="admin-settings"]');
+    if (settingsEl) settingsEl.style.display = user.role === 'aj' ? '' : 'none';
   }
 
   function _setBottomNavAccess(user) {
@@ -136,7 +142,7 @@ const App = (() => {
     });
   }
 
-  // ── 아코디언 토글 ────────────────────────────────────────────
+  // ── 아코디언 토글 ────────────────────────────────────────
   function toggleAnalyticsMenu() {
     const parent  = document.getElementById('sidebar-analytics-parent');
     const submenu = document.getElementById('sidebar-analytics-submenu');
@@ -145,14 +151,13 @@ const App = (() => {
     submenu.classList.toggle('open', !isOpen);
   }
 
-  // ── 모바일 더보기 시트 ────────────────────────────────────────
+  // ── 모바일 더보기 시트 ────────────────────────────────────
   function openMoreSheet() {
     const user  = Auth.getUser();
     const items = MORE_ITEMS.filter(it =>
       it.type !== 'item' || ACCESS[user.role]?.includes(it.page)
     );
 
-    // 연속된 section/divider만 남는 경우 제거
     const cleaned = items.filter((it, i) => {
       if (it.type !== 'section' && it.type !== 'divider') return true;
       const next = items[i + 1];
@@ -179,7 +184,6 @@ const App = (() => {
     backdrop.classList.add('open');
     sheet.classList.add('open');
 
-    // 더보기 버튼 active
     document.getElementById('btn-more')?.classList.add('active');
   }
 
@@ -189,7 +193,7 @@ const App = (() => {
     document.getElementById('btn-more')?.classList.remove('active');
   }
 
-  // ── 알림 패널 ────────────────────────────────────────────────
+  // ── 알림 패널 ────────────────────────────────────────────
   function toggleNotifPanel() {
     const panel = document.getElementById('notif-panel');
     const isHidden = panel.classList.contains('hidden');
@@ -197,7 +201,6 @@ const App = (() => {
     if (isHidden) {
       panel.classList.remove('hidden');
       Notifications.loadNotifications();
-      // 패널 외부 클릭 시 닫기 (한 번만 실행)
       setTimeout(() => {
         document.addEventListener('click', _closeNotifOnOutside, { once: true, capture: true });
       }, 0);
@@ -217,14 +220,13 @@ const App = (() => {
     if (panel && !panel.contains(e.target) && !btn?.contains(e.target)) {
       _closeNotifPanel();
     } else {
-      // 패널 내부 클릭 — 리스너 재등록
       setTimeout(() => {
         document.addEventListener('click', _closeNotifOnOutside, { once: true, capture: true });
       }, 0);
     }
   }
 
-  /** 로그인 완료 후 레이아웃 초기화 + 홈 이동 (관리자 로그인 등 직접 호출용) */
+  /** 로그인 완료 후 레이아웃 초기화 + 홈 이동 */
   function onLoginSuccess() {
     _buildLayout();
     showPage('home');

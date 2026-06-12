@@ -4,14 +4,16 @@
 const TransitPage = (() => {
   const SPEC_OPTIONS = ['6M','8M','10M','12M','14M','16M','16M굴절','18M','20M굴절'];
   const STATUS_MAP = {
-    requested: { label:'신청 접수',  cls:'badge-pending' },
-    scheduled: { label:'일정 확정',  cls:'badge-active'  },
-    completed: { label:'완료',       style:'background:#1B365D;color:#fff' },
-    cancelled: { label:'취소',       cls:'badge-rejected' },
+    requested:  { label:'신청 접수',    cls:'badge-pending'  },
+    scheduled:  { label:'협력사 확인중', cls:'badge-active'   },
+    confirmed:  { label:'일정 확정',    style:'background:#1B365D;color:#fff' },
+    completed:  { label:'완료',         style:'background:#065f46;color:#fff' },
+    cancelled:  { label:'취소',         cls:'badge-rejected'  },
   };
   const LS = 'transit_form_';
 
   let _currentTab = 'all';
+  let _transitCache = {};  // id → transit object
 
   // ── localStorage 저장/불러오기 ───────────────────────────
   function _saveFormData() {
@@ -53,11 +55,11 @@ const TransitPage = (() => {
         ${canRequest ? `<button class="btn btn-primary btn-sm" onclick="TransitPage.openNewForm()">+ 신규 신청</button>` : ''}
       </div>
 
-      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0">
-        ${[['all','전체'],['requested','신청'],['scheduled','확정'],['completed','완료'],['cancelled','취소']]
+      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;flex-wrap:wrap">
+        ${[['all','전체'],['requested','신청'],['scheduled','협력사확인'],['confirmed','확정'],['completed','완료'],['cancelled','취소']]
           .map(([v,l]) => `
             <button onclick="TransitPage.switchTab('${v}')"
-              style="padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;
+              style="padding:8px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;
               color:${_currentTab===v?'var(--navy)':'var(--gray-400)'};
               border-bottom:${_currentTab===v?'2px solid var(--navy)':'2px solid transparent'};margin-bottom:-2px">
               ${l}
@@ -67,8 +69,6 @@ const TransitPage = (() => {
       <div id="transit-list"></div>
     `;
     await loadList();
-
-    // 실시간 구독 — transit 테이블 변경 시 목록 자동 갱신
     Realtime.on('transit', 'transit', loadList);
   }
 
@@ -77,11 +77,14 @@ const TransitPage = (() => {
   // ── 목록 ────────────────────────────────────────────────
   async function loadList() {
     const c = document.getElementById('transit-list');
+    if (!c) return;
     c.innerHTML = '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>';
     try {
       const p = new URLSearchParams({ limit: 100 });
       if (_currentTab !== 'all') p.set('status', _currentTab);
       const list = await Api.get(`/transit?${p}`);
+      _transitCache = {};
+      list.forEach(t => { _transitCache[t.id] = t; });
       if (!list.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; return; }
       c.innerHTML = list.map(_renderCard).join('');
     } catch {
@@ -90,13 +93,51 @@ const TransitPage = (() => {
   }
 
   function _renderCard(t) {
-    const user  = Auth.getUser();
-    const isAj  = user.role === 'aj';
-    const st    = STATUS_MAP[t.status] || { label: t.status, cls: '' };
-    const specs = (t.equip_specs || []).map(s => `${s.spec}×${s.qty}`).join(', ');
+    const user      = Auth.getUser();
+    const isAj      = user.role === 'aj';
+    const isPartner = user.role === 'partner';
+    const st        = STATUS_MAP[t.status] || { label: t.status, cls: '' };
+    const specs     = (t.equip_specs || []).map(s => `${s.spec}×${s.qty}`).join(', ');
     const typeLabel = t.type === 'in' ? '반입' : '반출';
-    // JSON.stringify를 안전하게 attribute에 넣기 위해 인코딩
     const specsAttr = encodeURIComponent(JSON.stringify(t.equip_specs || []));
+    const safeCompany = (t.company || '').replace(/'/g, "\\'");
+
+    // 버튼 표시 로직
+    let btns = '';
+    if (isAj) {
+      if (t.status === 'requested') {
+        btns = `
+          <button class="btn btn-primary btn-sm" onclick="TransitPage.openScheduleForm(${t.id})">일정 확정</button>
+          <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
+        `;
+      } else if (t.status === 'scheduled') {
+        btns = `
+          <span style="font-size:12px;color:var(--gray-400);padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px">
+            협력사 일정 확인 대기중
+          </span>
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openScheduleForm(${t.id})">일정 수정</button>
+          <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
+        `;
+      } else if (t.status === 'confirmed') {
+        btns = `
+          <button class="btn btn-primary btn-sm"
+            onclick="TransitPage.openCompleteForm(${t.id},'${t.type}','${safeCompany}','${specsAttr}')">
+            ${typeLabel}완료
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
+        `;
+      }
+    } else if (isPartner) {
+      if (t.status === 'requested') {
+        btns = `<button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>`;
+      } else if (t.status === 'scheduled') {
+        btns = `
+          <button class="btn btn-primary btn-sm" onclick="TransitPage.confirmSchedule(${t.id})">
+            일정 확인완료
+          </button>
+        `;
+      }
+    }
 
     return `
       <div class="card" style="margin-bottom:12px">
@@ -106,7 +147,9 @@ const TransitPage = (() => {
               ${typeLabel} · ${st.label}
             </span>
             <div style="font-size:16px;font-weight:700;color:var(--navy);margin-top:6px">${t.company}</div>
-            <div class="text-sm text-muted" style="margin-top:2px">${t.site_name} · ${specs}</div>
+            <div class="text-sm text-muted" style="margin-top:2px">
+              ${t.site_name}${t.project ? ' · ' + t.project : ''}${specs ? ' · ' + specs : ''}
+            </div>
           </div>
           <div style="text-align:right;font-size:12px;color:var(--gray-400)">
             ${new Date(t.created_at).toLocaleDateString('ko-KR')}
@@ -122,25 +165,18 @@ const TransitPage = (() => {
 
         ${t.aj_equip ? `
           <div style="margin-top:8px;font-size:13px;padding:8px 10px;background:var(--gray-100);border-radius:6px">
-            <span class="text-muted">${t.type==='in'?'반입':'반출'} 장비번호:</span>
+            <span class="text-muted">장비번호:</span>
             <span style="font-family:monospace;color:var(--navy);margin-left:4px">${t.aj_equip}</span>
           </div>
         ` : ''}
 
-        ${isAj && t.status === 'requested' ? `
-          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="TransitPage.openScheduleForm(${t.id})">일정 확정</button>
-            <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${t.company.replace(/'/g,"\\'")}')">취소</button>
+        ${t.status === 'scheduled' && t.scheduled_date !== t.requested_date ? `
+          <div style="margin-top:8px;font-size:12px;padding:6px 10px;background:#fef3c7;border-radius:6px;color:#92400e">
+            희망일(${t.requested_date})과 다른 날짜로 확정되었습니다. 확인 후 승인해주세요.
           </div>
         ` : ''}
-        ${isAj && t.status === 'scheduled' ? `
-          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm"
-              onclick="TransitPage.openCompleteForm(${t.id},'${t.type}','${t.company.replace(/'/g,"\\'")}','${specsAttr}')">완료 처리</button>
-            <button class="btn btn-outline btn-sm" onclick="TransitPage.openScheduleForm(${t.id})">일정 수정</button>
-            <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${t.company.replace(/'/g,"\\'")}')">취소</button>
-          </div>
-        ` : ''}
+
+        ${btns ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${btns}</div>` : ''}
 
         ${(t.change_log && t.change_log.length) ? `
           <details style="margin-top:12px">
@@ -157,8 +193,13 @@ const TransitPage = (() => {
     `;
   }
 
-  // ── 신규 신청 폼 ─────────────────────────────────────────
-  function openNewForm() {
+  // ── 신규 신청 폼 (sites/projects 동적 로드) ──────────────
+  async function openNewForm() {
+    const [sites, projects] = await Promise.all([
+      Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]),
+      Api.get('/projects').catch(() => [{code:'Ph1',name:'Phase 1'},{code:'Ph2',name:'Phase 2'},{code:'Ph3',name:'Phase 3'},{code:'Ph4',name:'Phase 4'}]),
+    ]);
+
     Modal.open({
       title: '반입/반출 신청',
       body: `
@@ -178,41 +219,49 @@ const TransitPage = (() => {
           <div class="form-group">
             <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
             <select id="tr-site" class="form-input form-select">
-              <option value="P4">P4 복합동</option>
-              <option value="P5">P5 복합동</option>
+              ${sites.map(s => `<option value="${s.code}" data-name="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
+          <div class="form-group">
+            <label class="form-label">프로젝트 <span style="color:var(--red)">*</span></label>
+            <select id="tr-project" class="form-input form-select">
+              <option value="">-- 선택 --</option>
+              ${projects.map(p => `<option value="${p.code}">${p.code} · ${p.name}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
             <input id="tr-company" class="form-input" placeholder="업체명">
           </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">신청자 <span style="color:var(--red)">*</span></label>
             <input id="tr-reporter" class="form-input" placeholder="담당자 이름">
           </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">신청자 연락처 <span style="color:var(--red)">*</span></label>
             <input id="tr-phone" class="form-input" placeholder="010-0000-0000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">양중담당자</label>
+            <input id="tr-manager" class="form-input" placeholder="이름">
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">양중담당자</label>
-            <input id="tr-manager" class="form-input" placeholder="이름">
-          </div>
-          <div class="form-group">
             <label class="form-label">양중담당자 연락처</label>
             <input id="tr-manager-phone" class="form-input" placeholder="010-0000-0000">
           </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" id="tr-date-label">희망 반입 날짜 <span style="color:var(--red)">*</span></label>
-          <input id="tr-date" type="date" class="form-input">
+          <div class="form-group">
+            <label class="form-label" id="tr-date-label">희망 반입 날짜 <span style="color:var(--red)">*</span></label>
+            <input id="tr-date" type="date" class="form-input">
+          </div>
         </div>
 
         <div id="tr-specs-section" class="form-group">
@@ -275,13 +324,17 @@ const TransitPage = (() => {
 
   async function _submitNewTransit() {
     const type    = document.querySelector('input[name="tr-type"]:checked')?.value;
-    const siteId  = document.getElementById('tr-site').value;
+    const siteEl  = document.getElementById('tr-site');
+    const siteId  = siteEl?.value;
+    const siteName= siteEl?.options[siteEl?.selectedIndex]?.getAttribute('data-name') || siteId;
+    const project = document.getElementById('tr-project')?.value;
     const company = document.getElementById('tr-company').value.trim();
     const reporter= document.getElementById('tr-reporter').value.trim();
     const phone   = document.getElementById('tr-phone').value.trim();
     const date    = document.getElementById('tr-date').value;
 
     if (!company || !reporter || !phone) { Toast.error('필수 항목을 모두 입력해주세요.'); return; }
+    if (!project) { Toast.error('프로젝트를 선택해주세요.'); return; }
     if (!date) { Toast.error(`희망 ${type === 'in' ? '반입' : '반출'} 날짜를 선택해주세요.`); return; }
 
     let equip_specs = [], equip_nos = '';
@@ -304,8 +357,10 @@ const TransitPage = (() => {
 
     try {
       await Api.post('/transit', {
-        type, site_id: siteId,
-        site_name:      siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
+        type,
+        site_id:        siteId,
+        site_name:      siteName,
+        project,
         company,
         equip_specs:    type === 'in' ? equip_specs : [],
         aj_equip:       type === 'out' ? equip_nos : null,
@@ -325,75 +380,167 @@ const TransitPage = (() => {
 
   // ── 일정 확정 (AJ) ───────────────────────────────────────
   function openScheduleForm(transitId) {
+    const t = _transitCache[transitId];
+    if (!t) { Toast.error('정보를 불러올 수 없습니다. 목록을 새로고침하세요.'); return; }
+    const typeLabel = t.type === 'in' ? '반입' : '반출';
+
     Modal.open({
-      title: '일정 확정 및 배차 입력',
+      title: `${typeLabel} 일정 확정`,
       body: `
+        <div style="background:var(--gray-100);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px">
+          <strong>${t.company}</strong> · ${t.site_name}${t.project ? ' · ' + t.project : ''}<br>
+          희망일: <strong>${t.requested_date || '-'}</strong>
+          ${(t.equip_specs||[]).length ? `<br>제원: ${(t.equip_specs||[]).map(s=>`${s.spec}×${s.qty}`).join(', ')}` : ''}
+        </div>
         <div class="form-group">
           <label class="form-label">확정 날짜 <span style="color:var(--red)">*</span></label>
-          <input id="sc-date" type="date" class="form-input">
+          <input id="sc-date" type="date" class="form-input" value="${t.requested_date || ''}">
+          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
+            희망일과 다르게 설정하면 협력사 확인 후 최종 확정됩니다.
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
+          <input id="sc-equip-nos" class="form-input"
+            placeholder="GK111, GF123, GG456"
+            value="${t.aj_equip || ''}">
+          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
+            쉼표(,)로 구분. 예: GK111, GF123
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">배차 차량</label>
-          <input id="sc-vehicle" class="form-input" placeholder="예: 5톤 트럭">
+          <input id="sc-vehicle" class="form-input"
+            placeholder="예: 5톤 트럭 12가3456"
+            value="${t.vehicle_info || ''}">
         </div>
         <div class="form-group">
           <label class="form-label">담당 기사 / 연락처</label>
-          <input id="sc-driver" class="form-input" placeholder="예: 홍길동 / 010-0000-0000">
+          <input id="sc-driver" class="form-input"
+            placeholder="예: 홍길동 / 010-0000-0000"
+            value="${t.driver_info || ''}">
         </div>
         <div class="form-group">
           <label class="form-label">비고</label>
-          <textarea id="sc-note" class="form-input" rows="2"></textarea>
+          <textarea id="sc-note" class="form-input" rows="2">${t.note || ''}</textarea>
         </div>
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
-        <button class="btn btn-primary btn-sm" id="btn-confirm-schedule">확정 저장</button>
+        <button class="btn btn-primary btn-sm" id="btn-confirm-schedule">확정</button>
       `,
     });
+
     document.getElementById('btn-confirm-schedule').onclick = async () => {
-      const date = document.getElementById('sc-date').value;
-      if (!date) { Toast.error('확정 날짜를 선택해주세요.'); return; }
+      const date     = document.getElementById('sc-date').value;
+      const equipNos = document.getElementById('sc-equip-nos').value.trim();
+      if (!date)     { Toast.error('확정 날짜를 선택해주세요.'); return; }
+      if (!equipNos) { Toast.error('장비번호를 입력해주세요.'); return; }
+
+      const dateChanged = date !== t.requested_date;
+      const newStatus   = dateChanged ? 'scheduled' : 'confirmed';
+
       const btn = document.getElementById('btn-confirm-schedule');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
       try {
         await Api.patch(`/transit/${transitId}/schedule`, {
           scheduled_date: date,
+          aj_equip:       equipNos,
           vehicle_info:   document.getElementById('sc-vehicle').value.trim(),
           driver_info:    document.getElementById('sc-driver').value.trim(),
           note:           document.getElementById('sc-note').value.trim(),
+          status:         newStatus,
         });
+
+        // 날짜가 다른 경우 협력사에게 앱 내 알림 발송
+        if (dateChanged && t.created_by) {
+          await Api.post('/notifications', {
+            target_id:  t.created_by,
+            type:       'transit',
+            title:      `[일정 변경] ${t.company}`,
+            body:       `희망일 ${t.requested_date} → 확정일 ${date}. 앱에서 일정을 확인하고 승인해주세요.`,
+            ref_id:     String(transitId),
+            is_read:    false,
+          }, { silent: true });
+        }
+
         Modal.close();
-        Toast.success('일정이 확정되었습니다. 협력사에게 알림이 발송됩니다.');
+        Toast.success(dateChanged
+          ? '일정이 저장되었습니다. 협력사 확인 후 최종 확정됩니다.'
+          : '일정이 확정되었습니다.');
         loadList();
-      } catch { btn.disabled = false; btn.textContent = '확정 저장'; }
+      } catch { btn.disabled = false; btn.textContent = '확정'; }
     };
+  }
+
+  // ── 협력사 일정 확인완료 ──────────────────────────────────
+  async function confirmSchedule(transitId) {
+    if (!confirm('일정을 확인하고 승인하시겠습니까?')) return;
+    try {
+      await Api.patch(`/transit/${transitId}/partner-confirm`, {});
+      Toast.success('일정 확인 완료. 확정 상태로 변경되었습니다.');
+      loadList();
+    } catch {}
   }
 
   // ── 완료 처리 (AJ) ───────────────────────────────────────
   function openCompleteForm(transitId, type, company, specsEncoded) {
-    const isIn     = type === 'in';
-    const specs    = JSON.parse(decodeURIComponent(specsEncoded));
-    const totalQty = specs.reduce((s, e) => s + (e.qty || 1), 0);
-    const specsStr = specs.map(s => `${s.spec} ${s.qty}대`).join(' / ');
+    const t     = _transitCache[transitId];
+    const isIn  = type === 'in';
+    const specs = JSON.parse(decodeURIComponent(specsEncoded));
+
+    // 반입 장비번호 목록 (일정 확정 시 입력된 번호)
+    const equipNos = (t?.aj_equip || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+
+    // 기본 spec 결정: equip_specs에서 spec 목록 추출
+    const specPool = [];
+    specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) specPool.push(s.spec); });
 
     Modal.open({
       title: `${isIn ? '반입' : '반출'} 완료 처리`,
       body: isIn ? `
         <p style="margin-bottom:14px">
           <strong>${company}</strong>의 반입을 완료 처리합니다.<br>
-          <span class="text-sm text-muted">${specsStr} — 총 ${totalQty}대</span>
+          <span class="text-sm text-muted">각 장비번호별 제원을 확인해주세요.</span>
         </p>
-        <div class="form-group">
-          <label class="form-label">반입 장비번호 <span style="color:var(--red)">*</span></label>
-          <input id="complete-equip-nos" class="form-input"
-            placeholder="${Array.from({length:Math.min(totalQty,3)},(_,i)=>'GF'+(100+i)).join(', ')}${totalQty>3?', ...':''}">
-          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
-            ${totalQty}대 모두 입력 · 쉼표(,)로 구분
+        ${equipNos.length ? `
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="background:var(--gray-100)">
+                <th style="padding:8px 10px;text-align:left;font-weight:600">장비번호</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:600">제원</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${equipNos.map((no, i) => `
+                <tr style="border-bottom:1px solid var(--gray-100)">
+                  <td style="padding:8px 10px;font-family:monospace">${no}</td>
+                  <td style="padding:6px 10px">
+                    <select id="spec-row-${i}" class="form-input form-select" style="padding:4px 8px">
+                      ${SPEC_OPTIONS.map(s => `<option value="${s}" ${(specPool[i]||specPool[0]||'8M')===s?'selected':''}>${s}</option>`).join('')}
+                    </select>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        ` : `
+          <div class="form-group">
+            <label class="form-label">반입 장비번호 <span style="color:var(--red)">*</span></label>
+            <input id="complete-equip-nos" class="form-input" placeholder="GF123, GF124 (쉼표로 구분)">
           </div>
-        </div>
+        `}
       ` : `
         <p style="margin-bottom:8px"><strong>${company}</strong>의 반출을 완료 처리합니다.</p>
-        <p class="text-sm text-muted">신청 시 등록된 장비번호가 반출 완료 처리됩니다.</p>
+        ${equipNos.length ? `
+          <div style="padding:10px;background:var(--gray-100);border-radius:8px;font-size:13px;font-family:monospace">
+            ${equipNos.join(', ')}
+          </div>
+          <p class="text-sm text-muted" style="margin-top:8px">
+            위 장비들이 반출완료 처리됩니다.
+          </p>
+        ` : `<p class="text-sm text-muted">신청 시 등록된 장비번호가 반출 완료 처리됩니다.</p>`}
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
@@ -402,28 +549,92 @@ const TransitPage = (() => {
     });
 
     document.getElementById('btn-do-complete').onclick = async () => {
-      let equip_nos = '';
-      if (isIn) {
-        equip_nos = document.getElementById('complete-equip-nos')?.value.trim();
-        if (!equip_nos) { Toast.error('장비번호를 입력해주세요.'); return; }
-        const count = equip_nos.split(',').map(s => s.trim()).filter(Boolean).length;
-        if (count !== totalQty) {
-          Toast.error(`장비번호 ${totalQty}대를 입력해주세요. (현재 ${count}대 입력됨)`);
-          return;
-        }
-      }
       const btn = document.getElementById('btn-do-complete');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
-        await Api.patch(`/transit/${transitId}/complete`, { aj_equip: equip_nos });
+        if (isIn) {
+          await _doCompleteIn(transitId, t, equipNos, specs);
+        } else {
+          await _doCompleteOut(transitId, t, equipNos);
+        }
         Modal.close();
         Toast.success('완료 처리되었습니다.');
         loadList();
-      } catch { btn.disabled = false; btn.textContent = '완료 처리'; }
+      } catch (e) {
+        btn.disabled = false; btn.textContent = '완료 처리';
+        console.error('[Complete]', e);
+      }
     };
   }
 
-  // ── 취소 (AJ) ────────────────────────────────────────────
+  // 반입 완료 처리 — transit 상태 변경 + 장비 레코드 생성
+  async function _doCompleteIn(transitId, t, equipNos, specs) {
+    await Api.patch(`/transit/${transitId}/complete`, {});
+
+    const today = new Date().toISOString().slice(0, 10);
+    const specPool = [];
+    specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) specPool.push(s.spec); });
+
+    // 장비번호가 모달에서 직접 입력된 경우 처리
+    let finalEquipNos = equipNos;
+    if (!finalEquipNos.length) {
+      const nosEl = document.getElementById('complete-equip-nos');
+      if (nosEl?.value.trim()) {
+        finalEquipNos = nosEl.value.trim().split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
+    for (let i = 0; i < finalEquipNos.length; i++) {
+      const equip_no = finalEquipNos[i];
+      const specEl   = document.getElementById(`spec-row-${i}`);
+      const spec     = specEl?.value || specPool[i] || specPool[0] || '';
+
+      try {
+        // 기존 레코드 확인
+        const existing = await Api.get(`/equipment?equip_no=${encodeURIComponent(equip_no)}`, { silent: true });
+        const found    = Array.isArray(existing) ? existing.find(e => e.equip_no === equip_no) : null;
+
+        const equipData = {
+          equip_no,
+          spec,
+          site_id:    t.site_id,
+          site_name:  t.site_name,
+          company:    t.company,
+          project:    t.project,
+          status:     'in_use',
+          in_date:    t.scheduled_date || today,
+          transit_id: transitId,
+        };
+
+        if (found) {
+          await Api.patch(`/equipment/${found.id}`, equipData);
+        } else {
+          await Api.post('/equipment', {
+            ...equipData,
+            record_id: `EQ-${equip_no}-${Date.now()}`,
+          });
+        }
+      } catch (e) { console.warn('[EquipIn] upsert failed:', equip_no, e); }
+    }
+  }
+
+  // 반출 완료 처리 — transit 상태 변경 + 장비 반출완료 처리
+  async function _doCompleteOut(transitId, t, equipNos) {
+    await Api.patch(`/transit/${transitId}/complete`, {});
+
+    const today = new Date().toISOString().slice(0, 10);
+    for (const equip_no of equipNos) {
+      try {
+        const existing = await Api.get(`/equipment?equip_no=${encodeURIComponent(equip_no)}`, { silent: true });
+        const found    = Array.isArray(existing) ? existing.find(e => e.equip_no === equip_no) : null;
+        if (found) {
+          await Api.patch(`/equipment/${found.id}`, { status: 'returned', out_date: today });
+        }
+      } catch (e) { console.warn('[EquipOut] update failed:', equip_no, e); }
+    }
+  }
+
+  // ── 취소 (AJ / 협력사) ───────────────────────────────────
   function openCancelForm(transitId, company) {
     Modal.open({
       title: `신청 취소 — ${company}`,
@@ -456,6 +667,7 @@ const TransitPage = (() => {
   return {
     render, switchTab, loadList,
     openNewForm, addSpecRow, _onTypeChange,
-    openScheduleForm, openCompleteForm, openCancelForm,
+    openScheduleForm, confirmSchedule,
+    openCompleteForm, openCancelForm,
   };
 })();
