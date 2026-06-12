@@ -136,7 +136,7 @@ const UsageLogPage = (() => {
       tbody.innerHTML = list.map(r => `
         <tr style="${r.status==='using'?'background:#f0f9ff':''}">
           <td class="text-sm">${r.date || '-'}</td>
-          <td><strong>${r.equip || '-'}</strong></td>
+          <td><strong>${r.equip_no || '-'}</strong></td>
           <td class="text-sm">${r.site_name || r.site_id || '-'}</td>
           <td class="text-sm">${r.company || '-'}</td>
           <td class="text-sm">${r.floor || '-'}</td>
@@ -155,7 +155,7 @@ const UsageLogPage = (() => {
           ${canStart ? `
             <td>
               ${r.status === 'using'
-                ? `<button class="btn btn-danger btn-sm" onclick="UsageLogPage.openEndForm(${r.id},'${r.equip}')">종료</button>`
+                ? `<button class="btn btn-danger btn-sm" onclick="UsageLogPage.openEndForm(${r.id},'${r.equip_no}')">종료</button>`
                 : ''
               }
             </td>
@@ -181,11 +181,11 @@ const UsageLogPage = (() => {
       <div style="display:flex;flex-wrap:wrap;gap:10px">
         ${active.map(r => `
           <div class="card" style="padding:12px 16px;min-width:200px;border-left:3px solid var(--navy)">
-            <div style="font-weight:700;font-size:14px;color:var(--navy)">${r.equip}</div>
+            <div style="font-weight:700;font-size:14px;color:var(--navy)">${r.equip_no}</div>
             <div style="font-size:12px;color:var(--gray-400);margin-top:2px">${r.site_name || r.site_id} · ${r.floor}</div>
             <div style="font-size:12px;margin-top:4px">시작: <strong>${r.start_time}</strong> · ${r.recorder}</div>
             ${canStart ? `<button class="btn btn-danger btn-sm" style="margin-top:8px;width:100%"
-              onclick="UsageLogPage.openEndForm(${r.id},'${r.equip}')">가동 종료</button>` : ''}
+              onclick="UsageLogPage.openEndForm(${r.id},'${r.equip_no}')">가동 종료</button>` : ''}
           </div>
         `).join('')}
       </div>
@@ -259,11 +259,17 @@ const UsageLogPage = (() => {
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
 
       try {
-        await Api.post('/usage-logs', {
-          site_id:     siteId,
-          site_name:   siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
-          company, equip, floor, recorder,
-          meter_start: document.getElementById('sl-meter-start').value.trim(),
+        await Api.post('/usage-logs/start', {
+          site_id:    siteId,
+          site_name:  siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
+          company,
+          equip_no:   equip,
+          floor,
+          recorder,
+          recorder_id: Auth.getUser()?.id,
+          start_time: new Date().toISOString(),
+          date:       new Date().toISOString().slice(0, 10),
+          status:     'using',
         });
         Modal.close();
         Toast.success(`${equip} 가동이 시작되었습니다.`);

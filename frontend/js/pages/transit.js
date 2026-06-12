@@ -302,8 +302,10 @@ const TransitPage = (() => {
     try {
       await Api.post('/transit', {
         type, site_id: siteId,
-        site_name: siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
-        company, equip_specs, equip_nos,
+        site_name:      siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
+        company,
+        equip_specs:    type === 'in' ? equip_specs : [],
+        aj_equip:       type === 'out' ? equip_nos : null,
         reporter_name:  reporter,
         reporter_phone: phone,
         manager_name:   document.getElementById('tr-manager').value.trim(),
@@ -409,7 +411,7 @@ const TransitPage = (() => {
       const btn = document.getElementById('btn-do-complete');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
-        await Api.patch(`/transit/${transitId}/complete`, { equip_nos });
+        await Api.patch(`/transit/${transitId}/complete`, { aj_equip: equip_nos });
         Modal.close();
         Toast.success('완료 처리되었습니다.');
         loadList();

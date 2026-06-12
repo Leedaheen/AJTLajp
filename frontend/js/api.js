@@ -1,28 +1,28 @@
 /**
  * API 모듈 — Supabase JS SDK 기반
- * REST 스타일 경로를 Supabase 쿼리로 변환합니다.
- * 기존 페이지 코드가 Api.get/post/patch/delete 를 그대로 사용할 수 있습니다.
  */
 const Api = (() => {
-  // URL 쿼리스트링 파싱
   function _qs(path) {
     const [base, search] = path.split('?');
     const params = {};
     if (search) {
       search.split('&').forEach(p => {
         const [k, v] = p.split('=');
-        params[decodeURIComponent(k)] = decodeURIComponent(v || '');
+        if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
       });
     }
     return { base: base.replace(/^\//, ''), params };
   }
 
-  // Supabase 쿼리에 공통 필터 적용
   function _applyFilters(query, params) {
     if (params.status)   query = query.eq('status', params.status);
     if (params.site_id)  query = query.eq('site_id', params.site_id);
     if (params.type)     query = query.eq('type', params.type);
     if (params.equip_id) query = query.eq('equip_id', Number(params.equip_id));
+    if (params.spec)     query = query.eq('spec', params.spec);
+    if (params.date)     query = query.eq('date', params.date);
+    if (params.equip)    query = query.ilike('equip_no', `%${params.equip}%`);
+    if (params.role)     query = query.eq('role', params.role);
     if (params.q)        query = query.or(
       `equip_no.ilike.%${params.q}%,company.ilike.%${params.q}%`
     );
@@ -30,7 +30,6 @@ const Api = (() => {
     return query;
   }
 
-  // 에러 처리
   function _handle(error, silent) {
     if (!error) return;
     if (!silent) Toast.error(error.message || '오류가 발생했습니다.');
@@ -43,14 +42,11 @@ const Api = (() => {
     const silent = opts.silent === true;
     let data, error;
 
-    // 경로별 라우팅
     if (base === 'transit') {
       ({ data, error } = await _applyFilters(
         _sb.from('transit').select('*').order('created_at', { ascending: false }),
         params
       ));
-    } else if (base.startsWith('transit/') && base.endsWith('/complete')) {
-      return;
     } else if (base === 'equipment') {
       ({ data, error } = await _applyFilters(
         _sb.from('equipment').select('*').order('created_at', { ascending: false }),
@@ -58,21 +54,35 @@ const Api = (() => {
       ));
     } else if (base.match(/^equipment\/\d+$/)) {
       const id = Number(base.split('/')[1]);
-      ({ data, error } = await _sb.from('equipment').select('*').eq('id', id).single());
+      ({ data, error } = await _sb.from('equipment').select('*').eq('id', id).maybeSingle());
       if (!error) return data;
     } else if (base.match(/^equipment\/qr\//)) {
       const qr = base.split('/').pop();
-      ({ data, error } = await _sb.from('equipment').select('*').eq('qr_code', qr).single());
+      ({ data, error } = await _sb.from('equipment').select('*').eq('qr_code', qr).maybeSingle());
       if (!error) return data;
     } else if (base === 'as-requests') {
       let q = _sb.from('as_requests').select('*').order('requested_at', { ascending: false });
       if (params.status)  q = q.eq('status', params.status);
+      if (params.site_id) q = q.eq('site_id', params.site_id);
       if (params.tech_id) q = q.eq('tech_id', params.tech_id);
       if (params.limit)   q = q.limit(Number(params.limit));
       if (params.q)       q = q.or(
         `equip_no.ilike.%${params.q}%,company.ilike.%${params.q}%,fault_type.ilike.%${params.q}%`
       );
       ({ data, error } = await q);
+    } else if (base === 'usage-logs/summary') {
+      const date   = params.date || new Date().toISOString().slice(0, 10);
+      const siteId = params.site_id || '';
+      let q = _sb.from('usage_logs').select('used_hours,equip_no,site_id').eq('date', date);
+      if (siteId) q = q.eq('site_id', siteId);
+      const { data: rows = [] } = await q;
+      const totalHours = rows.reduce((s, r) => s + Number(r.used_hours || 0), 0);
+      const equipSet = new Set(rows.map(r => r.equip_no).filter(Boolean));
+      return {
+        total_hours:  Math.round(totalHours * 10) / 10,
+        equip_count:  equipSet.size,
+        record_count: rows.length,
+      };
     } else if (base === 'usage-logs') {
       ({ data, error } = await _applyFilters(
         _sb.from('usage_logs').select('*').order('created_at', { ascending: false }),
@@ -88,13 +98,11 @@ const Api = (() => {
         .limit(50)
       );
     } else if (base === 'users') {
-      ({ data, error } = await _sb
-        .from('app_users')
-        .select('*')
-        .order('created_at', { ascending: false })
-      );
+      let q = _sb.from('app_users').select('*').order('created_at', { ascending: false });
+      if (params.status) q = q.eq('status', params.status);
+      if (params.role)   q = q.eq('role', params.role);
+      ({ data, error } = await q);
     } else if (base.startsWith('analytics/')) {
-      // 클라이언트 측 집계 — analytics.js 에서 직접 호출
       return await _analytics(base.split('/')[1], params);
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
@@ -115,7 +123,9 @@ const Api = (() => {
       ({ data, error } = await _sb.from('transit').insert(body).select().single());
     } else if (base === 'as-requests') {
       ({ data, error } = await _sb.from('as_requests').insert(body).select().single());
-    } else if (base === 'usage-logs/start') {
+    } else if (base === 'equipment') {
+      ({ data, error } = await _sb.from('equipment').insert(body).select().single());
+    } else if (base === 'usage-logs/start' || base === 'usage-logs') {
       ({ data, error } = await _sb.from('usage_logs').insert(body).select().single());
     } else if (base === 'usage-logs/end') {
       const { id, end_time, used_hours } = body;
@@ -123,7 +133,7 @@ const Api = (() => {
         .update({ end_time, used_hours, status: 'done' })
         .eq('id', id).select().single()
       );
-    } else if (base === 'push/subscribe') {
+    } else if (base === 'push/subscribe' || base === 'users/me/push-subscribe') {
       const uid = Auth.getUser()?.id;
       ({ data, error } = await _sb.from('app_users')
         .update({ push_sub: body }).eq('id', uid).select().single()
@@ -144,9 +154,12 @@ const Api = (() => {
     let data, error;
 
     // transit
-    if (base.match(/^transit\/\d+$/)) {
+    if (base.match(/^transit\/\d+\/schedule$/)) {
       const id = Number(base.split('/')[1]);
-      ({ data, error } = await _sb.from('transit').update(body).eq('id', id).select().single());
+      ({ data, error } = await _sb.from('transit')
+        .update({ status: 'scheduled', ...body })
+        .eq('id', id).select().single()
+      );
     } else if (base.match(/^transit\/\d+\/complete$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('transit')
@@ -159,7 +172,29 @@ const Api = (() => {
         .update({ status: 'cancelled', ...body })
         .eq('id', id).select().single()
       );
+    } else if (base.match(/^transit\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('transit').update(body).eq('id', id).select().single());
+
     // as-requests
+    } else if (base.match(/^as-requests\/\d+\/assign$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('as_requests')
+        .update({ status: 'assigned', ...body })
+        .eq('id', id).select().single()
+      );
+    } else if (base.match(/^as-requests\/\d+\/start$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('as_requests')
+        .update({ status: 'in_progress' })
+        .eq('id', id).select().single()
+      );
+    } else if (base.match(/^as-requests\/\d+\/cancel$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('as_requests')
+        .update({ status: 'cancelled' })
+        .eq('id', id).select().single()
+      );
     } else if (base.match(/^as-requests\/\d+\/resolve$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('as_requests')
@@ -169,20 +204,58 @@ const Api = (() => {
     } else if (base.match(/^as-requests\/\d+$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('as_requests').update(body).eq('id', id).select().single());
+
+    // usage-logs
+    } else if (base.match(/^usage-logs\/\d+\/end$/)) {
+      const id = Number(base.split('/')[1]);
+      const { data: log } = await _sb.from('usage_logs').select('start_time,date').eq('id', id).maybeSingle();
+      const recordDate  = log?.date || new Date().toISOString().slice(0, 10);
+      const endFull     = new Date(`${recordDate}T${body.end_time}:00`);
+      const startFull   = new Date(log?.start_time || Date.now());
+      const usedHours   = Math.max(0, Math.round((endFull - startFull) / 36000) / 100);
+      ({ data, error } = await _sb.from('usage_logs')
+        .update({
+          end_time:   endFull.toISOString(),
+          used_hours: usedHours,
+          status:     'done',
+          ...(body.meter_end  ? { meter_end:  body.meter_end }  : {}),
+          ...(body.off_reason ? { off_reason: body.off_reason } : {}),
+        })
+        .eq('id', id).select().single()
+      );
+
     // notifications
     } else if (base.match(/^notifications\/\d+\/read$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('notifications').update({ is_read: true }).eq('id', id));
+
     // users
     } else if (base.match(/^users\/.+\/approve$/)) {
       const id = base.split('/')[1];
-      ({ data, error } = await _sb.from('app_users').update(body).eq('id', id).select().single());
+      const updateBody = body.action === 'approve'
+        ? { status: 'active',   approved_at: new Date().toISOString() }
+        : { status: 'rejected', reject_reason: body.reject_reason };
+      ({ data, error } = await _sb.from('app_users').update(updateBody).eq('id', id).select().single());
     } else if (base.match(/^users\/.+\/role$/)) {
       const id = base.split('/')[1];
-      ({ data, error } = await _sb.from('app_users').update({ role: body.role }).eq('id', id));
+      ({ data, error } = await _sb.from('app_users')
+        .update({ role: body.role, site_id: body.site_id })
+        .eq('id', id)
+      );
     } else if (base === 'users/me/notif-prefs') {
       const uid = Auth.getUser()?.id;
       ({ data, error } = await _sb.from('app_users').update({ notif_prefs: body }).eq('id', uid));
+    } else if (base === 'users/me/credentials') {
+      try {
+        const { data: result, error: fnErr } = await _sb.functions.invoke('change-admin-credentials', { body });
+        if (fnErr) throw new Error(fnErr.message || '서버 오류');
+        if (!result?.ok) throw new Error(result?.message || '비밀번호 변경 실패');
+        return result;
+      } catch (e) {
+        if (!silent) Toast.error(e.message || '계정 정보 변경 실패');
+        throw e;
+      }
+
     // equipment
     } else if (base.match(/^equipment\/\d+$/)) {
       const id = Number(base.split('/')[1]);
@@ -214,18 +287,18 @@ const Api = (() => {
     return { success: true };
   }
 
-  // ── 분석 집계 (클라이언트 측) ─────────────────────────────────
+  // ── 분석 집계 ─────────────────────────────────────────────────
   async function _analytics(type, params) {
-    const days    = Number(params.days || 30);
-    const siteId  = params.site_id || '';
-    const since   = new Date(Date.now() - days * 86400000).toISOString();
+    const days   = Number(params.days || 30);
+    const siteId = params.site_id || '';
+    const since  = new Date(Date.now() - days * 86400000).toISOString();
 
     if (type === 'equipment') {
       let q = _sb.from('equipment').select('*');
       if (siteId) q = q.eq('site_id', siteId);
       const { data: rows = [] } = await q;
       return {
-        total: rows.length,
+        total:      rows.length,
         by_status:  _countBy(rows, 'status'),
         by_spec:    _countBy(rows, 'spec'),
         by_site:    _countBy(rows, 'site_id'),
@@ -248,14 +321,15 @@ const Api = (() => {
         byDate[d] = (byDate[d] || 0) + 1;
       });
       return {
-        total: rows.length,
-        resolved_count: resolved.length,
+        total:           rows.length,
+        resolved_count:  resolved.length,
         avg_elapsed_min: avgMin,
-        by_fault:  _countBy(rows, 'fault_type'),
-        by_status: _countBy(rows, 'status'),
-        by_tech:   _countBy(rows, 'tech_name'),
-        by_date:   Object.entries(byDate).map(([date, count]) => ({ date, count }))
-                         .sort((a, b) => a.date.localeCompare(b.date)),
+        by_fault:        _countBy(rows, 'fault_type'),
+        by_status:       _countBy(rows, 'status'),
+        by_tech:         _countBy(rows, 'tech_name'),
+        by_date: Object.entries(byDate)
+          .map(([date, count]) => ({ date, count }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
       };
     }
 
@@ -293,10 +367,5 @@ const Api = (() => {
     return Object.entries(map).map(([label, count]) => ({ label, count }));
   }
 
-  return {
-    get,
-    post,
-    patch,
-    delete: del,
-  };
+  return { get, post, patch, delete: del };
 })();

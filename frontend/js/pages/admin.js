@@ -129,7 +129,7 @@ const AdminPage = (() => {
     });
     document.getElementById('btn-confirm-approve').onclick = async () => {
       try {
-        await Api.patch(`/users/${userId}/approve`, { action: 'approve' });
+        await Api.patch(`/users/${userId}/approve`, { action: 'approve', approved_at: new Date().toISOString() });
         Modal.close();
         Toast.success(`${name}님이 승인되었습니다.`);
         loadUsers();
@@ -157,7 +157,7 @@ const AdminPage = (() => {
       const reason = document.getElementById('inp-reject-reason').value.trim();
       if (!reason) { Toast.error('거절 사유를 입력해주세요.'); return; }
       try {
-        await Api.patch(`/users/${userId}/approve`, { action: 'reject', reject_reason: reason });
+        await Api.patch(`/users/${userId}/approve`, { action: 'reject', reject_reason: reason, approved_at: null });
         Modal.close();
         Toast.success(`${name}님이 거절되었습니다.`);
         loadUsers();

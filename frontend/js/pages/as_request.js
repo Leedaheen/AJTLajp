@@ -8,11 +8,12 @@
 const AsRequestPage = (() => {
   const FAULT_TYPES = ['배터리 불량','유압 불량','조향 불량','리프트 불량','타이어 파손','충전기 불량','기타'];
   const STATUS_MAP = {
-    pending:     { label:'접수 대기', cls:'badge-pending' },
-    assigned:    { label:'기사 배정', style:'background:#ede9fe;color:#5b21b6' },
-    in_progress: { label:'처리 중',   style:'background:#fef3c7;color:#92400e' },
-    resolved:    { label:'처리 완료', style:'background:#d1fae5;color:#065f46' },
-    cancelled:   { label:'취소',      cls:'badge-rejected' },
+    requested:        { label:'접수 대기',   cls:'badge-pending' },
+    assigned:         { label:'기사 배정',   style:'background:#ede9fe;color:#5b21b6' },
+    in_progress:      { label:'처리 중',     style:'background:#fef3c7;color:#92400e' },
+    material_pending: { label:'자재 수급 중', style:'background:#ffedd5;color:#9a3412' },
+    completed:        { label:'처리 완료',   style:'background:#d1fae5;color:#065f46' },
+    cancelled:        { label:'취소',        cls:'badge-rejected' },
   };
 
   let _currentTab = 'all';
@@ -28,10 +29,10 @@ const AsRequestPage = (() => {
         ${canRequest ? `<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openNewForm()">+ AS 신청</button>` : ''}
       </div>
 
-      <div class="tab-bar" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0">
+      <div class="tab-bar" style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;flex-wrap:wrap">
         ${[
-          ['all','전체'],['pending','접수대기'],['assigned','배정'],
-          ['in_progress','처리중'],['resolved','완료'],['cancelled','취소']
+          ['all','전체'],['requested','접수대기'],['assigned','배정'],
+          ['in_progress','처리중'],['material_pending','자재수급'],['completed','완료'],['cancelled','취소']
         ].map(([v,l]) => `
           <button class="tab-btn ${_currentTab===v?'active':''}" data-tab="${v}"
             onclick="AsRequestPage.switchTab('${v}')"
@@ -127,7 +128,7 @@ const AsRequestPage = (() => {
 
         <!-- 액션 버튼 -->
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          ${isAj && r.status === 'pending' ? `
+          ${isAj && r.status === 'requested' ? `
             <button class="btn btn-primary btn-sm" onclick="AsRequestPage.openAssignForm(${r.id})">기사 배정</button>
             <button class="btn btn-danger btn-sm" onclick="AsRequestPage.cancelRequest(${r.id})">취소</button>
           ` : ''}
@@ -138,7 +139,7 @@ const AsRequestPage = (() => {
           ${(isAj || isTech) && r.status === 'assigned' ? `
             <button class="btn btn-outline btn-sm" onclick="AsRequestPage.startWork(${r.id})">처리 시작</button>
           ` : ''}
-          ${(isAj || isTech) && r.status === 'in_progress' ? `
+          ${(isAj || isTech) && (r.status === 'in_progress' || r.status === 'material_pending') ? `
             <button class="btn btn-primary btn-sm" onclick="AsRequestPage.openResolveForm(${r.id})">완료 처리</button>
           ` : ''}
         </div>
