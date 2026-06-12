@@ -1,7 +1,7 @@
 /**
  * Service Worker — 오프라인 캐시 + PWA Push 수신 + Background Sync
  */
-const CACHE_NAME = 'ajtl-v2';
+const CACHE_NAME = 'ajtl-v3';
 const CACHE_URLS = [
   '/', '/index.html',
   '/css/base.css', '/css/layout.css', '/css/components.css',
