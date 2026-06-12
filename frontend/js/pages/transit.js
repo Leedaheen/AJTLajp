@@ -315,6 +315,7 @@ const TransitPage = (() => {
         manager_phone:  document.getElementById('tr-manager-phone').value.trim(),
         requested_date: date,
         note:           document.getElementById('tr-note').value.trim(),
+        created_by:     Auth.getUser()?.id,
       });
       Modal.close();
       Toast.success('신청이 완료되었습니다. AJ관리자 검토 후 일정이 확정됩니다.');
