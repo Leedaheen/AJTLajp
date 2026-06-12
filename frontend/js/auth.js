@@ -219,23 +219,10 @@ const Auth = (() => {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> 로그인 중...';
 
-    // app_users 테이블에서 local_id로 조회 후 비밀번호 확인
-    const { data: userRow, error } = await _sb
-      .from('app_users')
-      .select('*')
-      .eq('local_id', adminId)
-      .single();
-
-    if (error || !userRow) {
-      Toast.error('아이디 또는 비밀번호가 올바르지 않습니다.');
-      btn.disabled = false;
-      btn.textContent = '관리자 로그인';
-      return;
-    }
-
-    // bcrypt 검증은 서버에서만 가능 — Edge Function 호출
-    const { data: result, error: fnErr } = await _sb.functions.invoke('verify-admin', {
-      body: { local_id: adminId, password },
+    // DB RPC로 bcrypt 검증 (Edge Function 불필요)
+    const { data: result, error: fnErr } = await _sb.rpc('verify_admin_login', {
+      p_local_id: adminId,
+      p_password: password,
     });
 
     if (fnErr || !result?.ok) {
@@ -245,11 +232,10 @@ const Auth = (() => {
       return;
     }
 
-    _user = userRow;
-    // 세션 대신 localStorage에 임시 저장 (Edge Function에서 토큰 발급 시 교체 가능)
-    localStorage.setItem('aj_user', JSON.stringify(userRow));
+    _user = result;
+    localStorage.setItem('aj_user', JSON.stringify(result));
     App.showPage('home');
-    Toast.success(`환영합니다, ${userRow.name}님!`);
+    Toast.success(`환영합니다, ${result.name}님!`);
     Notifications.requestPermission();
   }
 
