@@ -224,7 +224,16 @@ const App = (() => {
     }
   }
 
-  return { init, showPage, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel };
+  /** 로그인 완료 후 레이아웃 초기화 + 홈 이동 (관리자 로그인 등 직접 호출용) */
+  function onLoginSuccess() {
+    _buildLayout();
+    showPage('home');
+    Notifications.loadNotifications();
+    Notifications.subscribeRealtime();
+    Storage.init();
+  }
+
+  return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel };
 })();
 
 document.addEventListener('DOMContentLoaded', () => App.init());

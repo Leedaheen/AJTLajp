@@ -92,7 +92,7 @@ const Auth = (() => {
     if (existing) {
       _user = existing;
       if (existing.status === 'active') {
-        App.showPage('home');
+        App.onLoginSuccess();
       } else if (existing.status === 'pending') {
         App.showPage('pending');
       } else {
@@ -255,10 +255,10 @@ const Auth = (() => {
     }
 
     _user = profile;
-    localStorage.removeItem('aj_user'); // 세션 기반이므로 localStorage 불필요
-    App.showPage('home');
+    localStorage.removeItem('aj_user');
     Toast.success(`환영합니다, ${profile.name}님!`);
     Notifications.requestPermission();
+    App.onLoginSuccess();
   }
 
   // ── 프로필 로드 ─────────────────────────────────────────────
