@@ -1,0 +1,21 @@
+# 모든 텍스트 파일: LF 고정, UTF-8 BOM 없음
+* text=auto eol=lf
+
+# 웹 파일 명시적 지정
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.sql  text eol=lf
+*.txt  text eol=lf
+
+# 바이너리 파일 (변환 금지)
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff binary
+*.woff2 binary

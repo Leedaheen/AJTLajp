@@ -3,11 +3,14 @@
  * VAPID 키로 구독하고, 수신 설정을 저장합니다.
  */
 
-// 백엔드에서 생성한 VAPID 공개키로 교체하세요
+// VAPID 공개키: Supabase Edge Function 또는 백엔드에서 발급 후 교체
 const VAPID_PUBLIC_KEY = 'YOUR_VAPID_PUBLIC_KEY';
+const _VAPID_READY = VAPID_PUBLIC_KEY !== 'YOUR_VAPID_PUBLIC_KEY' && VAPID_PUBLIC_KEY.length > 20;
 
 const Notifications = (() => {
   async function requestPermission() {
+    // VAPID 키 미설정 시 Push 구독 건너뜀 (콘솔 오류 방지)
+    if (!_VAPID_READY) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
     const permission = await Notification.requestPermission();
@@ -19,7 +22,6 @@ const Notifications = (() => {
         userVisibleOnly: true,
         applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
-      // 구독 정보를 백엔드에 저장
       await Api.post('/users/me/push-subscribe', sub.toJSON());
     } catch (e) {
       console.warn('Push 구독 실패:', e);
