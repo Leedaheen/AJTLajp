@@ -9,22 +9,19 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
 
   <!-- CSS -->
-  <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/layout.css?v=7">
-  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/base.css?v=8">
+  <link rel="stylesheet" href="/css/layout.css?v=8">
+  <link rel="stylesheet" href="/css/components.css?v=8">
 
   <!-- Google Fonts (Noto Sans KR) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-  <!-- Supabase JS SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <style>
-    /* 濡쒓렇???붾㈃ */
+    /* 로그인 화면 */
     .login-page {
       min-height: 100vh;
       display: flex;
@@ -43,9 +40,8 @@
       box-shadow: 0 8px 40px rgba(0,0,0,.25);
     }
     .login-logo {
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: center;
+      font-size: 36px;
+      margin-bottom: 8px;
     }
     .login-title {
       font-size: 22px;
@@ -65,38 +61,6 @@
       color: #94a3b8;
       font-size: 12px;
     }
-    .login-or {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 20px 0;
-      color: #94a3b8;
-      font-size: 12px;
-    }
-    .login-or::before, .login-or::after {
-      content: '';
-      flex: 1;
-      border-top: 1px solid #e2e8f0;
-    }
-    .admin-login-section {
-      margin-top: 4px;
-    }
-    .admin-login-section .form-input {
-      background: #f8fafc;
-    }
-    .admin-login-toggle {
-      background: none;
-      border: none;
-      color: #94a3b8;
-      font-size: 12px;
-      cursor: pointer;
-      text-decoration: underline;
-      margin-top: 16px;
-      display: block;
-      width: 100%;
-      text-align: center;
-    }
-    .admin-login-toggle:hover { color: #1B365D; }
     .login-sites {
       display: flex;
       gap: 8px;
@@ -112,7 +76,7 @@
       font-weight: 700;
     }
 
-    /* ??쒕낫??洹몃━??*/
+    /* 대시보드 그리드 */
     .dashboard-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -146,237 +110,200 @@
 </head>
 <body>
 
-<!-- ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
-     濡쒓렇???섏씠吏
-?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧 -->
+<!-- ══════════════════════════════════════
+     로그인 페이지
+══════════════════════════════════════ -->
 <div id="page-login" class="page login-page">
   <div class="login-box">
-    <div class="login-logo">
-      <img src="/img/aj-logo.png" alt="AJ?ㅽ듃?띿뒪" style="height:72px;width:auto;object-fit:contain">
-    </div>
-    <div class="login-title">AJ 怨좎냼?묒뾽? ?댁쁺?쒖뒪??/div>
+    <div class="login-logo">🏗️</div>
+    <div class="login-title">AJ 고소작업대 운영시스템</div>
     <div class="login-sub">
-      怨좎냼?묒뾽? ?꾨? ?댁쁺 ?묒뾽 ?뚮옯??br>
-      Google 怨꾩젙?쇰줈 濡쒓렇?명븯?몄슂
+      고소작업대 임대 운영 협업 플랫폼<br>
+      Google 계정으로 로그인하세요
     </div>
     <div class="login-sites">
-      <span class="login-site-badge">P4 蹂듯빀??/span>
-      <span class="login-site-badge">P5 蹂듯빀??/span>
+      <span class="login-site-badge">P4 복합동</span>
+      <span class="login-site-badge">P5 복합동</span>
     </div>
-    <!-- Google 濡쒓렇??踰꾪듉 (GSI媛 ?먮룞?쇰줈 ?뚮뜑留? -->
+    <!-- Google 로그인 버튼 (GSI가 자동으로 렌더링) -->
     <div id="google-btn" style="display:flex;justify-content:center"></div>
-    <div class="login-divider">援ш? 怨꾩젙?쇰줈 1珥?留뚯뿉 濡쒓렇??/div>
+    <div class="login-divider">구글 계정으로 1초 만에 로그인</div>
     <p style="font-size:12px;color:#94a3b8">
-      泥섏쓬 濡쒓렇??????븷怨??꾩옣???좏깮?⑸땲??<br>
-      ?묐젰??텮S湲곗궗??AJ愿由ъ옄 ?뱀씤 ???댁슜 媛?ν빀?덈떎.
+      처음 로그인 시 역할과 현장을 선택합니다.<br>
+      협력사·AS기사는 AJ관리자 승인 후 이용 가능합니다.
     </p>
-
-    <!-- 愿由ъ옄 濡쒓렇??(?섎떒 ?좉?) -->
-    <div class="login-or">愿由ъ옄 濡쒓렇??/div>
-    <div class="admin-login-section">
-      <div class="form-group" style="margin-bottom:10px">
-        <input id="admin-id-input" type="text" class="form-input" placeholder="?꾩씠?? autocomplete="username">
-      </div>
-      <div class="form-group" style="margin-bottom:12px">
-        <input id="admin-pw-input" type="password" class="form-input" placeholder="鍮꾨?踰덊샇" autocomplete="current-password">
-      </div>
-      <button class="btn btn-outline btn-full" id="btn-admin-login" style="border-color:#1B365D;color:#1B365D">
-        愿由ъ옄 濡쒓렇??      </button>
-      <p style="font-size:11px;color:#94a3b8;margin-top:10px">
-        珥덇린 怨꾩젙: admin / aj1234 (濡쒓렇????蹂寃?媛??
-      </p>
-    </div>
   </div>
 </div>
 
-<!-- ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
-     ?뱀씤 ?湲??붾㈃
-?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧 -->
+<!-- ══════════════════════════════════════
+     승인 대기 화면
+══════════════════════════════════════ -->
 <div id="page-pending" class="page hidden" style="min-height:100vh;background:var(--gray-100);display:flex;align-items:center;justify-content:center">
   <div class="card pending-screen" style="max-width:400px;width:100%;margin:20px">
-    <div class="pending-title" style="margin-top:0">?뱀씤 ?湲?以?/div>
+    <div class="pending-icon">⏳</div>
+    <div class="pending-title">승인 대기 중</div>
     <div class="pending-desc">
-      AJ愿由ъ옄 寃?????뱀씤?⑸땲??<br>
-      ?뱀씤 ?꾨즺 ???뚮┝??諛쒖넚?⑸땲??<br><br>
-      ?뱀씤 ?꾨즺 ?????섏씠吏瑜??덈줈怨좎묠?섏꽭??
+      AJ관리자 검토 후 승인됩니다.<br>
+      승인 완료 시 알림이 발송됩니다.<br><br>
+      승인 완료 후 이 페이지를 새로고침하세요.
     </div>
-    <button class="btn btn-outline btn-sm" onclick="window.location.reload()">?덈줈怨좎묠</button>
-    <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">濡쒓렇?꾩썐</button>
+    <button class="btn btn-outline btn-sm" onclick="window.location.reload()">새로고침</button>
+    <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">로그아웃</button>
   </div>
 </div>
 
-<!-- ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
-     嫄곗젅 ?붾㈃
-?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧 -->
+<!-- ══════════════════════════════════════
+     거절 화면
+══════════════════════════════════════ -->
 <div id="page-rejected" class="page hidden" style="min-height:100vh;background:var(--gray-100);display:flex;align-items:center;justify-content:center">
   <div class="card pending-screen" style="max-width:400px;width:100%;margin:20px">
-    <div class="pending-title" style="margin-top:0">媛?낆씠 嫄곗젅?섏뿀?듬땲??/div>
+    <div class="pending-icon">❌</div>
+    <div class="pending-title">가입이 거절되었습니다</div>
     <div class="pending-desc" id="reject-reason-text"></div>
-    <button class="btn btn-primary btn-sm" onclick="Auth.logout()">?ъ떊泥?븯湲?/button>
+    <button class="btn btn-primary btn-sm" onclick="Auth.logout()">재신청하기</button>
   </div>
 </div>
 
-<!-- ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
-     ?ㅻ뜑
-?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧 -->
+<!-- ══════════════════════════════════════
+     헤더
+══════════════════════════════════════ -->
 <header id="app-header" class="app-header hidden">
-  <div class="logo" style="display:flex;align-items:center;gap:10px">
-    <img src="/img/aj-logo.png" alt="AJ" style="height:32px;width:auto;object-fit:contain">
-    <span style="font-size:14px;font-weight:600;letter-spacing:-0.2px">AJ Networks ?댁쁺 ?쒖뒪??/span>
-  </div>
+  <div class="logo">🏗️ AJ 운영시스템</div>
   <div class="header-right">
     <span class="site-badge" id="header-site"></span>
     <span id="header-name" style="font-size:13px"></span>
-    <button class="notif-btn" onclick="App.toggleNotifPanel()" title="?뚮┝" style="background:none;border:none;color:#fff;cursor:pointer;padding:4px;display:flex;align-items:center;position:relative">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-      </svg>
+    <!-- 알림 버튼 -->
+    <button class="notif-btn" onclick="App.toggleNotifPanel()" title="알림">
+      🔔
       <span class="notif-dot hidden" id="notif-dot"></span>
     </button>
-    <button class="btn btn-ghost btn-sm" onclick="Auth.logout()" style="color:#fff;font-size:12px">濡쒓렇?꾩썐</button>
+    <button class="btn btn-ghost btn-sm" onclick="Auth.logout()" style="color:#fff;font-size:12px">로그아웃</button>
   </div>
-  <!-- ?뚮┝ ?⑤꼸 -->
+  <!-- 알림 패널 -->
   <div id="notif-panel" class="notif-dropdown hidden" style="position:absolute;top:56px;right:0">
-    <div style="padding:12px 16px;font-weight:700;font-size:14px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center">
-      ?뚮┝
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="Notifications.markAllRead()" style="font-size:12px">紐⑤몢 ?쎌쓬</button>
-        <button onclick="App.toggleNotifPanel()" style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:18px;line-height:1;padding:2px 4px" title="?リ린">&times;</button>
-      </div>
+    <div style="padding:12px 16px;font-weight:700;font-size:14px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between">
+      알림
+      <button class="btn btn-ghost btn-sm" onclick="Api.patch('/notifications/read-all',{}).then(()=>Notifications.loadNotifications())" style="font-size:12px">모두 읽음</button>
     </div>
     <div id="notif-list"></div>
   </div>
 </header>
 
-<!-- ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
-     硫붿씤 ?덉씠?꾩썐 (?ъ씠?쒕컮 + 肄섑뀗痢?
-?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧 -->
+<!-- ══════════════════════════════════════
+     메인 레이아웃 (사이드바 + 콘텐츠)
+══════════════════════════════════════ -->
 <div id="app-layout" class="app-layout hidden">
 
-  <!-- ?ъ씠?쒕컮 (PC) -->
+  <!-- 사이드바 (PC) -->
   <nav class="sidebar">
-    <div class="sidebar-item active" data-page="home" onclick="App.showPage('home')">????쒕낫??/div>
-    <div class="sidebar-item" data-page="transit" onclick="App.showPage('transit')">諛섏엯/諛섏텧 愿由?/div>
-    <div class="sidebar-item" data-page="equipment" onclick="App.showPage('equipment')">?λ퉬 愿由?/div>
-    <div class="sidebar-item" data-page="as-request" onclick="App.showPage('as-request')">AS ?붿껌</div>
-    <div class="sidebar-item" data-page="usage-log" onclick="App.showPage('usage-log')">?ъ슜 湲곕줉</div>
-
-    <!-- 遺꾩꽍 由ы룷???꾩퐫?붿뼵 -->
-    <div class="sidebar-item expandable" id="sidebar-analytics-parent" onclick="App.toggleAnalyticsMenu()">
-      <span>遺꾩꽍 由ы룷??/span>
-      <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="6 9 12 15 18 9"/>
-      </svg>
+    <div class="sidebar-item active" data-page="home" onclick="App.showPage('home')">
+      <span class="sidebar-icon">🏠</span> 홈 대시보드
     </div>
-    <div class="sidebar-submenu" id="sidebar-analytics-submenu">
-      <div class="sidebar-submenu-rail">
-        <div class="sidebar-subitem" data-page="analytics-equipment" onclick="App.showPage('analytics-equipment')">?λ퉬 ?ъ슜?댁뿭</div>
-        <div class="sidebar-subitem" data-page="analytics-as"        onclick="App.showPage('analytics-as')">AS ?붿껌 遺꾩꽍</div>
-        <div class="sidebar-subitem" data-page="analytics-usage"     onclick="App.showPage('analytics-usage')">?ъ슜 湲곕줉 遺꾩꽍</div>
-      </div>
+    <div class="sidebar-item" data-page="transit" onclick="App.showPage('transit')">
+      <span class="sidebar-icon">🚛</span> 반입/반출 관리
     </div>
-
+    <div class="sidebar-item" data-page="equipment" onclick="App.showPage('equipment')">
+      <span class="sidebar-icon">🏗️</span> 장비 관리
+    </div>
+    <div class="sidebar-item" data-page="as-request" onclick="App.showPage('as-request')">
+      <span class="sidebar-icon">🔧</span> AS 요청
+    </div>
+    <div class="sidebar-item" data-page="usage-log" onclick="App.showPage('usage-log')">
+      <span class="sidebar-icon">⏱️</span> 사용 기록
+    </div>
+    <div class="sidebar-item" data-page="analytics" onclick="App.showPage('analytics')">
+      <span class="sidebar-icon">📊</span> 분석 리포트
+    </div>
     <hr class="divider" style="margin:8px 16px">
-    <div class="sidebar-item" data-page="admin" onclick="App.showPage('admin')">?ъ슜??愿由?/div>
-    <div class="sidebar-item" data-page="support" onclick="App.showPage('support')">怨좉컼吏??寃뚯떆??/div>
+    <div class="sidebar-item" data-page="admin" onclick="App.showPage('admin')">
+      <span class="sidebar-icon">👤</span> 사용자 관리
+    </div>
   </nav>
 
-  <!-- ?섏씠吏 肄섑뀗痢?-->
+  <!-- 페이지 콘텐츠 -->
   <main class="main-content">
 
-    <!-- ??-->
+    <!-- 홈 -->
     <div id="page-home" class="page hidden"></div>
 
-    <!-- 諛섏엯/諛섏텧 -->
-    <div id="page-transit" class="page hidden"></div>
+    <!-- 반입/반출 (S2에서 구현) -->
+    <div id="page-transit" class="page hidden">
+      <h2 class="section-title">반입/반출 관리</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S2에서 구현 예정입니다</div></div>
+    </div>
 
-    <!-- ?λ퉬 愿由?-->
-    <div id="page-equipment" class="page hidden"></div>
+    <!-- 장비 관리 (S2에서 구현) -->
+    <div id="page-equipment" class="page hidden">
+      <h2 class="section-title">장비 관리</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S2에서 구현 예정입니다</div></div>
+    </div>
 
-    <!-- AS ?붿껌 -->
-    <div id="page-as-request" class="page hidden"></div>
+    <!-- AS 요청 (S3에서 구현) -->
+    <div id="page-as-request" class="page hidden">
+      <h2 class="section-title">AS 요청</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S3에서 구현 예정입니다</div></div>
+    </div>
 
-    <!-- ?ъ슜 湲곕줉 -->
-    <div id="page-usage-log" class="page hidden"></div>
+    <!-- 사용 기록 (S4에서 구현) -->
+    <div id="page-usage-log" class="page hidden">
+      <h2 class="section-title">장비 사용 기록</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S4에서 구현 예정입니다</div></div>
+    </div>
 
-    <!-- 遺꾩꽍 由ы룷???섏쐞 ?섏씠吏 -->
-    <div id="page-analytics-equipment" class="page hidden"></div>
-    <div id="page-analytics-as"        class="page hidden"></div>
-    <div id="page-analytics-usage"     class="page hidden"></div>
+    <!-- 분석 리포트 (S5에서 구현) -->
+    <div id="page-analytics" class="page hidden">
+      <h2 class="section-title">분석 리포트</h2>
+      <div class="empty-state"><div class="empty-icon">🚧</div><div>S5에서 구현 예정입니다</div></div>
+    </div>
 
-    <!-- ?ъ슜??愿由?-->
+    <!-- 사용자 관리 -->
     <div id="page-admin" class="page hidden"></div>
-
-    <!-- 怨좉컼吏??寃뚯떆??-->
-    <div id="page-support" class="page hidden"></div>
 
   </main>
 </div>
 
-<!-- ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
-     ?섎떒 ?ㅻ퉬 (紐⑤컮??
-?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧 -->
+<!-- ══════════════════════════════════════
+     하단 네비 (모바일)
+══════════════════════════════════════ -->
 <nav id="bottom-nav" class="bottom-nav hidden">
   <div class="bottom-nav-inner">
     <button class="bottom-nav-item active" data-page="home" onclick="App.showPage('home')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      ??    </button>
+      <span class="nav-icon">🏠</span>홈
+    </button>
     <button class="bottom-nav-item" data-page="transit" onclick="App.showPage('transit')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-      諛섏엯諛섏텧
+      <span class="nav-icon">🚛</span>반입반출
     </button>
     <button class="bottom-nav-item" data-page="as-request" onclick="App.showPage('as-request')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-      AS?붿껌
+      <span class="nav-icon">🔧</span>AS요청
     </button>
     <button class="bottom-nav-item" data-page="usage-log" onclick="App.showPage('usage-log')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      ?ъ슜湲곕줉
+      <span class="nav-icon">⏱️</span>사용기록
     </button>
-    <button class="bottom-nav-item" id="btn-more" onclick="App.openMoreSheet()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg>
-      ?붾낫湲?    </button>
+    <button class="bottom-nav-item" data-page="admin" onclick="App.showPage('admin')">
+      <span class="nav-icon">👤</span>관리
+    </button>
   </div>
 </nav>
 
-<!-- 紐⑤컮???붾낫湲??쒗듃 -->
-<div id="sheet-backdrop" class="sheet-backdrop" onclick="App.closeMoreSheet()"></div>
-<div id="more-sheet" class="more-sheet">
-  <div class="sheet-handle"></div>
-  <div class="sheet-header">硫붾돱</div>
-  <div id="sheet-items"></div>
-</div>
-
-<!-- JS ???섏〈 ?쒖꽌?濡?濡쒕뱶 -->
-<script src="/js/db.js?v=8"></script>
-<script src="/js/storage.js?v=8"></script>
+<!-- JS — 의존 순서대로 로드 -->
 <script src="/js/components/toast.js?v=8"></script>
 <script src="/js/components/modal.js?v=8"></script>
 <script src="/js/api.js?v=8"></script>
 <script src="/js/realtime.js?v=8"></script>
 <script src="/js/notifications.js?v=8"></script>
 <script src="/js/pages/home.js?v=8"></script>
-<script src="/js/pages/transit.js?v=8"></script>
-<script src="/js/pages/equipment.js?v=8"></script>
-<script src="/js/pages/as_request.js?v=8"></script>
-<script src="/js/pages/usage_log.js?v=8"></script>
-<script src="/js/pages/analytics.js?v=8"></script>
-<script src="/js/pages/support.js?v=8"></script>
 <script src="/js/pages/admin.js?v=8"></script>
 <script src="/js/auth.js?v=8"></script>
 <script src="/js/app.js?v=8"></script>
 
 <script>
-  // Service Worker ?깅줉 + Background Sync 硫붿떆吏 ?섏떊
+  // Service Worker 등록
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(console.warn);
-    navigator.serviceWorker.addEventListener('message', e => {
-      if (e.data?.type === 'FLUSH_QUEUE') Storage.flush();
-    });
   }
 
-  // 濡쒓렇???섏씠吏????Google 踰꾪듉 ?뚮뜑留?  window.addEventListener('load', () => {
+  // 로그인 페이지일 때 Google 버튼 렌더링
+  window.addEventListener('load', () => {
     if (document.getElementById('page-login') &&
         !document.getElementById('page-login').classList.contains('hidden')) {
       Auth.renderGoogleBtn('google-btn');
