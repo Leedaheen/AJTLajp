@@ -219,23 +219,45 @@ const Auth = (() => {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> 로그인 중...';
 
-    // DB RPC로 bcrypt 검증 (Edge Function 불필요)
-    const { data: result, error: fnErr } = await _sb.rpc('verify_admin_login', {
+    // 1단계: RPC로 local_id → email 매핑 및 비밀번호 검증
+    const { data: rpcResult, error: rpcErr } = await _sb.rpc('verify_admin_login', {
       p_local_id: adminId,
       p_password: password,
     });
 
-    if (fnErr || !result?.ok) {
+    if (rpcErr || !rpcResult?.ok) {
       Toast.error('아이디 또는 비밀번호가 올바르지 않습니다.');
       btn.disabled = false;
       btn.textContent = '관리자 로그인';
       return;
     }
 
-    _user = result;
-    localStorage.setItem('aj_user', JSON.stringify(result));
+    // 2단계: Supabase 실제 세션으로 로그인 (RLS 동작에 필요)
+    const { data: authData, error: authErr } = await _sb.auth.signInWithPassword({
+      email:    rpcResult.email,
+      password: password,
+    });
+
+    if (authErr || !authData?.session) {
+      Toast.error('로그인 처리 중 오류가 발생했습니다.');
+      btn.disabled = false;
+      btn.textContent = '관리자 로그인';
+      return;
+    }
+
+    // 3단계: app_users 프로필 로드
+    const profile = await _loadProfile(authData.user.id);
+    if (!profile) {
+      Toast.error('관리자 프로필을 찾을 수 없습니다.');
+      btn.disabled = false;
+      btn.textContent = '관리자 로그인';
+      return;
+    }
+
+    _user = profile;
+    localStorage.removeItem('aj_user'); // 세션 기반이므로 localStorage 불필요
     App.showPage('home');
-    Toast.success(`환영합니다, ${result.name}님!`);
+    Toast.success(`환영합니다, ${profile.name}님!`);
     Notifications.requestPermission();
   }
 
