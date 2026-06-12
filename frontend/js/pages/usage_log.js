@@ -74,6 +74,9 @@ const UsageLogPage = (() => {
     });
 
     await Promise.all([loadSummary(), loadList()]);
+
+    // 실시간 구독 — usage_logs 테이블 변경 시 목록 자동 갱신
+    Realtime.on('usage-logs', 'usage_logs', loadList);
   }
 
   // ── 요약 ─────────────────────────────────────────────────

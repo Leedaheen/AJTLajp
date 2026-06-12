@@ -67,6 +67,9 @@ const TransitPage = (() => {
       <div id="transit-list"></div>
     `;
     await loadList();
+
+    // 실시간 구독 — transit 테이블 변경 시 목록 자동 갱신
+    Realtime.on('transit', 'transit', loadList);
   }
 
   function switchTab(tab) { _currentTab = tab; render(); }

@@ -74,6 +74,9 @@ const EquipmentPage = (() => {
     });
 
     await loadList();
+
+    // 실시간 구독 — equipment 테이블 변경 시 목록 자동 갱신
+    Realtime.on('equipment', 'equipment', loadList);
   }
 
   async function loadList() {

@@ -62,6 +62,9 @@ const AsRequestPage = (() => {
     `;
 
     await loadList();
+
+    // 실시간 구독 — as_requests 테이블 변경 시 목록 자동 갱신
+    Realtime.on('as-requests', 'as_requests', loadList);
   }
 
   function switchTab(tab) {

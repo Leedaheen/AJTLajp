@@ -71,6 +71,11 @@ const HomePage = (() => {
     `;
 
     _loadDashData();
+
+    // 실시간 구독 — 관련 테이블 변경 시 대시보드 자동 갱신
+    Realtime.on('home-transit',  'transit',     _loadTransitSummary);
+    Realtime.on('home-as',       'as_requests', _loadAsSummary);
+    Realtime.on('home-equip',    'equipment',   _loadEquipSummary);
   }
 
   async function _loadDashData() {

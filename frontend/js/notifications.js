@@ -83,5 +83,14 @@ const Notifications = (() => {
     return new Date(iso).toLocaleDateString('ko-KR');
   }
 
-  return { requestPermission, loadNotifications, markRead, markAllRead };
+  /** 전역 실시간 구독 — 내 알림 테이블 변경 시 즉시 갱신 */
+  function subscribeRealtime() {
+    const uid = Auth.getUser()?.id;
+    if (!uid) return;
+    Realtime.onGlobal('notifications', 'notifications', () => {
+      loadNotifications();
+    });
+  }
+
+  return { requestPermission, loadNotifications, markRead, markAllRead, subscribeRealtime };
 })();

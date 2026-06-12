@@ -33,6 +33,7 @@ const App = (() => {
       _buildLayout();
       showPage('home');
       Notifications.loadNotifications();
+      Notifications.subscribeRealtime();
       Storage.init();
       window.addEventListener('offline', () => Toast.error('오프라인 상태입니다.'));
       window.addEventListener('online',  () => Toast.success('인터넷에 연결되었습니다.'));
@@ -78,6 +79,9 @@ const App = (() => {
     }
     // 분석 부모 항목 active 상태
     if (parent) parent.classList.toggle('open', isAnalytics || parent.classList.contains('open'));
+
+    // 페이지 이동 시 이전 페이지 realtime 구독 해제
+    Realtime.offPage();
 
     const renderers = {
       home:                  () => HomePage.render(),
