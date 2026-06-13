@@ -294,14 +294,21 @@ const EquipmentPage = (() => {
 
   // 선택 장비 QR PDF 일괄 인쇄
   function _printBulkQr(list) {
-    const itemsHtml = list.map(e => `
-      <div class="qr-card">
-        <div class="qr-title">${e.equip_no}</div>
-        <div id="qr-${e.id}" class="qr-img"></div>
-        <div class="qr-sub">${e.spec || ''} · ${e.site_name || e.site_id || ''}</div>
-        <div class="qr-code">${e.qr_code}</div>
-      </div>
-    `).join('');
+    const origin   = window.location.origin;
+    const pathname = window.location.pathname;
+
+    const itemsHtml = list.map(e => {
+      const qrUrl = `${origin}${pathname}?qr=${encodeURIComponent(e.qr_code)}`;
+      return `
+        <div class="qr-card">
+          <div class="qr-title">${e.equip_no}</div>
+          <div id="qr-${e.id}" class="qr-img"></div>
+          <div class="qr-sub">${e.spec || ''} · ${e.site_name || e.site_id || ''}</div>
+          <div class="qr-hint">스캔 시 앱으로 바로 연결</div>
+          <script>window['_qurl_${e.id}']='${qrUrl.replace(/'/g,"\\'")}'; <\/script>
+        </div>
+      `;
+    }).join('');
 
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) { Toast.error('팝업 차단을 해제해주세요.'); return; }
@@ -326,8 +333,8 @@ const EquipmentPage = (() => {
           }
           .qr-title { font-size: 16px; font-weight: 700; color: #1B365D; margin-bottom: 12px; }
           .qr-img   { display: flex; justify-content: center; margin-bottom: 10px; }
-          .qr-sub   { font-size: 12px; color: #555; margin-bottom: 4px; }
-          .qr-code  { font-family: monospace; font-size: 11px; color: #999; }
+          .qr-sub   { font-size: 12px; color: #555; margin-bottom: 2px; }
+          .qr-hint  { font-size: 11px; color: #999; }
           .print-btn {
             margin-bottom: 20px; padding: 10px 28px;
             background: #1B365D; color: #fff; border: none;
@@ -344,7 +351,7 @@ const EquipmentPage = (() => {
           window.onload = () => {
             ${list.map(e => `
               new QRCode(document.getElementById('qr-${e.id}'), {
-                text: '${e.qr_code}',
+                text: window['_qurl_${e.id}'],
                 width: 160, height: 160,
                 colorDark: '#1B365D', colorLight: '#ffffff',
                 correctLevel: QRCode.CorrectLevel.H

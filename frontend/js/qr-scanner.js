@@ -21,17 +21,35 @@ const QrScanner = (() => {
   // ── 스캔 후 자동 액션 (메인 진입점) ─────────────────────
   function scanAndAct() {
     scan(async (qrData) => {
-      try {
-        const equip = await Api.get(`/equipment/qr/${encodeURIComponent(qrData)}`);
-        if (!equip) {
-          Toast.error('등록되지 않은 QR코드입니다.');
-          return;
-        }
-        _showActionSheet(equip);
-      } catch {
-        Toast.error('장비 정보를 불러올 수 없습니다.');
-      }
+      const qrCode = _extractQrCode(qrData);
+      await handleQrCode(qrCode);
     });
+  }
+
+  // URL 또는 순수 코드 문자열에서 qr_code 식별자 추출
+  // 예: "https://app.com/?qr=AJ-GK111" → "AJ-GK111"
+  // 예: "AJ-GK111" → "AJ-GK111"
+  function _extractQrCode(raw) {
+    try {
+      const url = new URL(raw);
+      const param = url.searchParams.get('qr');
+      if (param) return param;
+    } catch {}
+    return raw;
+  }
+
+  // QR 코드 식별자로 장비 조회 후 액션 시트 표시 (외부에서도 호출 가능)
+  async function handleQrCode(qrCode) {
+    try {
+      const equip = await Api.get(`/equipment/qr/${encodeURIComponent(qrCode)}`);
+      if (!equip) {
+        Toast.error('등록되지 않은 QR코드입니다.');
+        return;
+      }
+      _showActionSheet(equip);
+    } catch {
+      Toast.error('장비 정보를 불러올 수 없습니다.');
+    }
   }
 
   // ── 스캔 모달 ────────────────────────────────────────────
@@ -225,41 +243,60 @@ const QrScanner = (() => {
     setTimeout(() => AsRequestPage.openNewFormWithEquip(equip), 150);
   }
 
+  // QR 이미지에 담을 URL 생성 (스캔 시 앱으로 바로 진입)
+  function _qrUrl(qrCode) {
+    return `${window.location.origin}${window.location.pathname}?qr=${encodeURIComponent(qrCode)}`;
+  }
+
   // ── QR 코드 이미지 표시 (equipment 페이지에서 사용) ──────
   function showQrCode(equip) {
+    const qrUrl = _qrUrl(equip.qr_code);
+    const specEsc     = (equip.spec     || '').replace(/'/g, "\\'");
+    const siteNameEsc = (equip.site_name|| '').replace(/'/g, "\\'");
+    const equipNoEsc  = (equip.equip_no || '').replace(/'/g, "\\'");
+    const qrCodeEsc   = (equip.qr_code  || '').replace(/'/g, "\\'");
+
     Modal.open({
       title: `QR 코드 — ${equip.equip_no}`,
       body: `
         <div style="text-align:center;padding:8px 0">
           <div id="qr-display" style="display:inline-block;padding:16px;background:#fff;border-radius:8px;border:1px solid var(--gray-200)"></div>
-          <div style="margin-top:12px;font-family:monospace;font-size:13px;color:var(--navy);font-weight:600">${equip.qr_code}</div>
-          <div style="font-size:12px;color:var(--gray-400);margin-top:4px">${equip.equip_no} · ${equip.spec || ''} · ${equip.site_name || ''}</div>
+          <div style="margin-top:12px;font-size:16px;font-weight:700;color:var(--navy)">${equip.equip_no}</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:2px">${equip.spec || ''} · ${equip.site_name || ''}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:8px;word-break:break-all;padding:0 8px">
+            스캔 시 앱으로 바로 연결됩니다
+          </div>
         </div>
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>
-        <button class="btn btn-primary btn-sm" onclick="QrScanner.printQrCode('${equip.equip_no}','${equip.qr_code}','${equip.spec||''}','${equip.site_name||''}')">인쇄</button>
+        <button class="btn btn-primary btn-sm"
+          onclick="QrScanner.printQrCode('${equipNoEsc}','${qrCodeEsc}','${specEsc}','${siteNameEsc}')">
+          인쇄
+        </button>
       `,
     });
 
     setTimeout(() => {
       const container = document.getElementById('qr-display');
-      if (container && typeof QRCode !== 'undefined') {
+      if (!container) return;
+      if (typeof QRCode !== 'undefined') {
         new QRCode(container, {
-          text:          equip.qr_code,
-          width:         200,
-          height:        200,
-          colorDark:     '#1B365D',
-          colorLight:    '#ffffff',
-          correctLevel:  QRCode.CorrectLevel.H,
+          text:         qrUrl,
+          width:        200,
+          height:       200,
+          colorDark:    '#1B365D',
+          colorLight:   '#ffffff',
+          correctLevel: QRCode.CorrectLevel.H,
         });
-      } else if (container) {
-        container.textContent = equip.qr_code;
+      } else {
+        container.textContent = qrUrl;
       }
     }, 100);
   }
 
   function printQrCode(equipNo, qrCode, spec, siteName) {
+    const qrUrl = _qrUrl(qrCode);
     const win = window.open('', '_blank', 'width=600,height=700');
     if (!win) { Toast.error('팝업 차단을 해제해주세요.'); return; }
     win.document.write(`
@@ -272,21 +309,24 @@ const QrScanner = (() => {
           h2 { color:#1B365D;margin:0 0 20px;font-size:22px }
           #qr { display:inline-block;margin:0 auto 16px }
           p { color:#3D3D3D;margin:4px 0;font-size:14px }
-          .mono { font-family:monospace;font-size:16px;font-weight:700;color:#1B365D }
+          .equip-no { font-size:20px;font-weight:700;color:#1B365D;margin-bottom:6px }
+          .sub { font-size:13px;color:#555 }
+          .hint { font-size:11px;color:#999;margin-top:10px }
         </style>
       </head><body>
         <div class="card">
           <h2>AJ 고소작업대</h2>
           <div id="qr"></div>
-          <div class="mono">${equipNo}</div>
-          <p>${spec} · ${siteName}</p>
-          <p style="color:#999;font-size:11px;margin-top:8px">${qrCode}</p>
+          <div class="equip-no">${equipNo}</div>
+          <div class="sub">${spec} · ${siteName}</div>
+          <div class="hint">QR 스캔으로 사용 시작 / 종료 / AS 신청</div>
         </div>
         <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
         <script>
           window.onload = () => {
             new QRCode(document.getElementById('qr'), {
-              text:'${qrCode}', width:220, height:220,
+              text: '${qrUrl.replace(/'/g, "\\'")}',
+              width:220, height:220,
               colorDark:'#1B365D', colorLight:'#ffffff',
               correctLevel: QRCode.CorrectLevel.H
             });
@@ -298,5 +338,5 @@ const QrScanner = (() => {
     win.document.close();
   }
 
-  return { scan, scanAndAct, stop, showQrCode, printQrCode };
+  return { scan, scanAndAct, stop, handleQrCode, showQrCode, printQrCode };
 })();

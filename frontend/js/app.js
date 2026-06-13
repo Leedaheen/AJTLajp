@@ -227,13 +227,23 @@ const App = (() => {
     }
   }
 
-  /** 로그인 완료 후 레이아웃 초기화 + 홈 이동 */
+  /** 로그인 완료 후 레이아웃 초기화 + 홈 이동 (QR URL 처리 포함) */
   function onLoginSuccess() {
     _buildLayout();
-    showPage('home');
     Notifications.loadNotifications();
     Notifications.subscribeRealtime();
     Storage.init();
+
+    // URL에 ?qr= 파라미터가 있으면 액션 시트 표시, 없으면 홈 이동
+    const qrParam = new URLSearchParams(window.location.search).get('qr');
+    if (qrParam) {
+      // URL 파라미터 제거 (히스토리 오염 방지)
+      window.history.replaceState({}, '', window.location.pathname);
+      showPage('home');
+      setTimeout(() => QrScanner.handleQrCode(qrParam), 300);
+    } else {
+      showPage('home');
+    }
   }
 
   return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel };
