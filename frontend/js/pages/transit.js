@@ -356,7 +356,7 @@ const TransitPage = (() => {
     if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = '문서 분석 중...'; }
 
     try {
-      const res = await Api.uploadFile('/parse-doc', file);
+      const res = await Api.uploadFile('parse-doc', file);
       if (res?.success && res.data) {
         _applyParsedData(res.data);
         if (statusEl) statusEl.textContent = '자동입력 완료. 내용을 확인하고 필요 시 수정해주세요.';

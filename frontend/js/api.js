@@ -401,25 +401,21 @@ const Api = (() => {
     return Object.entries(map).map(([label, count]) => ({ label, count }));
   }
 
-  // ── 파일 업로드 (multipart/form-data) ───────────────────
-  async function uploadFile(path, file) {
-    const token = _sb.auth.session?.access_token ||
-                  localStorage.getItem('aj_token') || '';
+  // ── Supabase Edge Function 파일 업로드 ──────────────────
+  // functionName: Edge Function 이름 (예: 'parse-doc')
+  async function uploadFile(functionName, file) {
+    if (!_sb) throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.');
     const form = new FormData();
     form.append('file', file);
 
-    const resp = await fetch(`/api/${path.replace(/^\//, '')}`, {
-      method:  'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body:    form,
-    });
+    const { data, error } = await _sb.functions.invoke(functionName, { body: form });
 
-    const json = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      Toast.error(json.detail || '업로드 실패');
-      throw new Error(json.detail || 'upload_error');
+    if (error) {
+      const msg = error.message || '업로드 실패';
+      Toast.error(msg);
+      throw new Error(msg);
     }
-    return json;
+    return data;
   }
 
   return { get, post, patch, delete: del, uploadFile };
