@@ -32,16 +32,25 @@ const App = (() => {
   ];
 
   async function init() {
+    // QR 파라미터가 있으면 OAuth 리다이렉트 전에 sessionStorage에 보존
+    const qrParam = new URLSearchParams(window.location.search).get('qr');
+    if (qrParam) {
+      sessionStorage.setItem('pending_qr', qrParam);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     try {
       const loggedIn = await Auth.init();
       if (!loggedIn) { showPage('login'); return; }
       _buildLayout();
-      showPage('home');
       Notifications.loadNotifications();
       Notifications.subscribeRealtime();
       Storage.init();
       window.addEventListener('offline', () => Toast.error('오프라인 상태입니다.'));
       window.addEventListener('online',  () => Toast.success('인터넷에 연결되었습니다.'));
+
+      // 보류 중인 QR 처리 (이미 로그인된 상태로 QR URL 진입 시)
+      _handlePendingQr();
     } catch (e) {
       console.error('[App] init 오류:', e);
       showPage('login');
@@ -230,23 +239,25 @@ const App = (() => {
     }
   }
 
+  /** sessionStorage에 보류 중인 QR이 있으면 액션 시트 표시, 없으면 홈 이동 */
+  function _handlePendingQr() {
+    const qr = sessionStorage.getItem('pending_qr');
+    if (qr) {
+      sessionStorage.removeItem('pending_qr');
+      showPage('home');
+      setTimeout(() => QrScanner.handleQrCode(qr), 400);
+    } else {
+      showPage('home');
+    }
+  }
+
   /** 로그인 완료 후 레이아웃 초기화 + 홈 이동 (QR URL 처리 포함) */
   function onLoginSuccess() {
     _buildLayout();
     Notifications.loadNotifications();
     Notifications.subscribeRealtime();
     Storage.init();
-
-    // URL에 ?qr= 파라미터가 있으면 액션 시트 표시, 없으면 홈 이동
-    const qrParam = new URLSearchParams(window.location.search).get('qr');
-    if (qrParam) {
-      // URL 파라미터 제거 (히스토리 오염 방지)
-      window.history.replaceState({}, '', window.location.pathname);
-      showPage('home');
-      setTimeout(() => QrScanner.handleQrCode(qrParam), 300);
-    } else {
-      showPage('home');
-    }
+    _handlePendingQr();
   }
 
   return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel };
