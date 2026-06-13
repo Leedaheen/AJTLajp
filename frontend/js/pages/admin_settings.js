@@ -73,9 +73,11 @@ const AdminSettingsPage = (() => {
               onclick="AdminSettingsPage.openEditSite(${s.id},'${_esc(s.code)}','${_esc(s.name)}',${s.active})">
               수정
             </button>
-            <button class="btn btn-danger btn-sm"
-              onclick="AdminSettingsPage.deleteSite(${s.id},'${_esc(s.name)}')">
-              삭제
+            <button onclick="AdminSettingsPage.deleteSite(${s.id},'${_esc(s.name)}')"
+              style="background:none;border:none;cursor:pointer;color:var(--gray-400);
+                     font-size:18px;line-height:1;padding:2px 4px;border-radius:4px"
+              title="삭제" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">
+              ×
             </button>
           </div>
         </div>
@@ -110,9 +112,11 @@ const AdminSettingsPage = (() => {
               onclick="AdminSettingsPage.openEditProject(${p.id},'${_esc(p.code)}','${_esc(p.name)}',${p.active})">
               수정
             </button>
-            <button class="btn btn-danger btn-sm"
-              onclick="AdminSettingsPage.deleteProject(${p.id},'${_esc(p.code)}')">
-              삭제
+            <button onclick="AdminSettingsPage.deleteProject(${p.id},'${_esc(p.code)}')"
+              style="background:none;border:none;cursor:pointer;color:var(--gray-400);
+                     font-size:18px;line-height:1;padding:2px 4px;border-radius:4px"
+              title="삭제" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">
+              ×
             </button>
           </div>
         </div>
@@ -149,9 +153,11 @@ const AdminSettingsPage = (() => {
               onclick="AdminSettingsPage.openEditCompany(${c.id},'${_esc(c.name)}','${_esc(c.site_id||'')}',${c.active})">
               수정
             </button>
-            <button class="btn btn-danger btn-sm"
-              onclick="AdminSettingsPage.deleteCompany(${c.id},'${_esc(c.name)}')">
-              삭제
+            <button onclick="AdminSettingsPage.deleteCompany(${c.id},'${_esc(c.name)}')"
+              style="background:none;border:none;cursor:pointer;color:var(--gray-400);
+                     font-size:18px;line-height:1;padding:2px 4px;border-radius:4px"
+              title="삭제" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">
+              ×
             </button>
           </div>
         </div>
