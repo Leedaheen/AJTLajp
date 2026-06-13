@@ -53,7 +53,7 @@ const EquipmentPage = (() => {
               <th>상태</th>
               <th>반입일</th>
               <th>반출일</th>
-              ${isAj ? '<th>관리</th>' : ''}
+              <th>QR / 관리</th>
             </tr>
           </thead>
           <tbody id="eq-tbody">
@@ -96,7 +96,7 @@ const EquipmentPage = (() => {
     if (siteId) params.set('site_id', siteId);
     if (q)      params.set('q', q);
 
-    const colspan = Auth.getUser()?.role === 'aj' ? 9 : 8;
+    const colspan = 9;
     const tbody = document.getElementById('eq-tbody');
     tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>`;
 
@@ -144,14 +144,18 @@ const EquipmentPage = (() => {
           <td><span class="badge" style="${st.style}">${st.label}</span></td>
           <td class="text-sm">${e.in_date || '-'}</td>
           <td class="text-sm">${e.out_date || '-'}</td>
-          ${isAj ? `
-            <td>
-              <button class="btn btn-outline btn-sm"
+          <td style="white-space:nowrap">
+            ${e.qr_code
+              ? `<button class="btn btn-outline btn-sm" onclick="EquipmentPage.showQr(${e.id})">QR 보기</button>`
+              : (isAj ? `<button class="btn btn-outline btn-sm" onclick="EquipmentPage.genQr(${e.id},'${(e.equip_no||'').replace(/'/g,"\\'")}')">QR 생성</button>` : '')
+            }
+            ${isAj ? `
+              <button class="btn btn-outline btn-sm" style="margin-left:4px"
                 onclick="EquipmentPage.openEditForm(${e.id},'${(e.equip_no||'').replace(/'/g,"\\'")}','${e.spec||''}','${e.site_id||''}','${(e.company||'').replace(/'/g,"\\'")}','${e.status}')">
                 수정
               </button>
-            </td>
-          ` : ''}
+            ` : ''}
+          </td>
         </tr>
       `;
     }).join('');
@@ -279,5 +283,24 @@ const EquipmentPage = (() => {
     };
   }
 
-  return { render, loadList, openAddForm, openEditForm };
+  // ── QR 보기 (기존 qr_code 있을 때) ─────────────────────
+  async function showQr(equipId) {
+    try {
+      const e = await Api.get(`/equipment/${equipId}`);
+      QrScanner.showQrCode(e);
+    } catch { Toast.error('장비 정보를 불러올 수 없습니다.'); }
+  }
+
+  // ── QR 생성 (AJ 전용, qr_code 없을 때) ──────────────────
+  async function genQr(equipId, equipNo) {
+    if (!confirm(`${equipNo} 장비에 QR코드를 생성하시겠습니까?`)) return;
+    try {
+      const qr_code = `AJ-${equipNo}`;
+      await Api.patch(`/equipment/${equipId}`, { qr_code });
+      Toast.success(`QR코드 생성 완료: ${qr_code}`);
+      loadList();
+    } catch { Toast.error('QR코드 생성에 실패했습니다.'); }
+  }
+
+  return { render, loadList, openAddForm, openEditForm, showQr, genQr };
 })();

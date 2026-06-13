@@ -109,6 +109,7 @@ const App = (() => {
     document.getElementById('header-name').textContent = user.name;
     document.getElementById('app-layout').classList.remove('hidden');
     document.getElementById('bottom-nav').classList.remove('hidden');
+    document.getElementById('fab-qr')?.classList.remove('hidden');
 
     _setSidebarAccess(user);
     _setBottomNavAccess(user);

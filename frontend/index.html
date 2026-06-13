@@ -9,9 +9,9 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
 
   <!-- CSS -->
-  <link rel="stylesheet" href="/css/base.css?v=9">
-  <link rel="stylesheet" href="/css/layout.css?v=9">
-  <link rel="stylesheet" href="/css/components.css?v=9">
+  <link rel="stylesheet" href="/css/base.css?v=10">
+  <link rel="stylesheet" href="/css/layout.css?v=10">
+  <link rel="stylesheet" href="/css/components.css?v=10">
 
   <!-- Google Fonts (Noto Sans KR) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,6 +22,12 @@
 
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <!-- QR 스캔 (jsQR) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+  <!-- QR 생성 (qrcodejs) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
   <style>
     /* 로그인 화면 */
@@ -347,6 +353,24 @@
   </div>
 </nav>
 
+<!-- QR 스캔 FAB (로그인 후 모든 사용자) -->
+<button id="fab-qr" onclick="QrScanner.scanAndAct()" class="hidden"
+  style="position:fixed;bottom:80px;right:16px;z-index:900;
+         width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;
+         background:#1B365D;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.3);
+         display:flex;align-items:center;justify-content:center;
+         transition:transform 0.15s,box-shadow 0.15s"
+  title="QR 스캔"
+  onmouseenter="this.style.transform='scale(1.08)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.4)'"
+  onmouseleave="this.style.transform='scale(1)';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.3)'">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1"/>
+    <rect x="14" y="3" width="7" height="7" rx="1"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/>
+    <path d="M14 14h2v2h-2zm0 4h2v2h-2zm4-4h2v2h-2zm0 4h2v2h-2z"/>
+  </svg>
+</button>
+
 <!-- 모바일 더보기 시트 -->
 <div id="sheet-backdrop" class="sheet-backdrop" onclick="App.closeMoreSheet()"></div>
 <div id="more-sheet" class="more-sheet">
@@ -356,24 +380,25 @@
 </div>
 
 <!-- JS — 의존 순서대로 로드 -->
-<script src="/js/db.js?v=9"></script>
-<script src="/js/storage.js?v=9"></script>
-<script src="/js/components/toast.js?v=9"></script>
-<script src="/js/components/modal.js?v=9"></script>
-<script src="/js/api.js?v=9"></script>
-<script src="/js/realtime.js?v=9"></script>
-<script src="/js/notifications.js?v=9"></script>
-<script src="/js/pages/home.js?v=9"></script>
-<script src="/js/pages/transit.js?v=9"></script>
-<script src="/js/pages/equipment.js?v=9"></script>
-<script src="/js/pages/as_request.js?v=9"></script>
-<script src="/js/pages/usage_log.js?v=9"></script>
-<script src="/js/pages/analytics.js?v=9"></script>
-<script src="/js/pages/support.js?v=9"></script>
-<script src="/js/pages/admin.js?v=9"></script>
-<script src="/js/pages/admin_settings.js?v=9"></script>
-<script src="/js/auth.js?v=9"></script>
-<script src="/js/app.js?v=9"></script>
+<script src="/js/db.js?v=10"></script>
+<script src="/js/storage.js?v=10"></script>
+<script src="/js/components/toast.js?v=10"></script>
+<script src="/js/components/modal.js?v=10"></script>
+<script src="/js/api.js?v=10"></script>
+<script src="/js/realtime.js?v=10"></script>
+<script src="/js/notifications.js?v=10"></script>
+<script src="/js/pages/home.js?v=10"></script>
+<script src="/js/pages/transit.js?v=10"></script>
+<script src="/js/pages/equipment.js?v=10"></script>
+<script src="/js/pages/as_request.js?v=10"></script>
+<script src="/js/pages/usage_log.js?v=10"></script>
+<script src="/js/pages/analytics.js?v=10"></script>
+<script src="/js/pages/support.js?v=10"></script>
+<script src="/js/pages/admin.js?v=10"></script>
+<script src="/js/pages/admin_settings.js?v=10"></script>
+<script src="/js/qr-scanner.js?v=10"></script>
+<script src="/js/auth.js?v=10"></script>
+<script src="/js/app.js?v=10"></script>
 
 <script>
   // Service Worker 등록 + Background Sync 메시지 수신

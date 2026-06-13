@@ -1,9 +1,6 @@
 /**
  * 사용 기록 페이지
- * - 오늘의 가동 현황 요약 (총 가동시간, 장비 수)
- * - 기록 목록 (날짜/현장/장비 필터)
- * - 가동 시작 (tech·partner·aj)
- * - 가동 종료
+ * 가동 시작/종료는 QR 스캔을 통해서만 가능합니다.
  */
 const UsageLogPage = (() => {
   const LS = 'usage_form_';
@@ -20,8 +17,26 @@ const UsageLogPage = (() => {
     document.getElementById('page-usage-log').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
         <h2 class="section-title" style="margin:0">장비 사용 기록</h2>
-        ${canStart ? `<button class="btn btn-primary btn-sm" onclick="UsageLogPage.openStartForm()">+ 가동 시작</button>` : ''}
+        ${canStart ? `
+          <button class="btn btn-primary btn-sm" onclick="QrScanner.scanAndAct()" style="display:flex;align-items:center;gap:6px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <path d="M14 14h2v2h-2zm0 4h2v2h-2zm4-4h2v2h-2zm0 4h2v2h-2z"/>
+            </svg>
+            QR 스캔
+          </button>
+        ` : ''}
       </div>
+
+      ${canStart ? `
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span style="font-size:13px;color:#1d4ed8">가동 시작·종료는 장비에 부착된 <strong>QR 코드 스캔</strong>으로만 기록됩니다.</span>
+        </div>
+      ` : ''}
 
       <!-- 요약 카드 -->
       <div id="usage-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px"></div>
@@ -74,8 +89,6 @@ const UsageLogPage = (() => {
     });
 
     await Promise.all([loadSummary(), loadList()]);
-
-    // 실시간 구독 — usage_logs 테이블 변경 시 목록 자동 갱신
     Realtime.on('usage-logs', 'usage_logs', loadList);
   }
 
@@ -127,7 +140,6 @@ const UsageLogPage = (() => {
       const user = Auth.getUser();
       const canStart = ['tech','partner','aj'].includes(user.role);
 
-      // 가동 중 항목 별도 표시
       const active = list.filter(r => r.status === 'using');
       _renderActiveSection(active, canStart);
 
@@ -136,37 +148,40 @@ const UsageLogPage = (() => {
         return;
       }
 
-      tbody.innerHTML = list.map(r => `
-        <tr style="${r.status==='using'?'background:#f0f9ff':''}">
-          <td class="text-sm">${r.date || '-'}</td>
-          <td><strong>${r.equip_no || '-'}</strong></td>
-          <td class="text-sm">${r.site_name || r.site_id || '-'}</td>
-          <td class="text-sm">${r.company || '-'}</td>
-          <td class="text-sm">${r.floor || '-'}</td>
-          <td class="text-sm">${r.recorder || '-'}</td>
-          <td class="text-sm">${r.start_time || '-'}</td>
-          <td class="text-sm">${r.end_time || '-'}</td>
-          <td style="font-weight:600;color:var(--navy)">
-            ${r.status === 'using' ? '<span class="badge badge-active">가동중</span>' : `${r.used_hours || 0}h`}
-          </td>
-          <td>
-            ${r.status === 'using'
-              ? '<span class="badge badge-active">가동중</span>'
-              : '<span class="badge" style="background:#f3f4f6;color:#374151">완료</span>'
-            }
-          </td>
-          ${canStart ? `
+      tbody.innerHTML = list.map(r => {
+        const startStr = r.start_time ? new Date(r.start_time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : '-';
+        const endStr   = r.end_time   ? new Date(r.end_time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : '-';
+        return `
+          <tr style="${r.status==='using'?'background:#f0f9ff':''}">
+            <td class="text-sm">${r.date || '-'}</td>
+            <td><strong>${r.equip_no || '-'}</strong></td>
+            <td class="text-sm">${r.site_name || r.site_id || '-'}</td>
+            <td class="text-sm">${r.company || '-'}</td>
+            <td class="text-sm">${r.floor || '-'}</td>
+            <td class="text-sm">${r.recorder || '-'}</td>
+            <td class="text-sm">${startStr}</td>
+            <td class="text-sm">${endStr}</td>
+            <td style="font-weight:600;color:var(--navy)">
+              ${r.status === 'using' ? '<span class="badge badge-active">가동중</span>' : `${r.used_hours || 0}h`}
+            </td>
             <td>
               ${r.status === 'using'
-                ? `<button class="btn btn-danger btn-sm" onclick="UsageLogPage.openEndForm(${r.id},'${r.equip_no}')">종료</button>`
-                : ''
+                ? '<span class="badge badge-active">가동중</span>'
+                : '<span class="badge" style="background:#f3f4f6;color:#374151">완료</span>'
               }
             </td>
-          ` : '<td></td>'}
-        </tr>
-      `).join('');
+            ${canStart ? `
+              <td>
+                ${r.status === 'using'
+                  ? `<button class="btn btn-danger btn-sm" onclick="UsageLogPage.openEndForm(${r.id},'${r.equip_no}')">종료</button>`
+                  : ''
+                }
+              </td>
+            ` : '<td></td>'}
+          </tr>
+        `;
+      }).join('');
 
-      // 요약도 갱신
       loadSummary();
     } catch {
       tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">불러오기 실패</td></tr>';
@@ -182,54 +197,57 @@ const UsageLogPage = (() => {
         현재 가동 중 (${active.length}대)
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px">
-        ${active.map(r => `
-          <div class="card" style="padding:12px 16px;min-width:200px;border-left:3px solid var(--navy)">
-            <div style="font-weight:700;font-size:14px;color:var(--navy)">${r.equip_no}</div>
-            <div style="font-size:12px;color:var(--gray-400);margin-top:2px">${r.site_name || r.site_id} · ${r.floor}</div>
-            <div style="font-size:12px;margin-top:4px">시작: <strong>${r.start_time}</strong> · ${r.recorder}</div>
-            ${canStart ? `<button class="btn btn-danger btn-sm" style="margin-top:8px;width:100%"
-              onclick="UsageLogPage.openEndForm(${r.id},'${r.equip_no}')">가동 종료</button>` : ''}
-          </div>
-        `).join('')}
+        ${active.map(r => {
+          const startStr = r.start_time
+            ? new Date(r.start_time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
+            : '-';
+          return `
+            <div class="card" style="padding:12px 16px;min-width:200px;border-left:3px solid var(--navy)">
+              <div style="font-weight:700;font-size:14px;color:var(--navy)">${r.equip_no}</div>
+              <div style="font-size:12px;color:var(--gray-400);margin-top:2px">${r.site_name || r.site_id} · ${r.floor || '-'}</div>
+              <div style="font-size:12px;margin-top:4px">시작: <strong>${startStr}</strong> · ${r.recorder}</div>
+              ${canStart ? `
+                <button class="btn btn-danger btn-sm" style="margin-top:8px;width:100%"
+                  onclick="UsageLogPage.openEndForm(${r.id},'${r.equip_no}')">가동 종료</button>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
       </div>
     `;
   }
 
-  // ── 가동 시작 폼 ─────────────────────────────────────────
-  function openStartForm() {
+  // ── 가동 시작 폼 (QR 스캔 후 호출) ──────────────────────
+  // equip: equipment 오브젝트 (qr-scanner에서 전달)
+  function openStartForm(equip) {
+    const siteName = equip?.site_name || (equip?.site_id === 'P4' ? 'P4 복합동' : equip?.site_id === 'P5' ? 'P5 복합동' : '');
     Modal.open({
       title: '가동 시작',
       body: `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div class="form-group">
-            <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
-            <select id="sl-site" class="form-input form-select">
-              <option value="P4">P4 복합동</option>
-              <option value="P5">P5 복합동</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
-            <input id="sl-company" class="form-input" placeholder="업체명" value="${_load('company') || localStorage.getItem('saved_company') || ''}">
-          </div>
+        <!-- QR 스캔으로 식별된 장비 정보 -->
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px">
+          <div style="font-weight:700;color:var(--navy);font-size:15px">${equip?.equip_no || '-'}</div>
+          <div style="color:var(--gray-500);margin-top:2px">${equip?.spec || ''} · ${siteName}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div class="form-group">
-            <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
-            <input id="sl-equip" class="form-input" placeholder="예: GF123" value="${_load('equip')}">
-          </div>
           <div class="form-group">
             <label class="form-label">층/위치 <span style="color:var(--red)">*</span></label>
             <input id="sl-floor" class="form-input" placeholder="예: 5층 A구역" value="${_load('floor')}">
           </div>
+          <div class="form-group">
+            <label class="form-label">팀명</label>
+            <input id="sl-team" class="form-input" placeholder="예: 1팀" value="${_load('team')}">
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">기록자 <span style="color:var(--red)">*</span></label>
-          <input id="sl-recorder" class="form-input" placeholder="이름" value="${_load('recorder')}">
+          <input id="sl-recorder" class="form-input" placeholder="이름"
+            value="${_load('recorder') || Auth.getUser()?.name || ''}">
         </div>
         <div class="form-group">
-          <label class="form-label">미터기 시작값</label>
-          <input id="sl-meter-start" class="form-input" placeholder="시작 미터값 (선택)">
+          <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
+          <input id="sl-company" class="form-input" placeholder="업체명"
+            value="${equip?.company || _load('company') || localStorage.getItem('saved_company') || ''}">
         </div>
         <div style="font-size:12px;color:var(--gray-400);margin-top:4px">
           시작 시각은 지금 시각으로 자동 기록됩니다.
@@ -242,43 +260,45 @@ const UsageLogPage = (() => {
     });
 
     document.getElementById('btn-do-start').onclick = async () => {
-      const siteId   = document.getElementById('sl-site').value;
-      const company  = document.getElementById('sl-company').value.trim();
-      const equip    = document.getElementById('sl-equip').value.trim();
       const floor    = document.getElementById('sl-floor').value.trim();
       const recorder = document.getElementById('sl-recorder').value.trim();
+      const company  = document.getElementById('sl-company').value.trim();
+      const team     = document.getElementById('sl-team').value.trim();
 
-      if (!company || !equip || !floor || !recorder) {
+      if (!floor || !recorder || !company) {
         Toast.error('필수 항목을 모두 입력해주세요.'); return;
       }
 
-      // 자동완성 저장
-      _saveField('company',  company);
-      _saveField('equip',    equip);
       _saveField('floor',    floor);
       _saveField('recorder', recorder);
+      _saveField('company',  company);
+      _saveField('team',     team);
 
       const btn = document.getElementById('btn-do-start');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
 
       try {
         await Api.post('/usage-logs/start', {
-          site_id:    siteId,
-          site_name:  siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
+          site_id:     equip?.site_id || 'P4',
+          site_name:   siteName,
           company,
-          equip_no:   equip,
+          equip_no:    equip?.equip_no || '',
+          equip_id:    equip?.id || null,
+          team_name:   team,
           floor,
           recorder,
           recorder_id: Auth.getUser()?.id,
-          start_time: new Date().toISOString(),
-          date:       new Date().toISOString().slice(0, 10),
-          status:     'using',
+          start_time:  new Date().toISOString(),
+          date:        new Date().toISOString().slice(0, 10),
+          status:      'using',
         });
         Modal.close();
-        Toast.success(`${equip} 가동이 시작되었습니다.`);
-        loadList();
-      } catch (e) {
-        // 409: 이미 가동 중
+        Toast.success(`${equip?.equip_no} 가동이 시작되었습니다.`);
+        // 사용기록 페이지가 열려 있으면 갱신
+        if (!document.getElementById('page-usage-log')?.classList.contains('hidden')) {
+          loadList();
+        }
+      } catch {
         btn.disabled = false; btn.textContent = '가동 시작';
       }
     };
@@ -295,10 +315,6 @@ const UsageLogPage = (() => {
         <div class="form-group">
           <label class="form-label">종료 시각 <span style="color:var(--red)">*</span></label>
           <input id="el-end-time" type="time" class="form-input" value="${nowTime}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">미터기 종료값</label>
-          <input id="el-meter-end" class="form-input" placeholder="종료 미터값 (선택)">
         </div>
         <div class="form-group">
           <label class="form-label">종료 사유</label>
@@ -328,12 +344,13 @@ const UsageLogPage = (() => {
       try {
         const res = await Api.patch(`/usage-logs/${logId}/end`, {
           end_time:   endTime,
-          meter_end:  document.getElementById('el-meter-end').value.trim(),
           off_reason: document.getElementById('el-off-reason').value,
         });
         Modal.close();
         Toast.success(`가동 종료 완료 · 사용시간 ${res.used_hours}h`);
-        loadList();
+        if (!document.getElementById('page-usage-log')?.classList.contains('hidden')) {
+          loadList();
+        }
       } catch { btn.disabled = false; btn.textContent = '가동 종료'; }
     };
   }

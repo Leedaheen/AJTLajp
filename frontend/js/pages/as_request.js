@@ -362,5 +362,37 @@ const AsRequestPage = (() => {
     } catch {}
   }
 
-  return { render, switchTab, loadList, openNewForm, openAssignForm, startWork, openResolveForm, cancelRequest };
+  // ── QR 스캔으로 진입 (장비 정보 미리 채움) ───────────────
+  function openNewFormWithEquip(equip) {
+    openNewForm();
+    // 폼이 렌더링된 후 필드를 채움
+    setTimeout(() => {
+      const siteEl    = document.getElementById('as-site');
+      const equipNoEl = document.getElementById('as-equip-no');
+      const specEl    = document.getElementById('as-equip-spec');
+      const companyEl = document.getElementById('as-company');
+
+      if (siteEl && equip.site_id) {
+        siteEl.value = equip.site_id;
+        siteEl.disabled = true;
+      }
+      if (equipNoEl && equip.equip_no) {
+        equipNoEl.value    = equip.equip_no;
+        equipNoEl.readOnly = true;
+        equipNoEl.style.background = '#f3f4f6';
+      }
+      if (specEl && equip.spec) {
+        specEl.value    = equip.spec;
+        specEl.readOnly = true;
+        specEl.style.background = '#f3f4f6';
+      }
+      if (companyEl && equip.company) {
+        companyEl.value    = equip.company;
+        companyEl.readOnly = true;
+        companyEl.style.background = '#f3f4f6';
+      }
+    }, 80);
+  }
+
+  return { render, switchTab, loadList, openNewForm, openNewFormWithEquip, openAssignForm, startWork, openResolveForm, cancelRequest };
 })();

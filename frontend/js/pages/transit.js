@@ -594,6 +594,7 @@ const TransitPage = (() => {
         const existing = await Api.get(`/equipment?equip_no=${encodeURIComponent(equip_no)}`, { silent: true });
         const found    = Array.isArray(existing) ? existing.find(e => e.equip_no === equip_no) : null;
 
+        const qr_code  = `AJ-${equip_no}`;
         const equipData = {
           equip_no,
           spec,
@@ -604,10 +605,11 @@ const TransitPage = (() => {
           status:     'in_use',
           in_date:    t.scheduled_date || today,
           transit_id: transitId,
+          qr_code,
         };
 
         if (found) {
-          await Api.patch(`/equipment/${found.id}`, equipData);
+          await Api.patch(`/equipment/${found.id}`, { ...equipData, qr_code: found.qr_code || qr_code });
         } else {
           await Api.post('/equipment', {
             ...equipData,
