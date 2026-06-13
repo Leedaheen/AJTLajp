@@ -402,20 +402,30 @@ const Api = (() => {
   }
 
   // ── Supabase Edge Function 파일 업로드 ──────────────────
-  // _sb.functions.invoke()는 FormData를 올바르게 처리하지 못하는 버그가 있어
-  // Edge Function URL로 직접 fetch 합니다.
+  // 브라우저에서 base64로 변환 후 JSON으로 전송 (FormData 버그 및 스택오버플로 회피)
   async function uploadFile(functionName, file) {
-    const form = new FormData();
-    form.append('file', file);
+    // FileReader로 base64 변환
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => {
+        // data:image/jpeg;base64,XXXX → XXXX 부분만 추출
+        const result = reader.result;
+        resolve(result.split(',')[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
-    // Supabase anon key를 Authorization 헤더로 전달
     const anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
     const url = `${SUPABASE_URL}/functions/v1/${functionName}`;
 
     const resp = await fetch(url, {
       method:  'POST',
-      headers: anonKey ? { 'Authorization': `Bearer ${anonKey}` } : {},
-      body:    form,
+      headers: {
+        'Content-Type':  'application/json',
+        ...(anonKey ? { 'Authorization': `Bearer ${anonKey}` } : {}),
+      },
+      body: JSON.stringify({ image: base64, mediaType: file.type || 'image/jpeg' }),
     });
 
     const result = await resp.json().catch(() => ({}));
