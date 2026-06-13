@@ -941,7 +941,7 @@ const TransitPage = (() => {
     };
   }
 
-  // ── 서류확인 (안전점검 결과서 출력) ──────────────────────
+  // ── 서류확인 (안전점검 결과서 + 반입 전 체크리스트 출력) ──
   const _SPEC_INFO = {
     '6M':      { height: '6.06M',  load: '227KG', model: 'GS1930' },
     '8M':      { height: '9.93M',  load: '227KG', model: 'GS2632' },
@@ -954,47 +954,145 @@ const TransitPage = (() => {
     '20M굴절': { height: '20.57M', load: '227KG', model: 'E800AJ' },
   };
 
-  const _INSPECT_ITEMS = [
-    { section: '1. 공통사항', items: [
-      { label: '조립부품으로부터 1.5M 이내의 방벽이 있을 것', result: 'O' },
-      { label: '볼트, 이중잠금고리 등 체결장치 및 각종 장치의 정상 여부 확인', result: '—' },
-      { label: '안전장치가 정상적으로 작동하며 올바르게 설치되어 있을 것', result: '—' },
+  // 안전점검 결과서 점검 항목 (PDF 원본 기준)
+  const _INSPECT_SECTIONS = [
+    { title: '1. 공통사항', rows: [
+      { part: '⑴ 등록번호표 등', content: '제조일로부터 15년 이내의 장비일 것', result: 'O' },
+      { part: '', content: '붐대, 아웃트리거, 용접부등 비파괴 검사 성적서 비치되어 있을것', result: '—' },
+      { part: '', content: '운전원은 장비의 운전 및 안전에 대한 교육을 받은 유경험자이고 보험(자차 등)에 가입되어 있을것', result: '—' },
     ]},
-    { section: '2. 차대 및 타이어(만충기)', items: [
-      { label: '(1)차체 및 타이어: 외관상 균열, 손상 및 마모의 이상이 없을 것', result: 'O' },
-      { label: '(2)동력(배터리): 외부 충격 없이 외관상 균열·손상이 없고 히드로스·파이프·볼브류 연결부위 누유가 없을 것', result: 'O' },
-      { label: '외부 충격 없이 프레임·볼트류를 점검하고 균열, 손상 및 마모가 없고 가동이 원활할 것', result: 'O' },
-      { label: '적용하중 한계를 초과하는 물체를 적재하지 않으며 가동이 원활할 것', result: 'O' },
-      { label: '추진자의 단락, 손상 및 단자 부위의 이물질이 없고 배선단부의 전해물로 인한 부식이 없을 것', result: 'O' },
+    { title: '2. 차대와 타이어(안정기)', rows: [
+      { part: '⑴ 차체 및 타이어(안정기)', content: '차체의 균열, 변형, 손상 및 부식이 없을것', result: '' },
+      { part: '', content: '타이어의 이상마모 및 변형이 없고 구동축에서 견고하게 고정되어 있고 림부의 체결볼트, 너트 등이 견고하게 체결될 것', result: 'O' },
+      { part: '⑵ 동력원', content: '유압펌프와 모터는 설치상태가 견고하고 작동상태에서 심한 진동과 이상음이 없을 것', result: 'O' },
+      { part: '', content: '유압실린더, 유압호스, 파이프, 밸브, 탱크등 연결부는 균열, 손상 및 마멸이 없고 기름누출이 없을 것', result: '—' },
+      { part: '', content: '작동유 탱크는 적정 유량을 유지하고 작동유의 오염이 없을 것', result: 'O' },
+      { part: '', content: '축전지의 단락, 손상 및 단자 부식이 없고 배선부분은 과열에 의한 열화가 없을 것', result: '' },
     ]},
-    { section: '3. 연장구조물(마스트)', items: [
-      { label: '(1)구조부: 장비를 들어올릴 경우 상단에서 안전구조물을 고정할 수 있는 고정방법이 구비될 것', result: 'O' },
-      { label: '구조물의 균열, 변형 및 손상이 없고 전지부 균열과 고정부가 적합하며 각 높이 부위의 누유가 없을 것', result: 'O' },
+    { title: '3. 연장구조물(마스트)', rows: [
+      { part: '⑴ 구조부', content: '정비를 위해 일정 상승 위치에서 연장 구조물을 고정할 수 있는 고정받침대를 구비할 것', result: 'O' },
+      { part: '', content: '구조물의 균열, 변형 및 손상이 없고 힌지부 연결핀 고정상태가 양호하고 잠금밸브(카운터밸런스밸브)는 정상 작동되고 배관 연결부 등의 누유가 없을 것', result: 'O' },
     ]},
-    { section: '4. 작업대', items: [
-      { label: '(1)난간 및 수직 보호조치: 난간 높이 1.0m 이상, 발판 높이 0.15m 이상, 중간 난간대 간격 0.55m 이내 구조일 것', result: 'O' },
-      { label: '(2)출입사다리: 바닥면으로부터 0.4m 초과 시 출입사다리가 설치되어 있을 것', result: '—' },
+    { title: '4. 작업대', rows: [
+      { part: '⑴ 낙하 및 추락 방호 조치', content: '작업대의 난간높이 1.0m 이상, 발끝막이판 높이 0.15m 이상(출입구는 0.1m 이상)이고 상부난간대와 발끝막이판 사이 0.55m이내의 중간대 설치할 것', result: 'O' },
+      { part: '', content: '바닥면은 배수가 가능하고 미끄럼 방지 구조일 것', result: '' },
+      { part: '⑵ 접근사다리', content: '작업대 바닥높이가 지면에서 0.4m 초과시 접근사다리를 설치할 것', result: 'O' },
     ]},
-    { section: '5. 제어장치', items: [
-      { label: '조작방향에 따른 제어 작동이 올바르게 이루어지며 자동복귀 방식(데드맨 스위치)을 채용할 것', result: 'O' },
-      { label: '유압 과부하를 방지하기 위한 안전밸브 등 안전장치를 갖출 것', result: 'O' },
-      { label: '교체 필요 시 제어 스위치 버튼의 라벨링이 명확히 표시되어 있을 것', result: 'O' },
+    { title: '5. 제어장치', rows: [
+      { part: '⑴ 제어장치', content: '조작한 경우에만 작동하고 해제하면 자동으로 중립위치로 복귀하고 작동방향을 문자나 기호로 명확하게 표시되어 있을 것', result: 'O' },
+      { part: '', content: '우발 동작을 방지하기 위한 상호 연동장치를 설치할 것 (조종레버의 인에이블 스위치와 발판식 인에이블 스위치)', result: '' },
     ]},
-    { section: '6. 표시', items: [
-      { label: '(1)경고 표시: 제조자, 모델명(형식번호), 제조년도, 최대작업높이, 정격하중, 경고·주의사항, 비상인전장치 사용법 등 표시 있을 것', result: 'O' },
-      { label: '경고대에는 정격하중, 허용한도단위수, 최대작업높이(최대작업높이인 경우 취급이 필요할 것)를 표시할 것', result: 'O' },
-      { label: '안전장치의 위치 및 사용법을 표시할 것', result: 'O' },
+    { title: '6. 표시', rows: [
+      { part: '⑴ 경고 표시', content: '명판에는 제조자명, 모델명(형식번호), 제조번호, 제조년월, 최대작업높이, 정격하중, 허용탑승인원수, 최대허용풍속, 최대허용경사, 동력원 사양, 안전인증 표시등을 표시할 것', result: '' },
+      { part: '', content: '작업대에는 정격하중, 허용탑승인원수, 최대허용풍속(옥내용인 경우 제외)을 표시할 것', result: 'O' },
+      { part: '', content: '비상안전장치의 위치 및 사용법을 표시할 것', result: '' },
     ]},
-    { section: '7. 전동 및 조명장치 등', items: [
-      { label: '전동 및 조명장치: 전기장치의 절연, 배선, 접지 등을 점검하고 이상이 없을 것', result: 'O' },
-      { label: '계기장치: 전조(주차등) 및 배터리 충전상태 표시가 정확히 작동할 것', result: '—' },
-      { label: '경보기 및 경보장치의 기기는 기술적 범위 이내일 것', result: 'O' },
+    { title: '7. 점등 및 조명장치 등', rows: [
+      { part: '⑴ 점등 및 조명장치 등', content: '전조등, 미등, 측등, 계기판등, 후퇴등, 차폭등, 번호등, 방향지시등, 제동등, 작업등, 속도표시등등 설치된 점등 및 조명장치는 정위치에 견고하게 부착되어 손상이 없어야 하며 점등상태가 양호할 것', result: 'O' },
+      { part: '⑵ 계기장치', content: '연료계, 유량계, 회전계, 압력계등 설치된 계기장치는 작동상태가 양호할 것', result: '—' },
+      { part: '⑶ 경음기 및 경보장치', content: '경음기 및 경보장치의 음의 크기는 기준의 범위 이내일 것', result: 'O' },
     ]},
-    { section: '8. 안전장치', items: [
-      { label: '(1)자동안전장치: 작업대가 경사진 상태에서 이동 시 주행속도를 자동으로 제한하는 장치가 있을 것', result: 'O' },
-      { label: '(2)과부하방지장치: 작업대 위 인원 및 적재물의 총 하중이 정격하중 초과 시 경보하는 장치가 있을 것', result: 'O' },
-      { label: '(3)비상안전장치: 비상 시 지상에서 작업대를 하강시킬 수 있는 비상용 수동조작 장치가 있을 것', result: 'O' },
-      { label: '(4)비상인전장치: 비상 시 작업자가 안전하게 대피할 수 있도록 비상 안전장치가 설치되어 있을 것', result: 'O' },
+    { title: '8. 안전장치', rows: [
+      { part: '⑴ 자동안전장치', content: '작업대가 상승한 상태로 차대 이동시 주행속도를 자동으로 제한하는 장치가 있을 것', result: 'O' },
+      { part: '⑵ 경사표시장치 (전복방지장치)', content: '차대의 경사 허용 한도(제작자 기준) 초과시 상승 및 주행이 불가능 하도록 할 것 (음향 신호 발생)', result: 'O' },
+      { part: '⑶ 비상정지장치', content: '비상정지용 누름버튼은 적색이며 머리부분이 돌출되고 수동으로 복귀되는 형식일 것', result: 'O' },
+      { part: '⑷ 비상안전장치', content: '동력공급이 차단되었을 때, 안전하게 작업대를 빠져 나올 수 있는 위치로 작업대를 복귀시킬 수 있는 비상 안전장치를 설치할 것', result: 'O' },
+    ]},
+  ];
+
+  // 반입 전 체크리스트 항목 (PDF 원본 기준)
+  const _CHECKLIST_LEFT = [
+    { group: '▣입고검사', items: [
+      { no:1,  label:'장비외관상태',            std:'육안' },
+      { no:2,  label:'스위치류 작동, 외관상태',   std:'작동' },
+      { no:3,  label:'주행전.후진',              std:'5.25V이상' },
+      { no:4,  label:'리프트업 주행(주행차단)',    std:'10mm이상' },
+      { no:5,  label:'고속.저속 주행',            std:'작동' },
+      { no:6,  label:'조향 좌.우회전',           std:'작동' },
+      { no:7,  label:'리프트업.다운',             std:'작동' },
+      { no:8,  label:'엔진시동',                 std:'작동' },
+      { no:9,  label:'소음 및 보조지지대 작동',   std:'작동' },
+    ]},
+    { group: '▣세차', items: [
+      { no:10, label:'이물질제거',    std:'육안' },
+      { no:11, label:'세차',          std:'육안' },
+      { no:12, label:'차체파손 유,무', std:'육안' },
+      { no:13, label:'에어건조',      std:'육안' },
+    ]},
+    { group: '▣도장', items: [
+      { no:14, label:'도장',                std:'육안' },
+      { no:15, label:'차체파손 유,무',        std:'육안' },
+      { no:16, label:'관리번호(제조번호)확인', std:'작동' },
+      { no:17, label:'스티커 부착상태',        std:'육안' },
+    ]},
+    { group: '▣유압', items: [
+      { no:18, label:'유압 오일양(리프트하강후)',  std:'육안' },
+      { no:19, label:'리프트실린더(작동/누유)',     std:'육안' },
+      { no:20, label:'비상하강',                  std:'육안' },
+      { no:21, label:'누유(블록/호스/니쁠)',        std:'작동' },
+      { no:22, label:'브레이크(작동/누유)',         std:'작동' },
+      { no:23, label:'스티어링(작동/누유)',         std:'작동' },
+      { no:24, label:'주행모터(작동/누유)',         std:'육안' },
+      { no:25, label:'주행해제(프리휠링벨브)',      std:'작동' },
+      { no:26, label:'비상펌프작동',              std:'작동' },
+    ]},
+    { group: '▣전기장치', items: [
+      { no:27, label:'전기배선상태',                     std:'육안' },
+      { no:28, label:'콘트롤박스(작동/스티커) ▣옵션장착', std:'작동' },
+      { no:29, label:'연결잭(감지봉/풋스위치)',            std:'육안' },
+      { no:30, label:'과상승방지봉',                      std:'육안' },
+      { no:31, label:'주행차단',                         std:'작동' },
+      { no:32, label:'풋스위치',                         std:'육안' },
+      { no:33, label:'작동알람',                         std:'육안' },
+      { no:34, label:'충전플러그',                       std:'육안' },
+      { no:35, label:'충전기작동값26A이하',               std:'20.6A' },
+    ]},
+  ];
+
+  const _CHECKLIST_RIGHT = [
+    { group: '▣전기장치', items: [
+      { no:36, label:'배터리, 장비 연결잭',      std:'육안' },
+      { no:37, label:'배터리 터미널 조임',        std:'육안' },
+      { no:38, label:'배터리비중/부하시험(v)',     std:'5.25V이상' },
+      { no:39, label:'배터리증류수극판위10MM',     std:'10mm이상 보충 정상' },
+      { no:40, label:'하부리프트작동',            std:'작동' },
+      { no:41, label:'경광등',                   std:'작동' },
+      { no:42, label:'노면접지',                 std:'육안' },
+    ]},
+    { group: '▣차체', items: [
+      { no:43, label:'도장/세차상태',      std:'육안' },
+      { no:44, label:'바퀴조임상태',       std:'육안' },
+      { no:45, label:'엑슬킹핀',          std:'육안' },
+      { no:46, label:'허브어셈블리',       std:'육안' },
+      { no:47, label:'타이어 마모정도',    std:'육안' },
+      { no:48, label:'하부도어 잠금장치',  std:'육안' },
+      { no:49, label:'씨져핀 이상',        std:'육안' },
+      { no:50, label:'씨져 외관',          std:'육안' },
+      { no:51, label:'폿홀시스템',         std:'육안' },
+      { no:52, label:'확장대 작동',        std:'작동' },
+      { no:53, label:'확장대 로울러',      std:'육안' },
+      { no:54, label:'확장대 고정핀',      std:'육안' },
+      { no:55, label:'안전고리(체인/도어)', std:'육안' },
+      { no:56, label:'그리스 주입',        std:'육안' },
+    ]},
+    { group: '▣출고정비', items: [
+      { no:57, label:'주행(전진/후진)',      std:'작동' },
+      { no:58, label:'리프트(상승/하강)',    std:'작동' },
+      { no:59, label:'주행차단(현장기준)',   std:'작동' },
+      { no:60, label:'감지봉작동',          std:'육안' },
+      { no:61, label:'외관상태',            std:'육안' },
+      { no:62, label:'배터리충전상태',       std:'육안' },
+      { no:63, label:'폿홀시스템',          std:'작동' },
+      { no:64, label:'옵션작동(기능적)',     std:'작동' },
+    ]},
+    { group: '▣옵션장착', items: [
+      { no:65, label:'보호망(함석 외)',         std:'육안' },
+      { no:66, label:'협착난간대',             std:'육안' },
+      { no:67, label:'타이어 세척',            std:'육안' },
+      { no:68, label:'충격흡수',              std:'육안' },
+      { no:69, label:'용접보호판',            std:'육안' },
+      { no:70, label:'부착물(스티커)',          std:'육안' },
+      { no:71, label:'낙하물방지턱(현장기준)',   std:'작동' },
     ]},
   ];
 
@@ -1006,125 +1104,148 @@ const TransitPage = (() => {
     const specPool = [];
     (t.equip_specs || []).forEach(s => { for (let i = 0; i < (s.qty || 1); i++) specPool.push(s.spec); });
 
-    const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '');
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
     const targets = equipNos.length > 0 ? equipNos : [''];
     const pages = targets.map((no, i) => {
       const spec = specPool[i] || specPool[0] || '';
       const info = _SPEC_INFO[spec] || { height: '-', load: '-', model: spec };
-      return _buildInspectionPage(t, no, spec, info, today);
+      return _buildInspectionPage(t, no, info, today) + _buildChecklistPage(no, info);
     });
 
     const html = `<!DOCTYPE html><html lang="ko"><head>
 <meta charset="UTF-8">
-<title>고소작업대(T/L) 안전점검 결과서</title>
+<title>고소작업대 안전서류</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; font-size:10pt; color:#000; background:#fff; }
-  .page { width:190mm; margin:10mm auto; page-break-after:always; }
-  .page:last-child { page-break-after:auto; }
-  h1 { text-align:center; font-size:14pt; font-weight:bold; border:2px solid #000; padding:8px; margin-bottom:6px; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { border:1px solid #000; padding:4px 6px; font-size:9pt; vertical-align:middle; }
-  th { background:#f0f0f0; text-align:center; font-weight:bold; }
-  .label-cell { background:#f5f5f5; font-weight:bold; width:90px; text-align:center; }
-  .section-row td { background:#dde3ee; font-weight:bold; font-size:9.5pt; }
-  .result-cell { text-align:center; width:36px; font-size:11pt; font-weight:bold; }
-  .print-btn { display:block; margin:10px auto; padding:8px 24px; background:#1B365D; color:#fff; border:none; border-radius:6px; font-size:11pt; cursor:pointer; }
-  @media print {
-    .print-btn { display:none; }
-    body { margin:0; }
-    .page { margin:0; width:100%; }
-  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Malgun Gothic','맑은 고딕',Arial,sans-serif;font-size:9pt;color:#000;background:#fff}
+  .page{width:190mm;margin:6mm auto;page-break-after:always}
+  .page:last-child{page-break-after:auto}
+  h1,h2{text-align:center;font-size:12.5pt;font-weight:bold;border:2px solid #000;padding:5px;margin-bottom:4px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #666;padding:2px 4px;font-size:8.2pt;vertical-align:middle}
+  .lbl{background:#ebebeb;font-weight:bold;text-align:center;white-space:nowrap;font-size:7.8pt}
+  .sec{background:#cdd5e6;font-weight:bold;font-size:8.5pt}
+  .res{text-align:center;width:30px;font-size:10pt;font-weight:bold}
+  .chk-hdr{background:#d0d8e8;font-weight:bold;text-align:center;font-size:8pt;padding:2px}
+  .print-btn{display:block;margin:14px auto;padding:8px 28px;background:#1B365D;color:#fff;border:none;border-radius:6px;font-size:11pt;cursor:pointer;font-family:inherit}
+  @media print{.print-btn{display:none}body{margin:0}.page{margin:0;width:100%}}
 </style>
 </head><body>
 ${pages.join('')}
 <button class="print-btn" onclick="window.print()">인쇄</button>
 </body></html>`;
 
-    const win = window.open('', '_blank', 'width=900,height=700');
+    const win = window.open('', '_blank', 'width=960,height=800');
     if (!win) { Toast.error('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.'); return; }
     win.document.write(html);
     win.document.close();
   }
 
-  function _buildInspectionPage(t, equipNo, spec, info, today) {
-    const siteLabel = t.site_name || t.site_id || '-';
-
-    const sectionRows = _INSPECT_ITEMS.map(sec => `
-      <tr class="section-row"><td colspan="3">${sec.section}</td></tr>
-      ${sec.items.map(item => `
+  function _buildInspectionPage(t, equipNo, info, today) {
+    const site = t.site_name || t.site_id || '-';
+    const bodyRows = _INSPECT_SECTIONS.map(sec => {
+      const hdr = `<tr><td colspan="4" class="sec">${sec.title}</td></tr>`;
+      const rows = sec.rows.map(r => `
         <tr>
-          <td colspan="2" style="font-size:8.5pt">${item.label}</td>
-          <td class="result-cell">${item.result}</td>
-        </tr>`).join('')}
-    `).join('');
+          <td class="lbl" style="width:88px">${r.part}</td>
+          <td style="font-size:7.8pt">${r.content}</td>
+          <td class="res">${r.result}</td>
+          <td style="width:40px"></td>
+        </tr>`).join('');
+      return hdr + rows;
+    }).join('');
 
     return `
 <div class="page">
   <h1>고소작업대(T/L) 안전점검 결과서</h1>
-  <table style="margin-bottom:6px">
+  <table style="margin-bottom:4px">
     <tr>
-      <td class="label-cell">사업장명</td>
-      <td colspan="3">${t.company || '-'}</td>
-      <td class="label-cell">형식</td>
-      <td colspan="3">수직상승형고소작업대</td>
+      <td class="lbl" style="width:70px">사업장명</td><td colspan="3">${t.company || '-'}</td>
+      <td class="lbl" style="width:40px">형식</td><td>수직상승형고소작업대</td>
+      <td class="lbl" style="width:60px">제조사(렌탈사)</td><td>AJ네트웍스㈜</td>
     </tr>
     <tr>
-      <td class="label-cell">제조사</td>
-      <td colspan="3">AJ네트웍스㈜</td>
-      <td class="label-cell">사용장소</td>
-      <td colspan="3">${siteLabel}${t.project ? ' ' + t.project : ''}</td>
+      <td class="lbl">사용장소</td><td colspan="3">${site}${t.project ? ' ' + t.project : ''}</td>
+      <td class="lbl">동력전달방식</td><td>배터리충전식</td>
+      <td class="lbl">형식번호</td><td>${info.model || '-'}</td>
     </tr>
     <tr>
-      <td class="label-cell">동력전달방식</td>
-      <td colspan="3">배터리충전식</td>
-      <td class="label-cell">형식번호</td>
-      <td colspan="3">${info.model || spec}</td>
+      <td class="lbl">운전방식</td><td>자주식</td>
+      <td class="lbl" style="width:50px">운행속도</td><td>3.2Km/h</td>
+      <td class="lbl">작업대최대높이/적재용량</td><td colspan="3"><strong>${info.height} ${info.load}</strong></td>
     </tr>
     <tr>
-      <td class="label-cell">운전방식</td>
-      <td colspan="3">자주식</td>
-      <td class="label-cell">분행속도</td>
-      <td colspan="3">3.2Km/h</td>
+      <td class="lbl">차량번호</td><td><strong>${equipNo || '-'}</strong></td>
+      <td class="lbl">제조년월일</td><td></td>
+      <td class="lbl">안전점검년월일</td><td colspan="3"></td>
     </tr>
     <tr>
-      <td class="label-cell">최대작업높이/정격하중</td>
-      <td colspan="3">${info.height} / ${info.load}</td>
-      <td class="label-cell">차량번호</td>
-      <td colspan="3">${equipNo || '-'}</td>
-    </tr>
-    <tr>
-      <td class="label-cell">제조년월일</td>
-      <td>-</td>
-      <td class="label-cell">안전점검일시</td>
-      <td>${today}</td>
-      <td class="label-cell">결업부서</td>
-      <td>AJ네트웍스㈜</td>
-      <td class="label-cell">검사자</td>
-      <td></td>
+      <td class="lbl">안전점검일시</td><td>${today}</td>
+      <td class="lbl">점검부서</td><td>AJ네트웍스㈜</td>
+      <td class="lbl">점검자</td><td colspan="3"></td>
     </tr>
   </table>
-
   <table>
     <thead>
       <tr>
-        <th style="width:90px">검사 항목</th>
-        <th>검사 내용</th>
-        <th style="width:36px">검사결과</th>
+        <th style="width:88px">검 사 부 분</th>
+        <th>검 사 항 목</th>
+        <th style="width:30px">검사결과</th>
+        <th style="width:40px">조치사항</th>
       </tr>
     </thead>
     <tbody>
-      ${sectionRows}
-      <tr>
-        <td class="label-cell">안전자 의견</td>
-        <td colspan="2" style="height:40px"></td>
-      </tr>
+      ${bodyRows}
+      <tr><td class="lbl">검사자 의견</td><td colspan="3" style="height:32px"></td></tr>
     </tbody>
   </table>
+  <div style="margin-top:3px;font-size:7.5pt">
+    * 검사결과 표시 : 양호 ○, 조정(보완)△, 교환□, 제작(설치)Φ, 폐기×, 해당무
+  </div>
+</div>`;
+  }
 
-  <div style="margin-top:6px;font-size:8pt;color:#333">
-    ※ 검사결과 표시: 양호 O, 조정(판단) ×, 교환 □, 해당(결해) —, 폐기 △, 해당없음 -
+  function _buildChecklistPage(equipNo, info) {
+    const model = info.model || '-';
+
+    function renderGroups(groups) {
+      return groups.map(g => {
+        const hdr = `<tr><td colspan="5" class="chk-hdr">${g.group}</td></tr>
+          <tr style="background:#f0f0f0;font-size:7.5pt;font-weight:bold">
+            <td style="width:20px;text-align:center">NO.</td>
+            <td>내 용</td>
+            <td style="width:54px;text-align:center">검사기준</td>
+            <td style="width:18px;text-align:center">불량</td>
+            <td style="width:18px;text-align:center">양호</td>
+          </tr>`;
+        const rows = g.items.map(it => `
+          <tr>
+            <td style="text-align:center;font-size:8pt">${it.no}</td>
+            <td style="font-size:7.8pt">${it.label}</td>
+            <td style="font-size:7.5pt;text-align:center">${it.std}</td>
+            <td></td>
+            <td style="text-align:center">○</td>
+          </tr>`).join('');
+        return hdr + rows;
+      }).join('');
+    }
+
+    return `
+<div class="page">
+  <h2>(모델명:${model}&nbsp;&nbsp;반입 전 CHECK LIST&nbsp;&nbsp;관리번호: ${equipNo || '-'})</h2>
+  <table><tr>
+    <td style="width:50%;vertical-align:top;border:none;padding-right:3px">
+      <table>${renderGroups(_CHECKLIST_LEFT)}</table>
+    </td>
+    <td style="width:50%;vertical-align:top;border:none;padding-left:3px">
+      <table>${renderGroups(_CHECKLIST_RIGHT)}</table>
+    </td>
+  </tr></table>
+  <div style="margin-top:5px;font-size:7.5pt;border:1px solid #aaa;padding:3px 7px">
+    ※ 주의 : 1. 기준은 출고시에 점검 체크 기준이며 배터리 충전 상태에 따라 성능이 달라질 수 있습니다.<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2. 사용중 배터리의 충전상태 장비의 노후 상태에 따라 속도의 차이가 발생할 수 있습니다.
   </div>
 </div>`;
   }
