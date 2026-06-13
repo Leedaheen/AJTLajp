@@ -13,6 +13,9 @@ const App = (() => {
                'analytics-equipment', 'analytics-as', 'analytics-usage',
                'admin', 'admin-settings', 'support'],
     as_tech: ['home', 'as-request', 'support'],
+    admin:   ['home', 'transit', 'equipment', 'as-request', 'usage-log',
+               'analytics-equipment', 'analytics-as', 'analytics-usage',
+               'admin', 'admin-settings', 'support'],
   };
 
   // 더보기 시트 항목 정의
@@ -132,9 +135,9 @@ const App = (() => {
     if (parent)  parent.style.display  = analyticsAllowed ? '' : 'none';
     if (submenu) submenu.style.display = analyticsAllowed ? '' : 'none';
 
-    // 관리자설정 사이드바 항목 — AJ만 표시
+    // 관리자설정 사이드바 항목 — AJ·admin만 표시
     const settingsEl = document.querySelector('.sidebar-item[data-page="admin-settings"]');
-    if (settingsEl) settingsEl.style.display = user.role === 'aj' ? '' : 'none';
+    if (settingsEl) settingsEl.style.display = ['aj','admin'].includes(user.role) ? '' : 'none';
   }
 
   function _setBottomNavAccess(user) {

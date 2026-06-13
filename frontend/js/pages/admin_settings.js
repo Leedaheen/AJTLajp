@@ -73,6 +73,10 @@ const AdminSettingsPage = (() => {
               onclick="AdminSettingsPage.openEditSite(${s.id},'${_esc(s.code)}','${_esc(s.name)}',${s.active})">
               수정
             </button>
+            <button class="btn btn-danger btn-sm"
+              onclick="AdminSettingsPage.deleteSite(${s.id},'${_esc(s.name)}')">
+              삭제
+            </button>
           </div>
         </div>
       `).join('');
@@ -105,6 +109,10 @@ const AdminSettingsPage = (() => {
             <button class="btn btn-outline btn-sm"
               onclick="AdminSettingsPage.openEditProject(${p.id},'${_esc(p.code)}','${_esc(p.name)}',${p.active})">
               수정
+            </button>
+            <button class="btn btn-danger btn-sm"
+              onclick="AdminSettingsPage.deleteProject(${p.id},'${_esc(p.code)}')">
+              삭제
             </button>
           </div>
         </div>
@@ -140,6 +148,10 @@ const AdminSettingsPage = (() => {
             <button class="btn btn-outline btn-sm"
               onclick="AdminSettingsPage.openEditCompany(${c.id},'${_esc(c.name)}','${_esc(c.site_id||'')}',${c.active})">
               수정
+            </button>
+            <button class="btn btn-danger btn-sm"
+              onclick="AdminSettingsPage.deleteCompany(${c.id},'${_esc(c.name)}')">
+              삭제
             </button>
           </div>
         </div>
@@ -407,10 +419,44 @@ const AdminSettingsPage = (() => {
     };
   }
 
+  // ── 삭제 함수들 ──────────────────────────────────────────
+  async function deleteSite(id, name) {
+    if (!confirm(`현장 "${name}"을 삭제하시겠습니까?\n연결된 데이터가 있으면 삭제되지 않을 수 있습니다.`)) return;
+    try {
+      await Api.del(`/sites/${id}`);
+      Toast.success('현장이 삭제되었습니다.');
+      _loadSites();
+    } catch (e) {
+      Toast.error('삭제 실패: ' + (e.message || '연결된 데이터를 먼저 정리해주세요.'));
+    }
+  }
+
+  async function deleteProject(id, code) {
+    if (!confirm(`프로젝트 "${code}"을 삭제하시겠습니까?`)) return;
+    try {
+      await Api.del(`/projects/${id}`);
+      Toast.success('프로젝트가 삭제되었습니다.');
+      _loadProjects();
+    } catch (e) {
+      Toast.error('삭제 실패: ' + (e.message || '연결된 데이터를 먼저 정리해주세요.'));
+    }
+  }
+
+  async function deleteCompany(id, name) {
+    if (!confirm(`업체 "${name}"을 삭제하시겠습니까?`)) return;
+    try {
+      await Api.del(`/companies/${id}`);
+      Toast.success('업체가 삭제되었습니다.');
+      _loadCompanies();
+    } catch (e) {
+      Toast.error('삭제 실패: ' + (e.message || '오류가 발생했습니다.'));
+    }
+  }
+
   return {
     render,
-    openAddSite, openEditSite,
-    openAddProject, openEditProject,
-    openAddCompany, openEditCompany,
+    openAddSite, openEditSite, deleteSite,
+    openAddProject, openEditProject, deleteProject,
+    openAddCompany, openEditCompany, deleteCompany,
   };
 })();

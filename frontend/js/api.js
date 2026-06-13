@@ -327,6 +327,15 @@ const Api = (() => {
     if (base.match(/^equipment\/\d+$/)) {
       const id = Number(base.split('/')[1]);
       ({ error } = await _sb.from('equipment').delete().eq('id', id));
+    } else if (base.match(/^sites\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ error } = await _sb.from('sites').delete().eq('id', id));
+    } else if (base.match(/^projects\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ error } = await _sb.from('projects').delete().eq('id', id));
+    } else if (base.match(/^companies\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ error } = await _sb.from('companies').delete().eq('id', id));
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
       throw new Error('UNKNOWN_PATH');
