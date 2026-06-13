@@ -108,13 +108,22 @@ const AsRequestPage = (() => {
       return isNaN(d) ? null : d.toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
     };
 
-    // 타임스탬프 행
+    const fmtElapsed = min => {
+      if (min == null) return null;
+      const d = Math.floor(min / 1440);
+      const h = Math.floor((min % 1440) / 60);
+      const m = min % 60;
+      if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+      if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+      return `${m}m`;
+    };
+
+    // 완료/취소 타임스탬프 + 소요시간 (접수 시간은 카드 우상단에 이미 표시)
     const tsItems = [
-      r.requested_at   && `<span><span class="text-muted">접수:</span> ${fmt(r.requested_at)}</span>`,
       r.in_progress_at && `<span><span class="text-muted">처리시작:</span> ${fmt(r.in_progress_at)}</span>`,
       r.material_at    && `<span><span class="text-muted">자재수급:</span> ${fmt(r.material_at)}</span>`,
       r.held_at        && `<span><span class="text-muted">보류:</span> ${fmt(r.held_at)}</span>`,
-      r.resolved_at    && `<span><span class="text-muted">완료:</span> ${fmt(r.resolved_at)}</span>`,
+      r.resolved_at    && `<span><span class="text-muted">완료:</span> ${fmt(r.resolved_at)}${fmtElapsed(r.elapsed_min) ? ` <strong style="color:var(--navy)">(소요 ${fmtElapsed(r.elapsed_min)})</strong>` : ''}</span>`,
       r.cancelled_at   && `<span><span class="text-muted">취소:</span> ${fmt(r.cancelled_at)}</span>`,
     ].filter(Boolean);
 
@@ -163,7 +172,7 @@ const AsRequestPage = (() => {
           <div><span class="text-muted">신청자:</span> ${r.reporter_name}
             <a href="tel:${r.reporter_phone}" style="color:var(--navy)">(${r.reporter_phone})</a>
           </div>
-          ${r.elapsed_min != null ? `<div><span class="text-muted">소요:</span> ${r.elapsed_min}분</div>` : '<div></div>'}
+          <div><span class="text-muted">처리기사:</span> ${r.tech_name || '-'}</div>
         </div>
 
         <div style="margin-top:10px;background:var(--gray-100);border-radius:8px;padding:10px;font-size:13px">
@@ -369,9 +378,16 @@ const AsRequestPage = (() => {
 
   // ── 처리 완료 폼 ─────────────────────────────────────────
   function openResolveForm(reqId) {
+    const user = Auth.getUser();
     Modal.open({
       title: 'AS 처리 완료',
       body: `
+        <div class="form-group">
+          <label class="form-label">담당 기사</label>
+          <input id="resolve-tech" class="form-input" placeholder="기사 이름"
+            value="${user?.name || ''}"
+            style="${user?.name ? 'background:var(--gray-100);color:var(--gray-500);cursor:default' : ''}">
+        </div>
         <div class="form-group">
           <label class="form-label">처리 결과 <span style="color:var(--red)">*</span></label>
           <textarea id="resolve-note" class="form-input" rows="3"
@@ -396,6 +412,7 @@ const AsRequestPage = (() => {
         await Api.patch(`/as-requests/${reqId}/resolve`, {
           resolve_note:  note,
           material_used: document.getElementById('resolve-material').value.trim(),
+          tech_name:     document.getElementById('resolve-tech').value.trim(),
         });
         Modal.close();
         Toast.success('AS 처리 완료되었습니다.');
