@@ -211,9 +211,28 @@ const AsRequestPage = (() => {
             <input id="as-equip-spec" class="form-input" placeholder="예: 8M">
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">위치 (층/구역) <span style="color:var(--red)">*</span></label>
-          <input id="as-location" class="form-input" placeholder="예: 5층 A구역">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">층 <span style="color:var(--red)">*</span></label>
+            <select id="as-floor" class="form-input form-select">
+              <option value="">-- 선택 --</option>
+              <option value="모듈동">모듈동</option>
+              <option value="1F외곽">1F외곽</option>
+              <option value="1F">1F</option>
+              <option value="2F">2F</option>
+              <option value="3F">3F</option>
+              <option value="4F">4F</option>
+              <option value="5F">5F</option>
+              <option value="6F">6F</option>
+              <option value="7F">7F</option>
+              <option value="8F">8F</option>
+              <option value="9F">9F</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">세부 위치</label>
+            <input id="as-location-detail" class="form-input" placeholder="예: A구역, 동편">
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">고장 유형 <span style="color:var(--red)">*</span></label>
@@ -252,13 +271,15 @@ const AsRequestPage = (() => {
   async function _submitNewAs() {
     const siteId   = document.getElementById('as-site').value;
     const company  = document.getElementById('as-company').value.trim();
-    const location = document.getElementById('as-location').value.trim();
+    const floor    = document.getElementById('as-floor').value;
+    const detail   = document.getElementById('as-location-detail').value.trim();
+    const location = detail ? `${floor} ${detail}` : floor;
     const fault    = document.getElementById('as-fault').value;
     const desc     = document.getElementById('as-desc').value.trim();
     const reporter = document.getElementById('as-reporter').value.trim();
     const phone    = document.getElementById('as-phone').value.trim();
 
-    if (!company || !location || !desc || !reporter || !phone) {
+    if (!company || !floor || !desc || !reporter || !phone) {
       Toast.error('필수 항목을 모두 입력해주세요.'); return;
     }
 
