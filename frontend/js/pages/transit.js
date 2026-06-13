@@ -127,6 +127,7 @@ const TransitPage = (() => {
             onclick="TransitPage.openCompleteForm(${t.id},'${t.type}','${safeCompany}','${specsAttr}')">
             ${typeLabel}완료
           </button>
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
         `;
       }
@@ -139,6 +140,8 @@ const TransitPage = (() => {
             일정 확인완료
           </button>
         `;
+      } else if (t.status === 'confirmed') {
+        btns = `<button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>`;
       }
     }
 
@@ -938,6 +941,194 @@ const TransitPage = (() => {
     };
   }
 
+  // ── 서류확인 (안전점검 결과서 출력) ──────────────────────
+  const _SPEC_INFO = {
+    '6M':      { height: '6.06M',  load: '227KG', model: 'GS1930' },
+    '8M':      { height: '9.93M',  load: '227KG', model: 'GS2632' },
+    '10M':     { height: '11.75M', load: '318KG', model: 'GS3246' },
+    '12M':     { height: '13.93M', load: '350KG', model: 'GS4047' },
+    '14M':     { height: '15.9M',  load: '350KG', model: 'GS4655' },
+    '16M':     { height: '15.72M', load: '227KG', model: 'E450AJ' },
+    '16M굴절': { height: '15.72M', load: '227KG', model: 'E450AJ' },
+    '18M':     { height: '17.72M', load: '227KG', model: 'E600JP' },
+    '20M굴절': { height: '20.57M', load: '227KG', model: 'E800AJ' },
+  };
+
+  const _INSPECT_ITEMS = [
+    { section: '1. 공통사항', items: [
+      { label: '조립부품으로부터 1.5M 이내의 방벽이 있을 것', result: 'O' },
+      { label: '볼트, 이중잠금고리 등 체결장치 및 각종 장치의 정상 여부 확인', result: '—' },
+      { label: '안전장치가 정상적으로 작동하며 올바르게 설치되어 있을 것', result: '—' },
+    ]},
+    { section: '2. 차대 및 타이어(만충기)', items: [
+      { label: '(1)차체 및 타이어: 외관상 균열, 손상 및 마모의 이상이 없을 것', result: 'O' },
+      { label: '(2)동력(배터리): 외부 충격 없이 외관상 균열·손상이 없고 히드로스·파이프·볼브류 연결부위 누유가 없을 것', result: 'O' },
+      { label: '외부 충격 없이 프레임·볼트류를 점검하고 균열, 손상 및 마모가 없고 가동이 원활할 것', result: 'O' },
+      { label: '적용하중 한계를 초과하는 물체를 적재하지 않으며 가동이 원활할 것', result: 'O' },
+      { label: '추진자의 단락, 손상 및 단자 부위의 이물질이 없고 배선단부의 전해물로 인한 부식이 없을 것', result: 'O' },
+    ]},
+    { section: '3. 연장구조물(마스트)', items: [
+      { label: '(1)구조부: 장비를 들어올릴 경우 상단에서 안전구조물을 고정할 수 있는 고정방법이 구비될 것', result: 'O' },
+      { label: '구조물의 균열, 변형 및 손상이 없고 전지부 균열과 고정부가 적합하며 각 높이 부위의 누유가 없을 것', result: 'O' },
+    ]},
+    { section: '4. 작업대', items: [
+      { label: '(1)난간 및 수직 보호조치: 난간 높이 1.0m 이상, 발판 높이 0.15m 이상, 중간 난간대 간격 0.55m 이내 구조일 것', result: 'O' },
+      { label: '(2)출입사다리: 바닥면으로부터 0.4m 초과 시 출입사다리가 설치되어 있을 것', result: '—' },
+    ]},
+    { section: '5. 제어장치', items: [
+      { label: '조작방향에 따른 제어 작동이 올바르게 이루어지며 자동복귀 방식(데드맨 스위치)을 채용할 것', result: 'O' },
+      { label: '유압 과부하를 방지하기 위한 안전밸브 등 안전장치를 갖출 것', result: 'O' },
+      { label: '교체 필요 시 제어 스위치 버튼의 라벨링이 명확히 표시되어 있을 것', result: 'O' },
+    ]},
+    { section: '6. 표시', items: [
+      { label: '(1)경고 표시: 제조자, 모델명(형식번호), 제조년도, 최대작업높이, 정격하중, 경고·주의사항, 비상인전장치 사용법 등 표시 있을 것', result: 'O' },
+      { label: '경고대에는 정격하중, 허용한도단위수, 최대작업높이(최대작업높이인 경우 취급이 필요할 것)를 표시할 것', result: 'O' },
+      { label: '안전장치의 위치 및 사용법을 표시할 것', result: 'O' },
+    ]},
+    { section: '7. 전동 및 조명장치 등', items: [
+      { label: '전동 및 조명장치: 전기장치의 절연, 배선, 접지 등을 점검하고 이상이 없을 것', result: 'O' },
+      { label: '계기장치: 전조(주차등) 및 배터리 충전상태 표시가 정확히 작동할 것', result: '—' },
+      { label: '경보기 및 경보장치의 기기는 기술적 범위 이내일 것', result: 'O' },
+    ]},
+    { section: '8. 안전장치', items: [
+      { label: '(1)자동안전장치: 작업대가 경사진 상태에서 이동 시 주행속도를 자동으로 제한하는 장치가 있을 것', result: 'O' },
+      { label: '(2)과부하방지장치: 작업대 위 인원 및 적재물의 총 하중이 정격하중 초과 시 경보하는 장치가 있을 것', result: 'O' },
+      { label: '(3)비상안전장치: 비상 시 지상에서 작업대를 하강시킬 수 있는 비상용 수동조작 장치가 있을 것', result: 'O' },
+      { label: '(4)비상인전장치: 비상 시 작업자가 안전하게 대피할 수 있도록 비상 안전장치가 설치되어 있을 것', result: 'O' },
+    ]},
+  ];
+
+  function openDocumentForm(transitId) {
+    const t = _transitCache[transitId];
+    if (!t) { Toast.error('정보를 불러올 수 없습니다. 목록을 새로고침하세요.'); return; }
+
+    const equipNos = (t.aj_equip || '').split(',').map(s => s.trim()).filter(Boolean);
+    const specPool = [];
+    (t.equip_specs || []).forEach(s => { for (let i = 0; i < (s.qty || 1); i++) specPool.push(s.spec); });
+
+    const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '');
+
+    const targets = equipNos.length > 0 ? equipNos : [''];
+    const pages = targets.map((no, i) => {
+      const spec = specPool[i] || specPool[0] || '';
+      const info = _SPEC_INFO[spec] || { height: '-', load: '-', model: spec };
+      return _buildInspectionPage(t, no, spec, info, today);
+    });
+
+    const html = `<!DOCTYPE html><html lang="ko"><head>
+<meta charset="UTF-8">
+<title>고소작업대(T/L) 안전점검 결과서</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; font-size:10pt; color:#000; background:#fff; }
+  .page { width:190mm; margin:10mm auto; page-break-after:always; }
+  .page:last-child { page-break-after:auto; }
+  h1 { text-align:center; font-size:14pt; font-weight:bold; border:2px solid #000; padding:8px; margin-bottom:6px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { border:1px solid #000; padding:4px 6px; font-size:9pt; vertical-align:middle; }
+  th { background:#f0f0f0; text-align:center; font-weight:bold; }
+  .label-cell { background:#f5f5f5; font-weight:bold; width:90px; text-align:center; }
+  .section-row td { background:#dde3ee; font-weight:bold; font-size:9.5pt; }
+  .result-cell { text-align:center; width:36px; font-size:11pt; font-weight:bold; }
+  .print-btn { display:block; margin:10px auto; padding:8px 24px; background:#1B365D; color:#fff; border:none; border-radius:6px; font-size:11pt; cursor:pointer; }
+  @media print {
+    .print-btn { display:none; }
+    body { margin:0; }
+    .page { margin:0; width:100%; }
+  }
+</style>
+</head><body>
+${pages.join('')}
+<button class="print-btn" onclick="window.print()">인쇄</button>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) { Toast.error('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.'); return; }
+    win.document.write(html);
+    win.document.close();
+  }
+
+  function _buildInspectionPage(t, equipNo, spec, info, today) {
+    const siteLabel = t.site_name || t.site_id || '-';
+
+    const sectionRows = _INSPECT_ITEMS.map(sec => `
+      <tr class="section-row"><td colspan="3">${sec.section}</td></tr>
+      ${sec.items.map(item => `
+        <tr>
+          <td colspan="2" style="font-size:8.5pt">${item.label}</td>
+          <td class="result-cell">${item.result}</td>
+        </tr>`).join('')}
+    `).join('');
+
+    return `
+<div class="page">
+  <h1>고소작업대(T/L) 안전점검 결과서</h1>
+  <table style="margin-bottom:6px">
+    <tr>
+      <td class="label-cell">사업장명</td>
+      <td colspan="3">${t.company || '-'}</td>
+      <td class="label-cell">형식</td>
+      <td colspan="3">수직상승형고소작업대</td>
+    </tr>
+    <tr>
+      <td class="label-cell">제조사</td>
+      <td colspan="3">AJ네트웍스㈜</td>
+      <td class="label-cell">사용장소</td>
+      <td colspan="3">${siteLabel}${t.project ? ' ' + t.project : ''}</td>
+    </tr>
+    <tr>
+      <td class="label-cell">동력전달방식</td>
+      <td colspan="3">배터리충전식</td>
+      <td class="label-cell">형식번호</td>
+      <td colspan="3">${info.model || spec}</td>
+    </tr>
+    <tr>
+      <td class="label-cell">운전방식</td>
+      <td colspan="3">자주식</td>
+      <td class="label-cell">분행속도</td>
+      <td colspan="3">3.2Km/h</td>
+    </tr>
+    <tr>
+      <td class="label-cell">최대작업높이/정격하중</td>
+      <td colspan="3">${info.height} / ${info.load}</td>
+      <td class="label-cell">차량번호</td>
+      <td colspan="3">${equipNo || '-'}</td>
+    </tr>
+    <tr>
+      <td class="label-cell">제조년월일</td>
+      <td>-</td>
+      <td class="label-cell">안전점검일시</td>
+      <td>${today}</td>
+      <td class="label-cell">결업부서</td>
+      <td>AJ네트웍스㈜</td>
+      <td class="label-cell">검사자</td>
+      <td></td>
+    </tr>
+  </table>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:90px">검사 항목</th>
+        <th>검사 내용</th>
+        <th style="width:36px">검사결과</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${sectionRows}
+      <tr>
+        <td class="label-cell">안전자 의견</td>
+        <td colspan="2" style="height:40px"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:6px;font-size:8pt;color:#333">
+    ※ 검사결과 표시: 양호 O, 조정(판단) ×, 교환 □, 해당(결해) —, 폐기 △, 해당없음 -
+  </div>
+</div>`;
+  }
+
   return {
     render, switchTab, loadList,
     openNewForm, addSpecRow,
@@ -946,5 +1137,6 @@ const TransitPage = (() => {
     _onDocFileChange,
     openScheduleForm, confirmSchedule,
     openCompleteForm, openCancelForm,
+    openDocumentForm,
   };
 })();
