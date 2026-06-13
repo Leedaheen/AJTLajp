@@ -297,8 +297,10 @@ const EquipmentPage = (() => {
     try {
       const qr_code = `AJ-${equipNo}`;
       await Api.patch(`/equipment/${equipId}`, { qr_code });
-      Toast.success(`QR코드 생성 완료: ${qr_code}`);
       loadList();
+      // 최신 장비 정보 조회 후 QR 보기 모달 바로 표시
+      const updated = await Api.get(`/equipment/${equipId}`);
+      QrScanner.showQrCode(updated);
     } catch { Toast.error('QR코드 생성에 실패했습니다.'); }
   }
 
