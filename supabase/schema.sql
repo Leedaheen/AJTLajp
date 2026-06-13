@@ -79,33 +79,34 @@ CREATE TABLE IF NOT EXISTS equipment (
 
 -- ④ AS 요청 테이블
 CREATE TABLE IF NOT EXISTS as_requests (
-  id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  record_id      text UNIQUE,
-  site_id        text NOT NULL,
-  site_name      text NOT NULL,
-  equip_no       text NOT NULL,
-  equip_id       bigint REFERENCES equipment(id),
-  company        text NOT NULL,
-  location       text NOT NULL,
-  fault_type     text NOT NULL CHECK (
-    fault_type IN ('작동불량','충전불량','누유의심','파손','자재요청','오류코드','기타')
+  id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  record_id        text UNIQUE,
+  site_id          text NOT NULL,
+  site_name        text NOT NULL,
+  equip_no         text,
+  equip_spec       text,
+  equip_id         bigint REFERENCES equipment(id),
+  company          text NOT NULL,
+  location         text NOT NULL,
+  fault_type       text NOT NULL,
+  description      text,
+  reporter_name    text NOT NULL,
+  reporter_phone   text NOT NULL,
+  created_by       uuid REFERENCES app_users(id),
+  status           text DEFAULT 'requested' CHECK (
+    status IN ('requested','in_progress','material_pending','held','completed','cancelled')
   ),
-  description    text,
-  reporter_name  text NOT NULL,
-  reporter_phone text NOT NULL,
-  user_name      text,
-  user_phone     text,
-  status         text DEFAULT 'requested' CHECK (
-    status IN ('requested','in_progress','material_pending','completed')
-  ),
-  tech_id        uuid REFERENCES app_users(id),
-  tech_name      text,
-  tech_phone     text,
-  resolve_note   text,
-  requested_at   timestamptz DEFAULT now(),
-  material_at    timestamptz,
-  resolved_at    timestamptz,
-  elapsed_min    integer
+  resolve_note     text,
+  hold_reason      text,
+  cancel_reason    text,
+  material_used    text,
+  requested_at     timestamptz DEFAULT now(),
+  in_progress_at   timestamptz,
+  material_at      timestamptz,
+  held_at          timestamptz,
+  resolved_at      timestamptz,
+  cancelled_at     timestamptz,
+  elapsed_min      integer
 );
 
 -- ⑤ 장비 사용 기록 테이블
@@ -416,14 +417,11 @@ CREATE POLICY "as_insert"
   TO authenticated
   WITH CHECK (get_my_role() IN ('tech','partner','aj'));
 
--- as_tech: 자신이 담당한 요청 처리(resolve_note, status, resolved_at)
+-- as_tech: 모든 AS 요청 처리 가능 (기사 배정 없이 직접 처리)
 CREATE POLICY "as_update_astech"
   ON as_requests FOR UPDATE
   TO authenticated
-  USING (
-    get_my_role() = 'as_tech'
-    AND (tech_id = auth.uid() OR tech_id IS NULL)  -- 배정 전 또는 자신에게 배정된 것
-  );
+  USING (get_my_role() = 'as_tech');
 
 -- aj: 모든 AS 요청 수정 가능 (재배정, 강제 완료)
 CREATE POLICY "as_update_aj"

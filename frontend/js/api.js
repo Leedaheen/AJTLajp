@@ -210,28 +210,46 @@ const Api = (() => {
       ({ data, error } = await _sb.from('transit').update(body).eq('id', id).select().single());
 
     // as-requests
-    } else if (base.match(/^as-requests\/\d+\/assign$/)) {
-      const id = Number(base.split('/')[1]);
-      ({ data, error } = await _sb.from('as_requests')
-        .update({ status: 'assigned', ...body })
-        .eq('id', id).select().single()
-      );
     } else if (base.match(/^as-requests\/\d+\/start$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('as_requests')
-        .update({ status: 'in_progress' })
+        .update({ status: 'in_progress', in_progress_at: new Date().toISOString() })
+        .eq('id', id).select().single()
+      );
+    } else if (base.match(/^as-requests\/\d+\/material$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('as_requests')
+        .update({ status: 'material_pending', material_at: new Date().toISOString() })
+        .eq('id', id).select().single()
+      );
+    } else if (base.match(/^as-requests\/\d+\/hold$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('as_requests')
+        .update({ status: 'held', held_at: new Date().toISOString(), ...body })
+        .eq('id', id).select().single()
+      );
+    } else if (base.match(/^as-requests\/\d+\/resume$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('as_requests')
+        .update({ status: 'in_progress', in_progress_at: new Date().toISOString() })
         .eq('id', id).select().single()
       );
     } else if (base.match(/^as-requests\/\d+\/cancel$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('as_requests')
-        .update({ status: 'cancelled' })
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), ...body })
         .eq('id', id).select().single()
       );
     } else if (base.match(/^as-requests\/\d+\/resolve$/)) {
       const id = Number(base.split('/')[1]);
+      const now = new Date().toISOString();
+      // elapsed_min 계산 (requested_at 기준)
+      const { data: cur } = await _sb.from('as_requests').select('requested_at').eq('id', id).maybeSingle();
+      const elapsed = cur?.requested_at
+        ? Math.round((Date.now() - new Date(cur.requested_at).getTime()) / 60000)
+        : null;
       ({ data, error } = await _sb.from('as_requests')
-        .update({ status: 'completed', resolved_at: new Date().toISOString(), ...body })
+        .update({ status: 'completed', resolved_at: now, elapsed_min: elapsed, ...body })
         .eq('id', id).select().single()
       );
     } else if (base.match(/^as-requests\/\d+$/)) {
