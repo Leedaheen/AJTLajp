@@ -88,10 +88,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: "PDF는 지원하지 않습니다. JPG/PNG로 변환 후 업로드해주세요." }, 400);
   }
 
-  // base64 인코딩
+  // base64 인코딩 (대용량 파일 spread 스택오버플로 방지)
   const buffer = await file.arrayBuffer();
   const bytes  = new Uint8Array(buffer);
-  const b64    = btoa(String.fromCharCode(...bytes));
+  let b64 = '';
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    b64 += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  b64 = btoa(b64);
   const mediaType = (file.type || "image/jpeg") as
     "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 

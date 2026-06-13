@@ -402,20 +402,29 @@ const Api = (() => {
   }
 
   // ── Supabase Edge Function 파일 업로드 ──────────────────
-  // functionName: Edge Function 이름 (예: 'parse-doc')
+  // _sb.functions.invoke()는 FormData를 올바르게 처리하지 못하는 버그가 있어
+  // Edge Function URL로 직접 fetch 합니다.
   async function uploadFile(functionName, file) {
-    if (!_sb) throw new Error('Supabase 클라이언트가 초기화되지 않았습니다.');
     const form = new FormData();
     form.append('file', file);
 
-    const { data, error } = await _sb.functions.invoke(functionName, { body: form });
+    // Supabase anon key를 Authorization 헤더로 전달
+    const anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    const url = `${SUPABASE_URL}/functions/v1/${functionName}`;
 
-    if (error) {
-      const msg = error.message || '업로드 실패';
+    const resp = await fetch(url, {
+      method:  'POST',
+      headers: anonKey ? { 'Authorization': `Bearer ${anonKey}` } : {},
+      body:    form,
+    });
+
+    const result = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const msg = result.error || `Edge Function 오류 (${resp.status})`;
       Toast.error(msg);
       throw new Error(msg);
     }
-    return data;
+    return result;
   }
 
   return { get, post, patch, delete: del, uploadFile };
