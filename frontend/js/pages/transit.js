@@ -271,28 +271,27 @@ const TransitPage = (() => {
             <input id="tr-reporter" class="form-input" readonly
               style="background:var(--gray-100);color:var(--gray-500);cursor:default">
           </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">신청자 연락처</label>
             <input id="tr-phone" class="form-input" readonly
               style="background:var(--gray-100);color:var(--gray-500);cursor:default">
           </div>
-          <div class="form-group">
-            <label class="form-label">양중담당자</label>
-            <input id="tr-manager" class="form-input" placeholder="이름">
-          </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
+            <label class="form-label">양중담당자</label>
+            <input id="tr-manager" class="form-input" placeholder="이름">
+          </div>
+          <div class="form-group">
             <label class="form-label">양중담당자 연락처</label>
             <input id="tr-manager-phone" class="form-input" placeholder="010-0000-0000">
           </div>
-          <div class="form-group">
-            <label class="form-label" id="tr-date-label">희망 반입 날짜 <span style="color:var(--red)">*</span></label>
-            <input id="tr-date" type="date" class="form-input">
-          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" id="tr-date-label">희망 반입 날짜 <span style="color:var(--red)">*</span></label>
+          <input id="tr-date" type="date" class="form-input">
         </div>
 
         <div id="tr-specs-section" class="form-group">
