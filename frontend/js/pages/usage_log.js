@@ -241,8 +241,9 @@ const UsageLogPage = (() => {
         </div>
         <div class="form-group">
           <label class="form-label">기록자 <span style="color:var(--red)">*</span></label>
-          <input id="sl-recorder" class="form-input" placeholder="이름"
-            value="${_load('recorder') || Auth.getUser()?.name || ''}">
+          <input id="sl-recorder" class="form-input" readonly
+            style="background:var(--gray-100);color:var(--gray-500);cursor:default"
+            value="${Auth.getUser()?.name || _load('recorder') || ''}">
         </div>
         <div class="form-group">
           <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>

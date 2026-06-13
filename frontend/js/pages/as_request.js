@@ -194,12 +194,14 @@ const AsRequestPage = (() => {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">신청자 <span style="color:var(--red)">*</span></label>
-            <input id="as-reporter" class="form-input" placeholder="이름">
+            <label class="form-label">신청자</label>
+            <input id="as-reporter" class="form-input" readonly
+              style="background:var(--gray-100);color:var(--gray-500);cursor:default">
           </div>
           <div class="form-group">
-            <label class="form-label">연락처 <span style="color:var(--red)">*</span></label>
-            <input id="as-phone" class="form-input" placeholder="010-0000-0000">
+            <label class="form-label">연락처</label>
+            <input id="as-phone" class="form-input" readonly
+              style="background:var(--gray-100);color:var(--gray-500);cursor:default">
           </div>
         </div>
       `,
@@ -208,6 +210,11 @@ const AsRequestPage = (() => {
         <button class="btn btn-primary btn-sm" id="btn-submit-as">신청 완료</button>
       `,
     });
+    // 가입 정보 자동 입력
+    const user = Auth.getUser();
+    if (user?.name)  document.getElementById('as-reporter').value = user.name;
+    if (user?.phone) document.getElementById('as-phone').value    = user.phone;
+
     document.getElementById('btn-submit-as').onclick = submitNewAs;
   }
 

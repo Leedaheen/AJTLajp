@@ -7,7 +7,7 @@ const AdminSettingsPage = (() => {
     document.getElementById('page-admin-settings').innerHTML = `
       <h2 class="section-title" style="margin-bottom:20px">관리자설정</h2>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;align-items:start">
 
         <!-- 현장 관리 -->
         <div class="card">
@@ -31,10 +31,21 @@ const AdminSettingsPage = (() => {
           </div>
         </div>
 
+        <!-- 업체 관리 -->
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="font-size:15px;font-weight:700;color:var(--navy);margin:0">업체 관리</h3>
+            <button class="btn btn-primary btn-sm" onclick="AdminSettingsPage.openAddCompany()">+ 업체 추가</button>
+          </div>
+          <div id="companies-list">
+            <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
+          </div>
+        </div>
+
       </div>
     `;
 
-    await Promise.all([_loadSites(), _loadProjects()]);
+    await Promise.all([_loadSites(), _loadProjects(), _loadCompanies()]);
   }
 
   // ── 현장 목록 ────────────────────────────────────────────
@@ -104,6 +115,140 @@ const AdminSettingsPage = (() => {
   }
 
   function _esc(str) { return (str||'').replace(/'/g,"\\'"); }
+
+  // ── 업체 목록 ─────────────────────────────────────────────
+  async function _loadCompanies() {
+    const el = document.getElementById('companies-list');
+    if (!el) return;
+    try {
+      const list = await Api.get('/companies/all');
+      if (!list.length) {
+        el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">업체 없음</div>';
+        return;
+      }
+      el.innerHTML = list.map(c => `
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:10px 12px;border-bottom:1px solid var(--gray-100)">
+          <div>
+            <span style="font-weight:600;font-size:14px">${c.name}</span>
+            ${c.site_id ? `<span style="margin-left:8px;font-size:12px;color:var(--gray-400)">${c.site_id}</span>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge" style="${c.active ? 'background:#d1fae5;color:#065f46' : 'background:#fee2e2;color:#991b1b'}">
+              ${c.active ? '활성' : '비활성'}
+            </span>
+            <button class="btn btn-outline btn-sm"
+              onclick="AdminSettingsPage.openEditCompany(${c.id},'${_esc(c.name)}','${_esc(c.site_id||'')}',${c.active})">
+              수정
+            </button>
+          </div>
+        </div>
+      `).join('');
+    } catch {
+      el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">불러오기 실패</div>';
+    }
+  }
+
+  // ── 업체 추가 ─────────────────────────────────────────────
+  function openAddCompany() {
+    Modal.open({
+      title: '업체 추가',
+      body: `
+        <div class="form-group">
+          <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
+          <input id="co-name" class="form-input" placeholder="예: ㈜신보">
+        </div>
+        <div class="form-group">
+          <label class="form-label">현장</label>
+          <select id="co-site" class="form-input form-select">
+            <option value="">전체 공통</option>
+          </select>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
+            특정 현장에만 속한 업체라면 선택하세요.
+          </div>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-add-co">추가</button>
+      `,
+    });
+    Api.get('/sites').then(sites => {
+      const sel = document.getElementById('co-site');
+      if (!sel) return;
+      sites.forEach(s => {
+        const o = document.createElement('option'); o.value = s.code; o.textContent = s.name;
+        sel.appendChild(o);
+      });
+    }).catch(() => {});
+    document.getElementById('btn-add-co').onclick = async () => {
+      const name    = document.getElementById('co-name').value.trim();
+      const site_id = document.getElementById('co-site').value || null;
+      if (!name) { Toast.error('업체명을 입력해주세요.'); return; }
+      const btn = document.getElementById('btn-add-co');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        await Api.post('/companies', { name, site_id, active: true });
+        Modal.close();
+        Toast.success('업체가 추가되었습니다.');
+        _loadCompanies();
+      } catch { btn.disabled = false; btn.textContent = '추가'; }
+    };
+  }
+
+  // ── 업체 수정 ─────────────────────────────────────────────
+  function openEditCompany(id, name, siteId, active) {
+    Modal.open({
+      title: `업체 수정 — ${name}`,
+      body: `
+        <div class="form-group">
+          <label class="form-label">업체명</label>
+          <input id="co-name-edit" class="form-input" value="${name}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">현장</label>
+          <select id="co-site-edit" class="form-input form-select">
+            <option value="">전체 공통</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">상태</label>
+          <select id="co-active-edit" class="form-input form-select">
+            <option value="true"  ${active  ? 'selected':''}>활성</option>
+            <option value="false" ${!active ? 'selected':''}>비활성</option>
+          </select>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-edit-co">저장</button>
+      `,
+    });
+    Api.get('/sites').then(sites => {
+      const sel = document.getElementById('co-site-edit');
+      if (!sel) return;
+      sites.forEach(s => {
+        const o = document.createElement('option');
+        o.value = s.code; o.textContent = s.name;
+        if (s.code === siteId) o.selected = true;
+        sel.appendChild(o);
+      });
+    }).catch(() => {});
+    document.getElementById('btn-edit-co').onclick = async () => {
+      const btn = document.getElementById('btn-edit-co');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        await Api.patch(`/companies/${id}`, {
+          name:    document.getElementById('co-name-edit').value.trim(),
+          site_id: document.getElementById('co-site-edit').value || null,
+          active:  document.getElementById('co-active-edit').value === 'true',
+        });
+        Modal.close();
+        Toast.success('업체 정보가 수정되었습니다.');
+        _loadCompanies();
+      } catch { btn.disabled = false; btn.textContent = '저장'; }
+    };
+  }
 
   // ── 현장 추가 ────────────────────────────────────────────
   function openAddSite() {
@@ -262,5 +407,10 @@ const AdminSettingsPage = (() => {
     };
   }
 
-  return { render, openAddSite, openEditSite, openAddProject, openEditProject };
+  return {
+    render,
+    openAddSite, openEditSite,
+    openAddProject, openEditProject,
+    openAddCompany, openEditCompany,
+  };
 })();

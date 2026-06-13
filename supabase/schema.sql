@@ -141,6 +141,15 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at timestamptz DEFAULT now()
 );
 
+-- ⑦ 업체 테이블
+CREATE TABLE IF NOT EXISTS companies (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name       text NOT NULL,
+  site_id    text,          -- null = 전체 현장 공통
+  active     boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
 -- ── 인덱스 ───────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_equipment_site     ON equipment(site_id);
 CREATE INDEX IF NOT EXISTS idx_equipment_status   ON equipment(status);
@@ -180,6 +189,7 @@ AS $$
 $$;
 
 -- ── RLS 활성화 ────────────────────────────────────────────────
+ALTER TABLE companies     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_users     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transit       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipment     ENABLE ROW LEVEL SECURITY;
@@ -196,6 +206,27 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 --   3. service_role(Edge Function 내부)은 RLS를 우회합니다.
 --      별도 정책 불필요 — Supabase 기본 동작입니다.
 -- ============================================================
+
+-- ────────────────────────────────────────────────────────────
+-- companies
+-- ────────────────────────────────────────────────────────────
+
+-- 활성 사용자 전원 조회 가능 (반입/반출 폼 업체 선택용)
+CREATE POLICY "companies_select_active"
+  ON companies FOR SELECT
+  TO authenticated
+  USING (get_my_role() IS NOT NULL);
+
+-- aj만 추가·수정 가능
+CREATE POLICY "companies_insert_aj"
+  ON companies FOR INSERT
+  TO authenticated
+  WITH CHECK (get_my_role() = 'aj');
+
+CREATE POLICY "companies_update_aj"
+  ON companies FOR UPDATE
+  TO authenticated
+  USING (get_my_role() = 'aj');
 
 -- ────────────────────────────────────────────────────────────
 -- app_users

@@ -16,7 +16,9 @@ const Api = (() => {
 
   function _applyFilters(query, params) {
     if (params.status)    query = query.eq('status', params.status);
+    if (params.statuses)  query = query.in('status', params.statuses.split(','));
     if (params.site_id)   query = query.eq('site_id', params.site_id);
+    if (params.company)   query = query.eq('company', params.company);
     if (params.type)      query = query.eq('type', params.type);
     if (params.equip_id)  query = query.eq('equip_id', Number(params.equip_id));
     if (params.spec)      query = query.eq('spec', params.spec);
@@ -111,6 +113,12 @@ const Api = (() => {
       ({ data, error } = await _sb.from('sites').select('*').order('id'));
     } else if (base === 'projects/all') {
       ({ data, error } = await _sb.from('projects').select('*').order('id'));
+    } else if (base === 'companies') {
+      let q = _sb.from('companies').select('*').eq('active', true).order('name');
+      if (params.site_id) q = q.or(`site_id.eq.${params.site_id},site_id.is.null`);
+      ({ data, error } = await q);
+    } else if (base === 'companies/all') {
+      ({ data, error } = await _sb.from('companies').select('*').order('name'));
     } else if (base.startsWith('analytics/')) {
       return await _analytics(base.split('/')[1], params);
     } else {
@@ -153,6 +161,8 @@ const Api = (() => {
       ({ data, error } = await _sb.from('sites').insert(body).select().single());
     } else if (base === 'projects') {
       ({ data, error } = await _sb.from('projects').insert(body).select().single());
+    } else if (base === 'companies') {
+      ({ data, error } = await _sb.from('companies').insert(body).select().single());
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
       throw new Error('UNKNOWN_PATH');
@@ -294,6 +304,11 @@ const Api = (() => {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('projects').update(body).eq('id', id).select().single());
 
+    // companies
+    } else if (base.match(/^companies\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('companies').update(body).eq('id', id).select().single());
+
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
       throw new Error('UNKNOWN_PATH');
@@ -401,19 +416,43 @@ const Api = (() => {
     return Object.entries(map).map(([label, count]) => ({ label, count }));
   }
 
+  // ── 이미지 압축 (Canvas로 리사이즈 후 JPEG 변환) ────────
+  // 원본 이미지가 크면 base64가 6MB 제한 초과 → 최대 1600px / 품질 0.82로 압축
+  function _compressImage(file) {
+    return new Promise((resolve) => {
+      // JPEG/PNG/WEBP만 압축, 나머지는 그대로
+      if (!file.type.startsWith('image/')) { resolve(file); return; }
+
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 1600;
+        let { width, height } = img;
+        if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+        else if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', 0.82);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
   // ── Supabase Edge Function 파일 업로드 ──────────────────
-  // 브라우저에서 base64로 변환 후 JSON으로 전송 (FormData 버그 및 스택오버플로 회피)
   async function uploadFile(functionName, file) {
-    // FileReader로 base64 변환
+    // 이미지 압축 → base64 변환 → JSON 전송
+    const compressed = await _compressImage(file);
+
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload  = () => {
-        // data:image/jpeg;base64,XXXX → XXXX 부분만 추출
-        const result = reader.result;
-        resolve(result.split(',')[1]);
-      };
+      reader.onload  = () => resolve(reader.result.split(',')[1]);
       reader.onerror = reject;
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(compressed);
     });
 
     const anonKey = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
@@ -425,12 +464,12 @@ const Api = (() => {
         'Content-Type':  'application/json',
         ...(anonKey ? { 'Authorization': `Bearer ${anonKey}` } : {}),
       },
-      body: JSON.stringify({ image: base64, mediaType: file.type || 'image/jpeg' }),
+      body: JSON.stringify({ image: base64, mediaType: 'image/jpeg' }),
     });
 
     const result = await resp.json().catch(() => ({}));
     if (!resp.ok) {
-      const msg = result.error || `Edge Function 오류 (${resp.status})`;
+      const msg = result.error || `오류 (${resp.status})`;
       Toast.error(msg);
       throw new Error(msg);
     }

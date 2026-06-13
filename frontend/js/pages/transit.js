@@ -18,7 +18,6 @@ const TransitPage = (() => {
   // ── localStorage 저장/불러오기 ───────────────────────────
   function _saveFormData() {
     [
-      ['tr-company',       'company'],
       ['tr-reporter',      'reporter_name'],
       ['tr-phone',         'reporter_phone'],
       ['tr-manager',       'manager_name'],
@@ -30,17 +29,21 @@ const TransitPage = (() => {
   }
 
   function _autoFill() {
+    const user = Auth.getUser();
+    // 가입 정보 우선 → localStorage 보완
+    const defaults = {
+      reporter_name:  user?.name  || '',
+      reporter_phone: user?.phone || '',
+    };
     [
-      ['tr-company',       'company',       'saved_company'],
-      ['tr-reporter',      'reporter_name', null],
-      ['tr-phone',         'reporter_phone',null],
-      ['tr-manager',       'manager_name',  null],
-      ['tr-manager-phone', 'manager_phone', null],
-    ].forEach(([id, key, fallback]) => {
+      ['tr-reporter',      'reporter_name'],
+      ['tr-phone',         'reporter_phone'],
+      ['tr-manager',       'manager_name'],
+      ['tr-manager-phone', 'manager_phone'],
+    ].forEach(([id, key]) => {
       const el = document.getElementById(id);
       if (!el) return;
-      const v = localStorage.getItem(LS + key) || (fallback ? localStorage.getItem(fallback) : '');
-      if (v) el.value = v;
+      el.value = defaults[key] || localStorage.getItem(LS + key) || '';
     });
   }
 
@@ -193,7 +196,7 @@ const TransitPage = (() => {
     `;
   }
 
-  // ── 신규 신청 폼 (sites/projects 동적 로드) ──────────────
+  // ── 신규 신청 폼 (sites/projects/companies 동적 로드) ───────
   async function openNewForm() {
     const [sites, projects] = await Promise.all([
       Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]),
@@ -238,10 +241,11 @@ const TransitPage = (() => {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
-            <select id="tr-site" class="form-input form-select">
+            <select id="tr-site" class="form-input form-select"
+              onchange="TransitPage._onSiteChange()">
               ${sites.map(s => `<option value="${s.code}" data-name="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
@@ -252,23 +256,27 @@ const TransitPage = (() => {
               ${projects.map(p => `<option value="${p.code}">${p.code} · ${p.name}</option>`).join('')}
             </select>
           </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
-            <input id="tr-company" class="form-input" placeholder="업체명">
-          </div>
-          <div class="form-group">
-            <label class="form-label">신청자 <span style="color:var(--red)">*</span></label>
-            <input id="tr-reporter" class="form-input" placeholder="담당자 이름">
+            <select id="tr-company" class="form-input form-select"
+              onchange="TransitPage._onCompanyChange()">
+              <option value="">-- 업체 선택 --</option>
+            </select>
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">신청자 연락처 <span style="color:var(--red)">*</span></label>
-            <input id="tr-phone" class="form-input" placeholder="010-0000-0000">
+            <label class="form-label">신청자</label>
+            <input id="tr-reporter" class="form-input" readonly
+              style="background:var(--gray-100);color:var(--gray-500);cursor:default">
+          </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">신청자 연락처</label>
+            <input id="tr-phone" class="form-input" readonly
+              style="background:var(--gray-100);color:var(--gray-500);cursor:default">
           </div>
           <div class="form-group">
             <label class="form-label">양중담당자</label>
@@ -295,10 +303,34 @@ const TransitPage = (() => {
         </div>
 
         <div id="tr-equip-nos-section" class="form-group" style="display:none">
-          <label class="form-label">반출 장비번호 <span style="color:var(--red)">*</span></label>
-          <input id="tr-equip-nos" class="form-input" placeholder="GF123, GF516, GG112">
-          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
-            여러 대인 경우 쉼표(,)로 구분해 입력해주세요.
+          <label class="form-label">반출 장비 선택 <span style="color:var(--red)">*</span></label>
+
+          <!-- 체크리스트 — 업체+현장 선택 시 자동 로드 -->
+          <div id="tr-equip-checklist"
+            style="border:1px solid var(--gray-200);border-radius:8px;
+                   max-height:220px;overflow-y:auto;background:#fff">
+            <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">
+              현장과 업체를 선택하면 장비 목록이 표시됩니다.
+            </div>
+          </div>
+
+          <!-- 선택 요약 -->
+          <div id="tr-equip-selected-summary"
+            style="margin-top:8px;min-height:28px;padding:6px 10px;
+                   background:var(--gray-100);border-radius:6px;font-size:12px;
+                   color:var(--gray-500)">
+            선택된 장비 없음
+          </div>
+
+          <!-- 직접 입력 폴백 -->
+          <div style="margin-top:6px">
+            <button type="button" onclick="TransitPage._toggleManualInput()"
+              style="font-size:11px;color:var(--gray-400);background:none;border:none;
+                     cursor:pointer;text-decoration:underline;padding:0">
+              목록에 없으면 직접 입력
+            </button>
+            <input id="tr-equip-nos" class="form-input" style="display:none;margin-top:6px"
+              placeholder="GF123, GF516, GG112 (쉼표로 구분)">
           </div>
         </div>
 
@@ -317,6 +349,9 @@ const TransitPage = (() => {
     document.getElementById('tr-specs').innerHTML = '';
     addSpecRow();
     document.getElementById('btn-submit-transit').onclick = _submitNewTransit;
+
+    // 업체 목록 초기 로드 (현장 기본값 기준)
+    _loadCompanyOptions();
   }
 
   function _onTypeChange(type) {
@@ -326,6 +361,117 @@ const TransitPage = (() => {
     if (label)   label.innerHTML = `희망 ${type === 'in' ? '반입' : '반출'} 날짜 <span style="color:var(--red)">*</span>`;
     if (specsEl) specsEl.style.display = type === 'in' ? '' : 'none';
     if (equipEl) equipEl.style.display = type === 'out' ? '' : 'none';
+    // 반출 선택 시 장비 목록 로드 시도
+    if (type === 'out') _loadEquipChecklist();
+  }
+
+  // ── 현장 변경 → 업체 목록 재로드 ────────────────────────
+  async function _onSiteChange() {
+    await _loadCompanyOptions();
+    _loadEquipChecklist();
+  }
+
+  // ── 업체 변경 → 장비 체크리스트 재로드 ──────────────────
+  function _onCompanyChange() {
+    _loadEquipChecklist();
+  }
+
+  // ── 업체 드롭다운 채우기 ──────────────────────────────────
+  async function _loadCompanyOptions() {
+    const siteEl = document.getElementById('tr-site');
+    const coEl   = document.getElementById('tr-company');
+    if (!coEl) return;
+    const siteId = siteEl?.value || '';
+    try {
+      const list = await Api.get(`/companies${siteId ? `?site_id=${siteId}` : ''}`);
+      const prev = coEl.value;
+      coEl.innerHTML = '<option value="">-- 업체 선택 --</option>';
+      list.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.name; o.textContent = c.name;
+        if (c.name === prev) o.selected = true;
+        coEl.appendChild(o);
+      });
+    } catch { /* DB에 업체 없으면 빈 목록 유지 */ }
+  }
+
+  // ── 반출 장비 체크리스트 로드 ────────────────────────────
+  async function _loadEquipChecklist() {
+    const type    = document.querySelector('input[name="tr-type"]:checked')?.value;
+    if (type !== 'out') return;
+
+    const siteEl = document.getElementById('tr-site');
+    const coEl   = document.getElementById('tr-company');
+    const listEl = document.getElementById('tr-equip-checklist');
+    if (!listEl) return;
+
+    const siteId  = siteEl?.value || '';
+    const company = coEl?.value || '';
+
+    if (!siteId || !company) {
+      listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">현장과 업체를 선택하면 장비 목록이 표시됩니다.</div>';
+      _updateSelectedSummary([]);
+      return;
+    }
+
+    listEl.innerHTML = '<div style="text-align:center;padding:16px"><span class="spinner"></span></div>';
+
+    try {
+      const qs = new URLSearchParams({ site_id: siteId, company, statuses: 'in_use,transit', limit: 200 });
+      const rows = await Api.get(`/equipment?${qs}`, { silent: true });
+
+      if (!rows || !rows.length) {
+        listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">현재 현장에 해당 업체의 장비가 없습니다.</div>';
+        _updateSelectedSummary([]);
+        return;
+      }
+
+      listEl.innerHTML = rows.map(e => `
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                      cursor:pointer;border-bottom:1px solid var(--gray-100);
+                      transition:background 0.1s" class="equip-check-row"
+               onmouseover="this.style.background='var(--gray-50)'"
+               onmouseout="this.style.background=''">
+          <input type="checkbox" value="${e.equip_no}" class="equip-checkbox"
+            onchange="TransitPage._onEquipCheck()"
+            style="width:16px;height:16px;cursor:pointer;accent-color:var(--navy)">
+          <span style="font-family:monospace;font-weight:600;color:var(--navy);font-size:14px">${e.equip_no}</span>
+          <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:11px">${e.spec || '-'}</span>
+          <span style="margin-left:auto;font-size:11px;color:${e.status==='in_use'?'#065f46':'#92400e'}">
+            ${e.status === 'in_use' ? '사용중' : '이동중'}
+          </span>
+        </label>
+      `).join('');
+
+    } catch {
+      listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">장비 목록 조회 실패</div>';
+    }
+  }
+
+  // ── 체크박스 변경 시 선택 요약 업데이트 ─────────────────
+  function _onEquipCheck() {
+    const checked = [...document.querySelectorAll('.equip-checkbox:checked')].map(cb => cb.value);
+    _updateSelectedSummary(checked);
+  }
+
+  function _updateSelectedSummary(selected) {
+    const el = document.getElementById('tr-equip-selected-summary');
+    if (!el) return;
+    if (!selected.length) {
+      el.style.color = 'var(--gray-400)';
+      el.textContent = '선택된 장비 없음';
+    } else {
+      el.style.color = 'var(--navy)';
+      el.textContent = `선택됨 ${selected.length}대: ${selected.join(', ')}`;
+    }
+  }
+
+  // ── 직접 입력 토글 ────────────────────────────────────────
+  function _toggleManualInput() {
+    const inp = document.getElementById('tr-equip-nos');
+    if (!inp) return;
+    inp.style.display = inp.style.display === 'none' ? '' : 'none';
+    if (inp.style.display !== 'none') inp.focus();
   }
 
   function addSpecRow() {
@@ -368,10 +514,21 @@ const TransitPage = (() => {
 
   // ── 파싱 결과를 폼 필드에 자동 채움 ─────────────────────
   function _applyParsedData(d) {
-    // 업체명
+    // 업체명 — select에서 일치하는 옵션 선택, 없으면 옵션 추가
     if (d.company) {
       const el = document.getElementById('tr-company');
-      if (el) el.value = d.company;
+      if (el) {
+        const found = [...el.options].find(o => o.value === d.company);
+        if (found) {
+          el.value = d.company;
+        } else {
+          const o = document.createElement('option');
+          o.value = d.company; o.textContent = d.company;
+          el.appendChild(o);
+          el.value = d.company;
+        }
+        _loadEquipChecklist();
+      }
     }
 
     // 현장 코드
@@ -443,7 +600,8 @@ const TransitPage = (() => {
     const phone   = document.getElementById('tr-phone').value.trim();
     const date    = document.getElementById('tr-date').value;
 
-    if (!company || !reporter || !phone) { Toast.error('필수 항목을 모두 입력해주세요.'); return; }
+    if (!company) { Toast.error('업체를 선택해주세요.'); return; }
+    if (!reporter || !phone) { Toast.error('필수 항목을 모두 입력해주세요.'); return; }
     if (!project) { Toast.error('프로젝트를 선택해주세요.'); return; }
     if (!date) { Toast.error(`희망 ${type === 'in' ? '반입' : '반출'} 날짜를 선택해주세요.`); return; }
 
@@ -456,8 +614,13 @@ const TransitPage = (() => {
       });
       if (!equip_specs.length) { Toast.error('장비를 1개 이상 추가해주세요.'); return; }
     } else {
-      equip_nos = document.getElementById('tr-equip-nos').value.trim();
-      if (!equip_nos) { Toast.error('반출 장비번호를 입력해주세요.'); return; }
+      // 체크리스트 선택값 우선, 없으면 직접 입력값
+      const checked = [...document.querySelectorAll('.equip-checkbox:checked')].map(cb => cb.value);
+      const manual  = document.getElementById('tr-equip-nos')?.value.trim() || '';
+      const manualList = manual ? manual.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const combined = [...new Set([...checked, ...manualList])];
+      if (!combined.length) { Toast.error('반출할 장비를 선택하거나 입력해주세요.'); return; }
+      equip_nos = combined.join(', ');
     }
 
     _saveFormData();
@@ -778,7 +941,9 @@ const TransitPage = (() => {
 
   return {
     render, switchTab, loadList,
-    openNewForm, addSpecRow, _onTypeChange,
+    openNewForm, addSpecRow,
+    _onTypeChange, _onSiteChange, _onCompanyChange,
+    _onEquipCheck, _toggleManualInput,
     _onDocFileChange,
     openScheduleForm, confirmSchedule,
     openCompleteForm, openCancelForm,
