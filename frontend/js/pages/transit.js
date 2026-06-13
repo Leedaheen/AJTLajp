@@ -203,6 +203,29 @@ const TransitPage = (() => {
     Modal.open({
       title: '반입/반출 신청',
       body: `
+        <!-- 사용계획서 자동입력 -->
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
+          <div style="font-size:13px;font-weight:600;color:#166534;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            사용계획서 자동입력
+          </div>
+          <div style="font-size:12px;color:#166534;margin-bottom:10px">
+            삼성 승인 사용계획서 이미지(JPG/PNG) 또는 PDF를 업로드하면 내용이 자동으로 입력됩니다.
+          </div>
+          <label id="doc-upload-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="file" id="doc-file-input" accept="image/*,.pdf" style="display:none"
+              onchange="TransitPage._onDocFileChange(this)">
+            <span class="btn btn-outline btn-sm" style="border-color:#16a34a;color:#16a34a;pointer-events:none">
+              파일 선택
+            </span>
+            <span id="doc-file-name" style="font-size:12px;color:#555">선택된 파일 없음</span>
+          </label>
+          <div id="doc-parse-status" style="margin-top:8px;font-size:12px;color:#166534;display:none"></div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">신청 종류 <span style="color:var(--red)">*</span></label>
           <div style="display:flex;gap:20px">
@@ -320,6 +343,93 @@ const TransitPage = (() => {
         style="background:none;border:none;color:var(--red);cursor:pointer;font-size:20px;line-height:1">×</button>
     `;
     container.appendChild(row);
+  }
+
+  // ── 사용계획서 파일 선택 이벤트 ─────────────────────────
+  async function _onDocFileChange(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const nameEl   = document.getElementById('doc-file-name');
+    const statusEl = document.getElementById('doc-parse-status');
+    if (nameEl) nameEl.textContent = file.name;
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = '문서 분석 중...'; }
+
+    try {
+      const res = await Api.uploadFile('/parse-doc', file);
+      if (res?.success && res.data) {
+        _applyParsedData(res.data);
+        if (statusEl) statusEl.textContent = '자동입력 완료. 내용을 확인하고 필요 시 수정해주세요.';
+      }
+    } catch {
+      if (statusEl) statusEl.textContent = '인식 실패. 선명한 이미지로 다시 시도해주세요.';
+    }
+  }
+
+  // ── 파싱 결과를 폼 필드에 자동 채움 ─────────────────────
+  function _applyParsedData(d) {
+    // 업체명
+    if (d.company) {
+      const el = document.getElementById('tr-company');
+      if (el) el.value = d.company;
+    }
+
+    // 현장 코드
+    if (d.site_code) {
+      const el = document.getElementById('tr-site');
+      if (el) {
+        const opt = [...el.options].find(o => o.value === d.site_code);
+        if (opt) el.value = d.site_code;
+      }
+    }
+
+    // 장비 제원/수량
+    if (Array.isArray(d.specs) && d.specs.length > 0) {
+      const container = document.getElementById('tr-specs');
+      if (container) {
+        container.innerHTML = '';
+        d.specs.forEach(s => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px';
+          row.innerHTML = `
+            <select class="form-input form-select spec-select" style="flex:1">
+              ${SPEC_OPTIONS.map(sp => `<option value="${sp}" ${sp === s.spec ? 'selected' : ''}>${sp}</option>`).join('')}
+            </select>
+            <input type="number" class="form-input spec-qty" value="${s.qty || 1}" min="1" max="99"
+              style="width:70px;text-align:center">
+            <span style="font-size:13px;color:var(--gray-400)">대</span>
+            <button type="button" onclick="this.parentElement.remove()"
+              style="background:none;border:none;color:var(--red);cursor:pointer;font-size:20px;line-height:1">×</button>
+          `;
+          container.appendChild(row);
+        });
+      }
+    }
+
+    // 희망 반입 날짜 (요청기간 시작일)
+    if (d.start_date) {
+      const el = document.getElementById('tr-date');
+      if (el) el.value = d.start_date;
+    }
+
+    // 비고 — 작업내용 + 사용장소 + 요청기간
+    const noteParts = [];
+    if (d.work_content) noteParts.push(`작업내용: ${d.work_content}`);
+    if (d.location)     noteParts.push(`사용장소: ${d.location}`);
+    if (d.start_date && d.end_date) noteParts.push(`요청기간: ${d.start_date} ~ ${d.end_date}`);
+
+    if (noteParts.length) {
+      const el = document.getElementById('tr-note');
+      if (el) el.value = noteParts.join('\n');
+    }
+
+    // 양중담당자 위치 (층 정보)
+    if (d.floor) {
+      const el = document.getElementById('tr-manager-location');
+      if (el && !el.value) el.value = d.floor;
+    }
+
+    Toast.success('사용계획서 내용이 자동으로 입력되었습니다.');
   }
 
   async function _submitNewTransit() {
@@ -669,6 +779,7 @@ const TransitPage = (() => {
   return {
     render, switchTab, loadList,
     openNewForm, addSpecRow, _onTypeChange,
+    _onDocFileChange,
     openScheduleForm, confirmSchedule,
     openCompleteForm, openCancelForm,
   };

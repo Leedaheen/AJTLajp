@@ -9,7 +9,7 @@ import os
 
 from config import FRONTEND_URL
 from database import supabase
-from routers import users, notifications, transit, equipment, as_requests, usage_logs, analytics
+from routers import users, notifications, transit, equipment, as_requests, usage_logs, analytics, parse_doc
 from passlib.context import CryptContext
 
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -56,6 +56,7 @@ app.include_router(equipment.router,     prefix="/api")
 app.include_router(as_requests.router,   prefix="/api")
 app.include_router(usage_logs.router,    prefix="/api")
 app.include_router(analytics.router,     prefix="/api")
+app.include_router(parse_doc.router,     prefix="/api")
 
 # 프론트엔드 정적 파일 서빙
 _frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")

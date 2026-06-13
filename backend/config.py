@@ -20,3 +20,5 @@ VAPID_PRIVATE_KEY   = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_EMAIL         = os.getenv("VAPID_EMAIL", "mailto:admin@example.com")
 
 FRONTEND_URL        = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY", "")

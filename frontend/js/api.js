@@ -401,5 +401,26 @@ const Api = (() => {
     return Object.entries(map).map(([label, count]) => ({ label, count }));
   }
 
-  return { get, post, patch, delete: del };
+  // ── 파일 업로드 (multipart/form-data) ───────────────────
+  async function uploadFile(path, file) {
+    const token = _sb.auth.session?.access_token ||
+                  localStorage.getItem('aj_token') || '';
+    const form = new FormData();
+    form.append('file', file);
+
+    const resp = await fetch(`/api/${path.replace(/^\//, '')}`, {
+      method:  'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body:    form,
+    });
+
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      Toast.error(json.detail || '업로드 실패');
+      throw new Error(json.detail || 'upload_error');
+    }
+    return json;
+  }
+
+  return { get, post, patch, delete: del, uploadFile };
 })();
