@@ -141,7 +141,25 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at timestamptz DEFAULT now()
 );
 
--- ⑦ 업체 테이블
+-- ⑦ 현장 테이블
+CREATE TABLE IF NOT EXISTS sites (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code       text NOT NULL UNIQUE,
+  name       text NOT NULL,
+  active     boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+-- ⑧ 프로젝트 테이블
+CREATE TABLE IF NOT EXISTS projects (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code       text NOT NULL UNIQUE,
+  name       text NOT NULL,
+  active     boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+-- ⑨ 업체 테이블
 CREATE TABLE IF NOT EXISTS companies (
   id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name       text NOT NULL,
@@ -189,6 +207,8 @@ AS $$
 $$;
 
 -- ── RLS 활성화 ────────────────────────────────────────────────
+ALTER TABLE sites         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE companies     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_users     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transit       ENABLE ROW LEVEL SECURITY;
@@ -206,6 +226,34 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 --   3. service_role(Edge Function 내부)은 RLS를 우회합니다.
 --      별도 정책 불필요 — Supabase 기본 동작입니다.
 -- ============================================================
+
+-- ────────────────────────────────────────────────────────────
+-- sites / projects
+-- ────────────────────────────────────────────────────────────
+
+CREATE POLICY "sites_select_active"
+  ON sites FOR SELECT TO authenticated
+  USING (get_my_role() IS NOT NULL);
+
+CREATE POLICY "sites_insert_aj"
+  ON sites FOR INSERT TO authenticated
+  WITH CHECK (get_my_role() = 'aj');
+
+CREATE POLICY "sites_update_aj"
+  ON sites FOR UPDATE TO authenticated
+  USING (get_my_role() = 'aj');
+
+CREATE POLICY "projects_select_active"
+  ON projects FOR SELECT TO authenticated
+  USING (get_my_role() IS NOT NULL);
+
+CREATE POLICY "projects_insert_aj"
+  ON projects FOR INSERT TO authenticated
+  WITH CHECK (get_my_role() = 'aj');
+
+CREATE POLICY "projects_update_aj"
+  ON projects FOR UPDATE TO authenticated
+  USING (get_my_role() = 'aj');
 
 -- ────────────────────────────────────────────────────────────
 -- companies
