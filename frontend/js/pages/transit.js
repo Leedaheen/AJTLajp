@@ -109,7 +109,7 @@ const TransitPage = (() => {
     try {
       let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(100);
       if (_currentTab === 'active') {
-        q = q.in('status', ['requested', 'scheduled', 'confirmed']);
+        q = q.in('status', ['requested', 'scheduled']);
       } else if (_currentTab !== 'all') {
         q = q.eq('status', _currentTab);
       }
