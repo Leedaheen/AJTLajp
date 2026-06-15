@@ -100,7 +100,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (!claudeResp.ok) {
     const errBody = await claudeResp.text();
-    return json({ error: `Claude API 오류 (${claudeResp.status}): ${errBody}` }, 502);
+    // 크레딧 부족 등 사용자 친화적 메시지로 변환
+    if (claudeResp.status === 400 && errBody.includes("credit_balance")) {
+      return json({ error: "AI 인식 서비스 크레딧이 소진되었습니다. 관리자에게 문의해주세요." }, 503);
+    }
+    if (claudeResp.status === 529 || claudeResp.status === 503) {
+      return json({ error: "AI 서비스가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도해주세요." }, 503);
+    }
+    return json({ error: `문서 인식 서비스 오류 (${claudeResp.status}). 잠시 후 다시 시도해주세요.` }, 502);
   }
 
   const claudeJson = await claudeResp.json();
