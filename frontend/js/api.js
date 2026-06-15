@@ -65,13 +65,14 @@ const Api = (() => {
       if (!error) return data;
     } else if (base === 'as-requests') {
       let q = _sb.from('as_requests').select('*').order('requested_at', { ascending: false });
-      if (params.status)  q = q.eq('status', params.status);
-      if (params.site_id) q = q.eq('site_id', params.site_id);
-      if (params.tech_id) q = q.eq('tech_id', params.tech_id);
-      if (params.limit)   q = q.limit(Number(params.limit));
-      if (params.q)       q = q.or(
+      if (params.status)   q = q.eq('status', params.status);
+      if (params.statuses) q = q.in('status', params.statuses.split(','));
+      if (params.site_id)  q = q.eq('site_id', params.site_id);
+      if (params.tech_id)  q = q.eq('tech_id', params.tech_id);
+      if (params.q)        q = q.or(
         `equip_no.ilike.%${params.q}%,company.ilike.%${params.q}%,fault_type.ilike.%${params.q}%`
       );
+      if (params.limit)    q = q.limit(Number(params.limit));
       ({ data, error } = await q);
     } else if (base === 'usage-logs/summary') {
       const date   = params.date || new Date().toISOString().slice(0, 10);
@@ -197,6 +198,12 @@ const Api = (() => {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('transit')
         .update({ status: 'completed', completed_at: new Date().toISOString(), ...body })
+        .eq('id', id).select().single()
+      );
+    } else if (base.match(/^transit\/\d+\/dispatch$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('transit')
+        .update({ ...body })
         .eq('id', id).select().single()
       );
     } else if (base.match(/^transit\/\d+\/cancel$/)) {

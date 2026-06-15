@@ -15,8 +15,24 @@ const AsRequestPage = (() => {
     cancelled:        { label:'취소',        cls:'badge-rejected' },
   };
 
-  let _currentTab = 'all';
+  let _currentTab = 'active';
   let _cache = {};  // id → request object
+  let _loadGen = 0; // 동시 loadList 경쟁 방지용 세대 카운터
+
+  const _TABS = [
+    ['active','진행중'],['requested','접수대기'],['in_progress','처리중'],
+    ['material_pending','자재수급'],['held','보류'],['completed','완료'],['cancelled','취소'],
+  ];
+
+  function _updateTabStyles() {
+    _TABS.forEach(([v]) => {
+      const btn = document.getElementById(`as-tab-${v}`);
+      if (!btn) return;
+      const on = v === _currentTab;
+      btn.style.color       = on ? 'var(--navy)' : 'var(--gray-400)';
+      btn.style.borderBottom = on ? '2px solid var(--navy)' : '2px solid transparent';
+    });
+  }
 
   // ── 렌더 ─────────────────────────────────────────────────
   async function render() {
@@ -30,11 +46,8 @@ const AsRequestPage = (() => {
       </div>
 
       <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;flex-wrap:wrap">
-        ${[
-          ['all','전체'],['requested','접수대기'],['in_progress','처리중'],
-          ['material_pending','자재수급'],['held','보류'],['completed','완료'],['cancelled','취소']
-        ].map(([v,l]) => `
-          <button onclick="AsRequestPage.switchTab('${v}')"
+        ${_TABS.map(([v, l]) => `
+          <button id="as-tab-${v}" onclick="AsRequestPage.switchTab('${v}')"
             style="padding:8px 14px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;
             color:${_currentTab===v?'var(--navy)':'var(--gray-400)'};
             border-bottom:${_currentTab===v?'2px solid var(--navy)':'2px solid transparent'};margin-bottom:-2px">
@@ -61,32 +74,49 @@ const AsRequestPage = (() => {
     Realtime.on('as-requests', 'as_requests', loadList);
   }
 
-  function switchTab(tab) { _currentTab = tab; render(); }
+  function switchTab(tab) {
+    _currentTab = tab;
+    _updateTabStyles();
+    loadList();
+  }
 
   // ── 목록 로드 ────────────────────────────────────────────
   async function loadList() {
+    const gen = ++_loadGen;
     const container = document.getElementById('as-list');
     if (!container) return;
     container.innerHTML = '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>';
 
     try {
-      const params = new URLSearchParams({ limit: 100 });
-      if (_currentTab !== 'all') params.set('status', _currentTab);
-      const q    = document.getElementById('as-search')?.value.trim();
-      const site = document.getElementById('as-site-filter')?.value;
-      if (q)    params.set('q', q);
-      if (site) params.set('site_id', site);
+      const searchVal = document.getElementById('as-search')?.value.trim();
+      const siteVal   = document.getElementById('as-site-filter')?.value;
 
-      const list = await Api.get(`/as-requests?${params}`);
+      let q = _sb.from('as_requests').select('*').order('requested_at', { ascending: false }).limit(100);
+      if (_currentTab === 'active') {
+        q = q.in('status', ['requested', 'in_progress', 'material_pending', 'held']);
+      } else if (_currentTab !== 'all') {
+        q = q.eq('status', _currentTab);
+      }
+      if (siteVal)   q = q.eq('site_id', siteVal);
+      if (searchVal) q = q.or(
+        `equip_no.ilike.%${searchVal}%,company.ilike.%${searchVal}%,fault_type.ilike.%${searchVal}%`
+      );
+
+      const { data: list, error } = await q;
+      if (error) throw error;
+      if (gen !== _loadGen) return;
+
       _cache = {};
-      list.forEach(r => { _cache[r.id] = r; });
+      (list || []).forEach(r => { _cache[r.id] = r; });
 
-      if (!list.length) {
+      if (!list?.length) {
         container.innerHTML = '<div class="empty-state"><div>AS 요청 내역이 없습니다</div></div>';
         return;
       }
       container.innerHTML = list.map(_renderCard).join('');
-    } catch {
+    } catch (e) {
+      if (gen !== _loadGen) return;
+      console.error('[as-request] loadList 오류:', e);
       container.innerHTML = '<div class="empty-state"><div>불러오기 실패</div></div>';
     }
   }

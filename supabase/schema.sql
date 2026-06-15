@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS transit (
   site_id          text NOT NULL,
   site_name        text NOT NULL,
   company          text NOT NULL,
+  project          text,
   equip_specs      jsonb NOT NULL,
   aj_equip         text,
   reporter_name    text NOT NULL,
@@ -51,12 +52,13 @@ CREATE TABLE IF NOT EXISTS transit (
   status           text DEFAULT 'requested' CHECK (
     status IN ('requested','scheduled','confirmed','completed','cancelled')
   ),
-  cancelled_reason text,
-  note             text,
-  change_log       jsonb DEFAULT '[]',
-  created_by       uuid REFERENCES app_users(id),
-  created_at       timestamptz DEFAULT now(),
-  completed_at     timestamptz
+  cancelled_reason       text,
+  note                   text,
+  change_log             jsonb DEFAULT '[]',
+  created_by             uuid REFERENCES app_users(id),
+  created_at             timestamptz DEFAULT now(),
+  completed_at           timestamptz,
+  partner_confirmed_at   timestamptz
 );
 
 -- ③ 장비 테이블
@@ -69,6 +71,7 @@ CREATE TABLE IF NOT EXISTS equipment (
   site_id     text,
   site_name   text,
   company     text,
+  project     text,
   status      text DEFAULT 'stock' CHECK (status IN ('stock','in_use','transit','returned')),
   qr_code     text UNIQUE,
   in_date     text,
@@ -96,6 +99,8 @@ CREATE TABLE IF NOT EXISTS as_requests (
   status           text DEFAULT 'requested' CHECK (
     status IN ('requested','in_progress','material_pending','held','completed','cancelled')
   ),
+  tech_name        text,
+  tech_phone       text,
   resolve_note     text,
   hold_reason      text,
   cancel_reason    text,
@@ -323,16 +328,13 @@ CREATE POLICY "users_update_aj"
 -- transit (반입/반출)
 -- ────────────────────────────────────────────────────────────
 
--- partner: 자신이 신청한 건 또는 같은 company 건 조회
+-- partner: 자신이 신청한 건 조회
 CREATE POLICY "transit_select_partner"
   ON transit FOR SELECT
   TO authenticated
   USING (
     get_my_role() = 'partner'
-    AND (
-      created_by = auth.uid()
-      OR company = (SELECT company FROM app_users WHERE id = auth.uid() AND status = 'active')
-    )
+    AND created_by = auth.uid()
   );
 
 -- aj: 모든 건 조회
@@ -355,6 +357,28 @@ CREATE POLICY "transit_update_aj"
   ON transit FOR UPDATE
   TO authenticated
   USING (get_my_role() = 'aj');
+
+-- partner: 자신이 신청한 scheduled 건을 confirmed로 확인완료 처리
+CREATE POLICY "transit_update_partner_confirm"
+  ON transit FOR UPDATE
+  TO authenticated
+  USING (
+    get_my_role() = 'partner'
+    AND created_by = auth.uid()
+    AND status = 'scheduled'
+  )
+  WITH CHECK (status = 'confirmed');
+
+-- partner: 자신이 신청한 requested/scheduled 건을 취소
+CREATE POLICY "transit_update_partner_cancel"
+  ON transit FOR UPDATE
+  TO authenticated
+  USING (
+    get_my_role() = 'partner'
+    AND created_by = auth.uid()
+    AND status IN ('requested', 'scheduled')
+  )
+  WITH CHECK (status = 'cancelled');
 
 -- 삭제 불가 (change_log로 이력 보존)
 
@@ -490,8 +514,11 @@ CREATE POLICY "notif_update_own"
   USING (target_id = auth.uid())
   WITH CHECK (target_id = auth.uid());
 
--- INSERT는 service_role(Edge Function)만 가능
--- anon/authenticated 의 INSERT 정책 미생성 = 차단
+-- 활성 사용자 누구나 알림 등록 가능 (일정 확정 시 협력사에게 알림 발송 등)
+CREATE POLICY "notif_insert_authenticated"
+  ON notifications FOR INSERT
+  TO authenticated
+  WITH CHECK (get_my_role() IS NOT NULL);
 
 -- ── Realtime 구독 설정 ─────────────────────────────────────
 -- RLS가 활성화된 테이블에서 Realtime 사용 시

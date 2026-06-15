@@ -12,8 +12,9 @@ const TransitPage = (() => {
   };
   const LS = 'transit_form_';
 
-  let _currentTab = 'all';
+  let _currentTab = 'active';
   let _transitCache = {};  // id → transit object
+  let _loadGen = 0;
 
   // ── localStorage 저장/불러오기 ───────────────────────────
   function _saveFormData() {
@@ -47,26 +48,44 @@ const TransitPage = (() => {
     });
   }
 
+  const _TABS = [
+    ['active','진행중'],['requested','신청'],['scheduled','협력사확인'],
+    ['confirmed','확정'],['completed','완료'],['cancelled','취소'],
+  ];
+
+  function _updateTabStyles() {
+    _TABS.forEach(([v]) => {
+      const btn = document.getElementById(`tr-tab-${v}`);
+      if (!btn) return;
+      const on = v === _currentTab;
+      btn.style.color       = on ? 'var(--navy)' : 'var(--gray-400)';
+      btn.style.borderBottom = on ? '2px solid var(--navy)' : '2px solid transparent';
+    });
+  }
+
   // ── 렌더 ─────────────────────────────────────────────────
   async function render() {
     const user = Auth.getUser();
+    const isAj = user.role === 'aj';
     const canRequest = ['partner','aj'].includes(user.role);
 
     document.getElementById('page-transit').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
         <h2 class="section-title" style="margin:0">반입/반출 관리</h2>
-        ${canRequest ? `<button class="btn btn-primary btn-sm" onclick="TransitPage.openNewForm()">+ 신규 신청</button>` : ''}
+        <div style="display:flex;gap:8px">
+          ${isAj ? `<button class="btn btn-outline btn-sm" onclick="TransitPage.openLogViewer()">로그 확인</button>` : ''}
+          ${canRequest ? `<button class="btn btn-primary btn-sm" onclick="TransitPage.openNewForm()">+ 신규 신청</button>` : ''}
+        </div>
       </div>
 
       <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;flex-wrap:wrap">
-        ${[['all','전체'],['requested','신청'],['scheduled','협력사확인'],['confirmed','확정'],['completed','완료'],['cancelled','취소']]
-          .map(([v,l]) => `
-            <button onclick="TransitPage.switchTab('${v}')"
-              style="padding:8px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;
-              color:${_currentTab===v?'var(--navy)':'var(--gray-400)'};
-              border-bottom:${_currentTab===v?'2px solid var(--navy)':'2px solid transparent'};margin-bottom:-2px">
-              ${l}
-            </button>`).join('')}
+        ${_TABS.map(([v, l]) => `
+          <button id="tr-tab-${v}" onclick="TransitPage.switchTab('${v}')"
+            style="padding:8px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;
+            color:${_currentTab===v?'var(--navy)':'var(--gray-400)'};
+            border-bottom:${_currentTab===v?'2px solid var(--navy)':'2px solid transparent'};margin-bottom:-2px">
+            ${l}
+          </button>`).join('')}
       </div>
 
       <div id="transit-list"></div>
@@ -75,22 +94,35 @@ const TransitPage = (() => {
     Realtime.on('transit', 'transit', loadList);
   }
 
-  function switchTab(tab) { _currentTab = tab; render(); }
+  function switchTab(tab) {
+    _currentTab = tab;
+    _updateTabStyles();
+    loadList();
+  }
 
   // ── 목록 ────────────────────────────────────────────────
   async function loadList() {
+    const gen = ++_loadGen;
     const c = document.getElementById('transit-list');
     if (!c) return;
     c.innerHTML = '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>';
     try {
-      const p = new URLSearchParams({ limit: 100 });
-      if (_currentTab !== 'all') p.set('status', _currentTab);
-      const list = await Api.get(`/transit?${p}`);
+      let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(100);
+      if (_currentTab === 'active') {
+        q = q.in('status', ['requested', 'scheduled', 'confirmed']);
+      } else if (_currentTab !== 'all') {
+        q = q.eq('status', _currentTab);
+      }
+      const { data: list, error } = await q;
+      if (error) throw error;
+      if (gen !== _loadGen) return;
       _transitCache = {};
-      list.forEach(t => { _transitCache[t.id] = t; });
-      if (!list.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; return; }
+      (list || []).forEach(t => { _transitCache[t.id] = t; });
+      if (!list?.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; return; }
       c.innerHTML = list.map(_renderCard).join('');
-    } catch {
+    } catch (e) {
+      if (gen !== _loadGen) return;
+      console.error('[transit] loadList 오류:', e);
       c.innerHTML = '<div class="empty-state"><div>불러오기 실패</div></div>';
     }
   }
@@ -127,6 +159,8 @@ const TransitPage = (() => {
             onclick="TransitPage.openCompleteForm(${t.id},'${t.type}','${safeCompany}','${specsAttr}')">
             ${typeLabel}완료
           </button>
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openDispatchForm(${t.id})">배차정보 등록</button>
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openQrPrint(${t.id})">QR생성</button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
         `;
@@ -632,6 +666,7 @@ const TransitPage = (() => {
 
     try {
       await Api.post('/transit', {
+        record_id:      `TR-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
         type,
         site_id:        siteId,
         site_name:      siteName,
@@ -646,11 +681,12 @@ const TransitPage = (() => {
         requested_date: date,
         note:           document.getElementById('tr-note').value.trim(),
         created_by:     Auth.getUser()?.id,
+        status:         'requested',
       });
       Modal.close();
       Toast.success('신청이 완료되었습니다. AJ관리자 검토 후 일정이 확정됩니다.');
-      loadList();
-    } catch { btn.disabled = false; btn.textContent = '신청 완료'; }
+      switchTab('requested');
+    } catch (e) { btn.disabled = false; btn.textContent = '신청 완료'; console.error('[transit] 신청 실패:', e); }
   }
 
   // ── 일정 확정 (AJ) ───────────────────────────────────────
@@ -865,11 +901,7 @@ const TransitPage = (() => {
       const spec     = specEl?.value || specPool[i] || specPool[0] || '';
 
       try {
-        // 기존 레코드 확인
-        const existing = await Api.get(`/equipment?equip_no=${encodeURIComponent(equip_no)}`, { silent: true });
-        const found    = Array.isArray(existing) ? existing.find(e => e.equip_no === equip_no) : null;
-
-        const qr_code  = `AJ-${equip_no}`;
+        const qr_code = `AJ-${equip_no}`;
         const equipData = {
           equip_no,
           spec,
@@ -883,15 +915,20 @@ const TransitPage = (() => {
           qr_code,
         };
 
-        if (found) {
-          await Api.patch(`/equipment/${found.id}`, { ...equipData, qr_code: found.qr_code || qr_code });
-        } else {
-          await Api.post('/equipment', {
-            ...equipData,
-            record_id: `EQ-${equip_no}-${Date.now()}`,
-          });
+        // UPDATE 먼저 시도 (qr_code 기준) — SELECT RLS 우회, UPDATE 정책(aj 전체) 적용
+        const { data: updated, error: upErr } = await _sb.from('equipment')
+          .update({ ...equipData, qr_code })
+          .eq('qr_code', qr_code)
+          .select('id');
+        if (upErr) throw upErr;
+
+        // qr_code로 매칭된 행이 없으면 신규 INSERT
+        if (!updated?.length) {
+          const { error: insErr } = await _sb.from('equipment')
+            .insert({ ...equipData, qr_code, record_id: `EQ-${equip_no}-${Date.now()}` });
+          if (insErr) throw insErr;
         }
-      } catch (e) { console.warn('[EquipIn] upsert failed:', equip_no, e); }
+      } catch (e) { console.warn('[EquipIn] upsert failed:', equip_no, e.message); }
     }
   }
 
@@ -902,12 +939,278 @@ const TransitPage = (() => {
     const today = new Date().toISOString().slice(0, 10);
     for (const equip_no of equipNos) {
       try {
-        const existing = await Api.get(`/equipment?equip_no=${encodeURIComponent(equip_no)}`, { silent: true });
-        const found    = Array.isArray(existing) ? existing.find(e => e.equip_no === equip_no) : null;
-        if (found) {
-          await Api.patch(`/equipment/${found.id}`, { status: 'returned', out_date: today });
+        // qr_code 기준 UPDATE — SELECT RLS 우회, UPDATE 정책(aj 전체) 적용
+        const qr_code = `AJ-${equip_no}`;
+        const { data: updated, error: upErr } = await _sb.from('equipment')
+          .update({ status: 'returned', out_date: today, qr_code: null })
+          .eq('qr_code', qr_code)
+          .select('id');
+        if (upErr) throw upErr;
+
+        // qr_code 매칭 실패 시 equip_no로 재시도
+        if (!updated?.length) {
+          const { error: upErr2 } = await _sb.from('equipment')
+            .update({ status: 'returned', out_date: today })
+            .eq('equip_no', equip_no);
+          if (upErr2) throw upErr2;
         }
       } catch (e) { console.warn('[EquipOut] update failed:', equip_no, e); }
+    }
+  }
+
+  // ── 배차정보 등록 (AJ) ───────────────────────────────────
+  function openDispatchForm(transitId) {
+    const t = _transitCache[transitId];
+    if (!t) { Toast.error('정보를 불러올 수 없습니다. 목록을 새로고침하세요.'); return; }
+
+    Modal.open({
+      title: '배차정보 등록',
+      body: `
+        <div style="background:var(--gray-100);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px">
+          <strong>${t.company}</strong> · ${t.site_name} · 확정일 ${t.scheduled_date || '-'}
+        </div>
+        <div class="form-group">
+          <label class="form-label">배차 차량</label>
+          <input id="dp-vehicle" class="form-input"
+            placeholder="예: 5톤 트럭 12가3456"
+            value="${t.vehicle_info || ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">담당 기사 / 연락처</label>
+          <input id="dp-driver" class="form-input"
+            placeholder="예: 홍길동 / 010-0000-0000"
+            value="${t.driver_info || ''}">
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-dispatch">저장</button>
+      `,
+    });
+
+    document.getElementById('btn-save-dispatch').onclick = async () => {
+      const vehicle = document.getElementById('dp-vehicle').value.trim();
+      const driver  = document.getElementById('dp-driver').value.trim();
+      const btn = document.getElementById('btn-save-dispatch');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        await Api.patch(`/transit/${transitId}/dispatch`, {
+          vehicle_info: vehicle,
+          driver_info:  driver,
+        });
+        Modal.close();
+        Toast.success('배차정보가 저장되었습니다.');
+        loadList();
+      } catch { btn.disabled = false; btn.textContent = '저장'; }
+    };
+  }
+
+  // ── QR 생성 및 인쇄 (AJ) ──────────────────────────────────
+  function openQrPrint(transitId) {
+    const t = _transitCache[transitId];
+    if (!t) { Toast.error('정보를 불러올 수 없습니다. 목록을 새로고침하세요.'); return; }
+
+    const equipNos = (t.aj_equip || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+
+    if (!equipNos.length) {
+      Toast.error('등록된 장비번호가 없습니다. 일정 확정 시 장비번호를 입력해주세요.');
+      return;
+    }
+
+    const today = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit' });
+    const typeLabel = t.type === 'in' ? '반입' : '반출';
+
+    const pages = equipNos.map(no => {
+      const qrData  = encodeURIComponent(`AJ-${no}`);
+      const qrUrl   = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${qrData}&ecc=M`;
+      const specInfo = (() => {
+        const specs = t.equip_specs || [];
+        // 장비번호 순서로 spec 할당
+        const pool = [];
+        specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) pool.push(s.spec); });
+        const idx = equipNos.indexOf(no);
+        return pool[idx] || pool[0] || '';
+      })();
+
+      return `
+        <div style="page-break-after:always;display:flex;flex-direction:column;align-items:center;
+                    justify-content:center;height:100vh;font-family:'Noto Sans KR',sans-serif;padding:40px">
+          <div style="font-size:14px;color:#666;margin-bottom:8px">AJ렌탈 고소작업대</div>
+          <div style="font-size:22px;font-weight:700;color:#1B365D;margin-bottom:4px">${no}</div>
+          ${specInfo ? `<div style="font-size:14px;color:#555;margin-bottom:24px">${specInfo}</div>` : '<div style="margin-bottom:24px"></div>'}
+          <img src="${qrUrl}" width="280" height="280" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px">
+          <div style="margin-top:20px;font-size:13px;color:#888">
+            ${typeLabel}일: ${t.scheduled_date || today} · ${t.site_name}
+          </div>
+          <div style="margin-top:6px;font-size:12px;color:#aaa">${t.company}</div>
+        </div>
+      `;
+    }).join('');
+
+    const win = window.open('', '_blank', 'width=800,height=900');
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>QR코드 — ${t.company}</title>
+        <style>
+          * { margin:0; padding:0; box-sizing:border-box; }
+          body { background:#fff; }
+          @media print {
+            @page { size: A4; margin: 0; }
+            body { margin: 0; }
+          }
+        </style>
+      </head>
+      <body>${pages}</body>
+      </html>
+    `);
+    win.document.close();
+    // QR 이미지 로드 후 인쇄
+    win.onload = () => win.print();
+  }
+
+  // ── 로그 뷰어 (AJ 전용) ──────────────────────────────────
+  async function openLogViewer() {
+    Modal.open({
+      title: '반입/반출 변경 로그',
+      body: '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>',
+      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>`,
+    });
+    // 모달 박스 너비 확장
+    const box = document.querySelector('.modal-box');
+    if (box) box.style.maxWidth = '680px';
+
+    try {
+      const list = await Api.get('/transit?limit=100');
+      const entries = [];
+
+      list.forEach(t => {
+        const typeLabel = t.type === 'in' ? '반입' : '반출';
+        const st = STATUS_MAP[t.status] || { label: t.status };
+
+        // 신청 생성 로그
+        entries.push({
+          at:      t.created_at,
+          transit: t,
+          typeLabel,
+          action:  '신청 접수',
+          detail:  `${t.company} · ${t.site_name}${t.project ? ' · ' + t.project : ''} · 희망일 ${t.requested_date || '-'}`,
+          badge:   'badge-pending',
+          badgeText: `${typeLabel} 신청`,
+        });
+
+        // change_log 항목들
+        (t.change_log || []).forEach(c => {
+          entries.push({
+            at:       c.when,
+            transit:  t,
+            typeLabel,
+            action:   c.after || c.before,
+            detail:   `${c.before} → ${c.after}`,
+            who:      c.who,
+            badge:    'badge-active',
+            badgeText: `${typeLabel} 변경`,
+          });
+        });
+
+        // 상태별 타임스탬프 로그
+        if (t.partner_confirmed_at) {
+          entries.push({
+            at:       t.partner_confirmed_at,
+            transit:  t,
+            typeLabel,
+            action:   '협력사 일정 확인완료',
+            detail:   `확정일 ${t.scheduled_date}`,
+            badge:    '',
+            badgeStyle: 'background:#1B365D;color:#fff',
+            badgeText:  `${typeLabel} 확정`,
+          });
+        }
+        if (t.completed_at) {
+          entries.push({
+            at:       t.completed_at,
+            transit:  t,
+            typeLabel,
+            action:   `${typeLabel} 완료 처리`,
+            detail:   `확정일 ${t.scheduled_date || '-'} · 장비 ${t.aj_equip || '-'}`,
+            badge:    '',
+            badgeStyle: 'background:#065f46;color:#fff',
+            badgeText:  `${typeLabel} 완료`,
+          });
+        }
+        if (t.status === 'cancelled' && t.cancelled_reason) {
+          entries.push({
+            at:       t.created_at, // cancelled_at 없으므로 대체
+            transit:  t,
+            typeLabel,
+            action:   '취소',
+            detail:   `사유: ${t.cancelled_reason}`,
+            badge:    'badge-rejected',
+            badgeText: `${typeLabel} 취소`,
+          });
+        }
+      });
+
+      // 최신순 정렬
+      entries.sort((a, b) => (b.at || '') > (a.at || '') ? 1 : -1);
+
+      const body = document.querySelector('.modal-body');
+      if (!body) return;
+
+      if (!entries.length) {
+        body.innerHTML = '<div class="empty-state"><div>변경 이력이 없습니다</div></div>';
+        return;
+      }
+
+      // 날짜별 그룹핑
+      const groups = {};
+      entries.forEach(e => {
+        const day = (e.at || '').slice(0, 10) || '날짜 없음';
+        if (!groups[day]) groups[day] = [];
+        groups[day].push(e);
+      });
+
+      body.innerHTML = `
+        <div style="max-height:65vh;overflow-y:auto;padding-right:4px">
+          ${Object.entries(groups).map(([day, items]) => `
+            <div style="margin-bottom:20px">
+              <div style="font-size:11px;font-weight:700;color:var(--gray-400);
+                          letter-spacing:0.05em;padding:4px 0;
+                          border-bottom:1px solid var(--gray-200);margin-bottom:10px">
+                ${day}
+              </div>
+              ${items.map(e => {
+                const time = e.at ? new Date(e.at).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }) : '';
+                const badgeAttr = e.badgeStyle
+                  ? `style="${e.badgeStyle};font-size:10px;padding:2px 7px;border-radius:4px;display:inline-block"`
+                  : `class="badge ${e.badge}" style="font-size:10px;padding:2px 7px"`;
+                return `
+                  <div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;
+                               border-bottom:1px solid var(--gray-100)">
+                    <div style="min-width:38px;text-align:right;font-size:11px;
+                                color:var(--gray-400);padding-top:2px">${time}</div>
+                    <div style="flex:1">
+                      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                        <span ${badgeAttr}>${e.badgeText}</span>
+                        <span style="font-size:12px;font-weight:600;color:var(--navy)">${e.transit.company}</span>
+                        <span style="font-size:11px;color:var(--gray-400)">${e.transit.site_name}</span>
+                        ${e.who ? `<span style="font-size:11px;color:var(--gray-400)">· ${e.who}</span>` : ''}
+                      </div>
+                      <div style="font-size:12px;color:var(--gray-600);margin-top:3px">${e.detail}</div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } catch {
+      const body = document.querySelector('.modal-body');
+      if (body) body.innerHTML = '<div class="empty-state"><div>로그를 불러오지 못했습니다</div></div>';
     }
   }
 
@@ -1258,6 +1561,7 @@ ${pages.join('')}
     _onDocFileChange,
     openScheduleForm, confirmSchedule,
     openCompleteForm, openCancelForm,
-    openDocumentForm,
+    openDispatchForm, openQrPrint,
+    openDocumentForm, openLogViewer,
   };
 })();
