@@ -151,6 +151,7 @@ const TransitPage = (() => {
             협력사 일정 확인 대기중
           </span>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openScheduleForm(${t.id})">일정 수정</button>
+          ${t.aj_equip ? `<button class="btn btn-outline btn-sm" onclick="TransitPage.openEquipInfoForm(${t.id})">장비정보 수정</button>` : ''}
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
         `;
       } else if (t.status === 'confirmed') {
@@ -160,6 +161,7 @@ const TransitPage = (() => {
             ${typeLabel}완료
           </button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDispatchForm(${t.id})">배차정보 등록</button>
+          ${t.aj_equip ? `<button class="btn btn-outline btn-sm" onclick="TransitPage.openEquipInfoForm(${t.id})">장비정보 수정</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openQrPrint(${t.id})">QR 보기/인쇄</button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
@@ -725,15 +727,11 @@ const TransitPage = (() => {
         </div>
         <div class="form-group">
           <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input id="sc-equip-nos" class="form-input"
-              placeholder="GK111, GF123, GG456"
-              value="${t.aj_equip || ''}">
-            <button class="btn btn-outline btn-sm" style="white-space:nowrap;flex-shrink:0"
-              onclick="TransitPage._onScEquipRegister()">목록 생성</button>
-          </div>
+          <input id="sc-equip-nos" class="form-input"
+            placeholder="GK111, GF123, GG456"
+            value="${t.aj_equip || ''}">
           <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
-            쉼표(,)로 구분 입력 후 목록 생성을 눌러 모델명/시리얼번호를 입력하세요.
+            쉼표(,)로 구분. 입력 완료 후 아래 목록에서 모델명/시리얼번호를 입력하세요.
           </div>
         </div>
         <div id="sc-equip-detail-list"></div>
@@ -760,10 +758,14 @@ const TransitPage = (() => {
       `,
     });
 
-    // 기존 장비번호가 있으면 목록 자동 생성
-    if (t.aj_equip) {
-      setTimeout(() => TransitPage._onScEquipRegister(), 100);
-    }
+    // 장비번호 blur 시 자동 목록 생성
+    setTimeout(() => {
+      const nosInput = document.getElementById('sc-equip-nos');
+      if (!nosInput) return;
+      nosInput.addEventListener('blur', () => TransitPage._onScEquipRegister());
+      // 기존 장비번호가 있으면 즉시 자동 생성
+      if (t.aj_equip) TransitPage._onScEquipRegister();
+    }, 100);
 
     document.getElementById('btn-confirm-schedule').onclick = async () => {
       const date     = document.getElementById('sc-date').value;
@@ -899,6 +901,109 @@ const TransitPage = (() => {
         </div>
       </div>
     `;
+  }
+
+  // ── 장비정보 수정 (확정/배차 후) ─────────────────────────
+  async function openEquipInfoForm(transitId) {
+    const t = _transitCache[transitId];
+    if (!t || !t.aj_equip) { Toast.error('장비번호 정보가 없습니다.'); return; }
+
+    const nos = t.aj_equip.split(',').map(s => s.trim()).filter(Boolean);
+
+    // 기존 장비 데이터 조회
+    const [{ data: existing }, { data: modelRows }] = await Promise.all([
+      _sb.from('equipment').select('equip_no,model,serial_no').in('equip_no', nos),
+      _sb.from('equipment').select('model').not('model', 'is', null).neq('model', ''),
+    ]);
+    const existMap = {};
+    (existing || []).forEach(r => { existMap[r.equip_no] = r; });
+    const models = [...new Set((modelRows || []).map(r => r.model).filter(Boolean))].sort();
+
+    Modal.open({
+      title: '장비정보 수정',
+      body: `
+        <datalist id="eif-model-list">
+          ${models.map(m => `<option value="${m}">`).join('')}
+        </datalist>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--gray-500)">
+          <strong style="color:var(--navy)">${t.company}</strong> · ${t.site_name}
+          · 장비 ${nos.length}대
+        </div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:420px">
+          <thead>
+            <tr style="background:var(--gray-100)">
+              <th style="padding:8px 10px;text-align:left;font-weight:600">장비번호</th>
+              <th style="padding:8px 10px;text-align:left;font-weight:600">모델명</th>
+              <th style="padding:8px 10px;text-align:left;font-weight:600">시리얼번호</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${nos.map((no, i) => {
+              const ex = existMap[no] || {};
+              return `
+                <tr style="border-bottom:1px solid var(--gray-100)">
+                  <td style="padding:8px 10px;font-family:monospace;font-weight:600;color:var(--navy);white-space:nowrap">${no}</td>
+                  <td style="padding:5px 8px">
+                    <input id="eif-model-${i}" class="form-input" list="eif-model-list"
+                      value="${(ex.model || '').replace(/"/g, '&quot;')}"
+                      placeholder="예: GR20NS"
+                      style="padding:5px 8px;font-size:13px">
+                  </td>
+                  <td style="padding:5px 8px">
+                    <input id="eif-serial-${i}" class="form-input"
+                      value="${(ex.serial_no || '').replace(/"/g, '&quot;')}"
+                      placeholder="예: GJ512-001"
+                      style="padding:5px 8px;font-size:13px;font-family:monospace">
+                  </td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-equip-info">저장</button>
+      `,
+    });
+
+    document.getElementById('btn-save-equip-info').onclick = async () => {
+      const btn = document.getElementById('btn-save-equip-info');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        for (let i = 0; i < nos.length; i++) {
+          const equip_no  = nos[i];
+          const model     = document.getElementById(`eif-model-${i}`)?.value.trim() || null;
+          const serial_no = document.getElementById(`eif-serial-${i}`)?.value.trim() || null;
+
+          const { data: upd } = await _sb.from('equipment')
+            .update({ model, serial_no })
+            .eq('equip_no', equip_no)
+            .select('id');
+
+          // 장비 레코드가 아직 없으면 INSERT (transit 상태)
+          if (!upd?.length) {
+            await _sb.from('equipment').insert({
+              equip_no,
+              model,
+              serial_no,
+              site_id:    t.site_id,
+              site_name:  t.site_name,
+              company:    t.company,
+              transit_id: transitId,
+              status:     'transit',
+              record_id:  `EQ-${equip_no}-${Date.now()}`,
+            });
+          }
+        }
+        Modal.close();
+        Toast.success('장비정보가 저장되었습니다.');
+      } catch (e) {
+        btn.disabled = false; btn.textContent = '저장';
+        Toast.error('저장 실패: ' + (e.message || '오류가 발생했습니다.'));
+      }
+    };
   }
 
   // ── 협력사 일정 확인완료 ──────────────────────────────────
@@ -1714,7 +1819,7 @@ ${pages.join('')}
     _onTypeChange, _onSiteChange, _onCompanyChange,
     _onEquipCheck, _toggleManualInput, _onScEquipRegister,
     _onDocFileChange,
-    openScheduleForm, confirmSchedule,
+    openScheduleForm, confirmSchedule, openEquipInfoForm,
     openCompleteForm, openCancelForm,
     openDispatchForm, openQrPrint,
     openDocumentForm, openLogViewer,
