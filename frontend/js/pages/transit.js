@@ -854,10 +854,15 @@ const TransitPage = (() => {
     const existMap = {};
     (existing || []).forEach(r => { existMap[r.equip_no] = r; });
 
-    // 모델명 자동완성 목록
-    const { data: modelRows } = await _sb.from('equipment')
-      .select('model').not('model', 'is', null).neq('model', '');
-    const models = [...new Set((modelRows || []).map(r => r.model).filter(Boolean))].sort();
+    // 모델명 자동완성 목록 — equipment_specs + 기존 장비 입력값 합산
+    const [{ data: specRows }, { data: equipModelRows }] = await Promise.all([
+      _sb.from('equipment_specs').select('model').order('model'),
+      _sb.from('equipment').select('model').not('model', 'is', null).neq('model', ''),
+    ]);
+    const models = [...new Set([
+      ...(specRows || []).map(r => r.model),
+      ...(equipModelRows || []).map(r => r.model),
+    ].filter(Boolean))].sort();
 
     container.innerHTML = `
       <datalist id="sc-model-list">
