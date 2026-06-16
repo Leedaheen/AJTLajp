@@ -15,12 +15,12 @@ const AsRequestPage = (() => {
     cancelled:        { label:'취소',        cls:'badge-rejected' },
   };
 
-  let _currentTab = 'active';
+  let _currentTab = 'all';
   let _cache = {};  // id → request object
   let _loadGen = 0; // 동시 loadList 경쟁 방지용 세대 카운터
 
   const _TABS = [
-    ['active','진행중'],['requested','접수대기'],['in_progress','처리중'],
+    ['all','전체'],['requested','접수대기'],['in_progress','처리중'],
     ['material_pending','자재수급'],['held','보류'],['completed','완료'],['cancelled','취소'],
   ];
 
@@ -92,9 +92,7 @@ const AsRequestPage = (() => {
       const siteVal   = document.getElementById('as-site-filter')?.value;
 
       let q = _sb.from('as_requests').select('*').order('requested_at', { ascending: false }).limit(100);
-      if (_currentTab === 'active') {
-        q = q.in('status', ['requested', 'in_progress', 'material_pending', 'held']);
-      } else if (_currentTab !== 'all') {
+      if (_currentTab !== 'all') {
         q = q.eq('status', _currentTab);
       }
       if (siteVal)   q = q.eq('site_id', siteVal);

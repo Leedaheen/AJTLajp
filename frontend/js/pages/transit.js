@@ -52,6 +52,7 @@ const TransitPage = (() => {
     ['active','진행중'],['requested','신청'],['scheduled','협력사확인'],
     ['confirmed','확정'],['completed','완료'],['cancelled','취소'],
   ];
+  // 진행중 탭 = 완료·취소되지 않은 모든 상태 (OR 필터)
 
   function _updateTabStyles() {
     _TABS.forEach(([v]) => {
@@ -109,7 +110,7 @@ const TransitPage = (() => {
     try {
       let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(100);
       if (_currentTab === 'active') {
-        q = q.in('status', ['requested', 'scheduled']);
+        q = q.in('status', ['requested', 'scheduled', 'confirmed']);
       } else if (_currentTab !== 'all') {
         q = q.eq('status', _currentTab);
       }
