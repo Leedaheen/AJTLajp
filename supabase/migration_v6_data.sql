@@ -24,11 +24,11 @@ INSERT INTO equipment_specs (model, manufacturer, work_height) VALUES
   ('MS10.4',      'Genie', '10M'),   -- 10.4M
   ('MS11.8',      'Genie', '14M'),   -- 13.8M 추출
   -- JLG 붐형
-  ('E450AJ',      'JLG',   '16M'),   -- 15.72M 추출 (전동붐)
-  ('Z45_25J DC',  'JLG',   '16M'),   -- 15.94M 추출 (절곡붐)
+  ('E450AJ',      'JLG',   '16M굴절'), -- 15.72M 추출 (전동붐)
+  ('Z45_25J DC',  'JLG',   '16M굴절'), -- 15.94M 추출 (절곡붐)
   -- Haulotte
   ('OPTIMUM8',    'Haulotte', '8M'),  -- 이미지 PDF
-  ('SIGMA16',     'Haulotte', '16M'), -- 16.1M 추출
+  ('SIGMA16',     'Haulotte', '16M굴절'), -- 16.1M 추출
   ('compact8',    'Haulotte', '8M'),  -- 이미지 PDF
   -- JCPT (중국)
   ('JCPT1614ACZ', 'JCPT',  '16M')   -- 15.7M 추출
