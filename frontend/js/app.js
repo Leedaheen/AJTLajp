@@ -8,7 +8,7 @@ const App = (() => {
 
   const ACCESS = {
     tech:    ['home', 'as-request', 'usage-log', 'support'],
-    partner: ['home', 'transit', 'as-request', 'usage-log', 'support'],
+    partner: ['home', 'transit', 'equipment', 'as-request', 'usage-log', 'support'],
     aj:      ['home', 'transit', 'equipment', 'as-request', 'usage-log',
                'analytics-equipment', 'analytics-as', 'analytics-usage',
                'admin', 'admin-settings', 'support'],
