@@ -809,7 +809,7 @@ const TransitPage = (() => {
   }
 
   // ── 완료 처리 (AJ) ───────────────────────────────────────
-  function openCompleteForm(transitId, type, company, specsEncoded) {
+  async function openCompleteForm(transitId, type, company, specsEncoded) {
     const t     = _transitCache[transitId];
     const isIn  = type === 'in';
     const specs = JSON.parse(decodeURIComponent(specsEncoded));
@@ -822,33 +822,51 @@ const TransitPage = (() => {
     const specPool = [];
     specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) specPool.push(s.spec); });
 
+    // 모델명 자동완성 목록
+    const models = isIn ? await Api.get('/equipment/models').catch(() => []) : [];
+
     Modal.open({
       title: `${isIn ? '반입' : '반출'} 완료 처리`,
       body: isIn ? `
+        <datalist id="complete-model-list">
+          ${models.map(m=>`<option value="${m}">`).join('')}
+        </datalist>
         <p style="margin-bottom:14px">
           <strong>${company}</strong>의 반입을 완료 처리합니다.<br>
-          <span class="text-sm text-muted">각 장비번호별 제원을 확인해주세요.</span>
+          <span class="text-sm text-muted">각 장비번호별 제원, 모델명, 시리얼번호를 입력해주세요.</span>
         </p>
         ${equipNos.length ? `
-          <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px">
             <thead>
               <tr style="background:var(--gray-100)">
                 <th style="padding:8px 10px;text-align:left;font-weight:600">장비번호</th>
                 <th style="padding:8px 10px;text-align:left;font-weight:600">제원</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:600">모델명</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:600">시리얼번호</th>
               </tr>
             </thead>
             <tbody>
               ${equipNos.map((no, i) => `
                 <tr style="border-bottom:1px solid var(--gray-100)">
-                  <td style="padding:8px 10px;font-family:monospace">${no}</td>
+                  <td style="padding:8px 10px;font-family:monospace;white-space:nowrap">${no}</td>
                   <td style="padding:6px 10px">
-                    <select id="spec-row-${i}" class="form-input form-select" style="padding:4px 8px">
+                    <select id="spec-row-${i}" class="form-input form-select" style="padding:4px 8px;min-width:80px">
                       ${SPEC_OPTIONS.map(s => `<option value="${s}" ${(specPool[i]||specPool[0]||'8M')===s?'selected':''}>${s}</option>`).join('')}
                     </select>
+                  </td>
+                  <td style="padding:6px 10px">
+                    <input id="model-row-${i}" class="form-input" list="complete-model-list"
+                      placeholder="모델명" style="padding:4px 8px;min-width:100px">
+                  </td>
+                  <td style="padding:6px 10px">
+                    <input id="serial-row-${i}" class="form-input"
+                      placeholder="시리얼번호" style="padding:4px 8px;min-width:110px;font-family:monospace">
                   </td>
                 </tr>`).join('')}
             </tbody>
           </table>
+          </div>
         ` : `
           <div class="form-group">
             <label class="form-label">반입 장비번호 <span style="color:var(--red)">*</span></label>
@@ -912,12 +930,16 @@ const TransitPage = (() => {
       const equip_no = finalEquipNos[i];
       const specEl   = document.getElementById(`spec-row-${i}`);
       const spec     = specEl?.value || specPool[i] || specPool[0] || '';
+      const model    = document.getElementById(`model-row-${i}`)?.value.trim()  || null;
+      const serial_no = document.getElementById(`serial-row-${i}`)?.value.trim() || null;
 
       try {
         const qr_code = `AJ-${equip_no}`;
         const equipData = {
           equip_no,
           spec,
+          model,
+          serial_no,
           site_id:    t.site_id,
           site_name:  t.site_name,
           company:    t.company,
@@ -1019,7 +1041,7 @@ const TransitPage = (() => {
   }
 
   // ── QR 생성 및 인쇄 (AJ) ──────────────────────────────────
-  function openQrPrint(transitId) {
+  async function openQrPrint(transitId) {
     const t = _transitCache[transitId];
     if (!t) { Toast.error('정보를 불러올 수 없습니다. 목록을 새로고침하세요.'); return; }
 
@@ -1031,34 +1053,34 @@ const TransitPage = (() => {
       return;
     }
 
-    const today = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit' });
-    const typeLabel = t.type === 'in' ? '반입' : '반출';
+    // 장비 레코드에서 시리얼번호 조회
+    const { data: equipRows } = await _sb.from('equipment')
+      .select('equip_no,serial_no,in_date')
+      .in('equip_no', equipNos);
+    const equipMap = {};
+    (equipRows || []).forEach(r => { equipMap[r.equip_no] = r; });
 
     const origin   = window.location.origin;
     const pathname = window.location.pathname;
+    const inDate   = t.scheduled_date || t.completed_at?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const siteLine = [t.site_name, t.company].filter(Boolean).join(' · ');
 
     const pages = equipNos.map((no, idx) => {
-      const qrCode  = `AJ-${no}`;
-      const qrUrl   = `${origin}${pathname}?qr=${encodeURIComponent(qrCode)}`;
-      const specInfo = (() => {
-        const specs = t.equip_specs || [];
-        const pool = [];
-        specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) pool.push(s.spec); });
-        return pool[idx] || pool[0] || '';
-      })();
+      const qrCode   = `AJ-${no}`;
+      const qrUrl    = `${origin}${pathname}?qr=${encodeURIComponent(qrCode)}`;
+      const serialNo = equipMap[no]?.serial_no || '';
+      const recordIn = equipMap[no]?.in_date || inDate;
 
       return `
         <div style="page-break-after:always;display:flex;flex-direction:column;align-items:center;
-                    justify-content:center;height:100vh;font-family:'Noto Sans KR',sans-serif;padding:40px">
-          <div style="font-size:14px;color:#666;margin-bottom:8px">AJ렌탈 고소작업대</div>
-          <div style="font-size:22px;font-weight:700;color:#1B365D;margin-bottom:4px">${no}</div>
-          ${specInfo ? `<div style="font-size:14px;color:#555;margin-bottom:24px">${specInfo}</div>` : '<div style="margin-bottom:24px"></div>'}
-          <div id="qr-transit-${idx}" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;display:inline-block"></div>
-          <div style="margin-top:20px;font-size:13px;color:#888">
-            ${typeLabel}일: ${t.scheduled_date || today} · ${t.site_name}
-          </div>
-          <div style="margin-top:6px;font-size:12px;color:#aaa">${t.company}</div>
-          <script>window['_qurl_t${idx}']='${qrUrl.replace(/'/g,"\\'")}'; <\/script>
+                    justify-content:center;height:100vh;font-family:'Malgun Gothic',sans-serif;padding:40px">
+          <div style="font-size:14px;color:#666;margin-bottom:16px">AJ렌탈 고소작업대</div>
+          <div id="qr-transit-${idx}" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;display:inline-block;margin-bottom:24px"></div>
+          <div style="font-size:22px;font-weight:700;color:#1B365D;margin-bottom:8px">${no}</div>
+          ${siteLine   ? `<div style="font-size:15px;font-weight:700;color:#1B365D;margin-bottom:4px">${siteLine}</div>` : ''}
+          ${serialNo   ? `<div style="font-size:15px;font-weight:700;color:#1B365D;margin-bottom:4px;font-family:monospace">${serialNo}</div>` : ''}
+          <div style="font-size:15px;font-weight:700;color:#1B365D">반입일: ${recordIn}</div>
+          <script>window['_qurl_t${idx}']='${qrUrl.replace(/\\/g, '\\\\').replace(/'/g,"\\'")}'; <\/script>
         </div>
       `;
     }).join('');

@@ -4,13 +4,14 @@
  * 장비 조회 → 사용 시작/종료/AS 요청 액션 메뉴를 표시합니다.
  */
 const QrScanner = (() => {
-  let _video    = null;
-  let _canvas   = null;
-  let _ctx      = null;
-  let _stream   = null;
-  let _animId   = null;
-  let _callback = null;
-  let _scanning = false;
+  let _video       = null;
+  let _canvas      = null;
+  let _ctx         = null;
+  let _stream      = null;
+  let _animId      = null;
+  let _callback    = null;
+  let _scanning    = false;
+  let _currentEquip = null;
 
   // ── 스캔 시작 (콜백 방식) ────────────────────────────────
   function scan(callback) {
@@ -264,30 +265,30 @@ const QrScanner = (() => {
 
   // ── QR 코드 이미지 표시 (equipment 페이지에서 사용) ──────
   function showQrCode(equip) {
+    _currentEquip = equip;
     const qrUrl = _qrUrl(equip.qr_code);
-    const specEsc     = (equip.spec     || '').replace(/'/g, "\\'");
-    const siteNameEsc = (equip.site_name|| '').replace(/'/g, "\\'");
-    const equipNoEsc  = (equip.equip_no || '').replace(/'/g, "\\'");
-    const qrCodeEsc   = (equip.qr_code  || '').replace(/'/g, "\\'");
+
+    const siteLine   = [equip.site_name, equip.company].filter(Boolean).join(' · ');
+    const serialLine = equip.serial_no || '';
+    const inDate     = equip.in_date ? `반입일: ${equip.in_date}` : '';
 
     Modal.open({
       title: `QR 코드 — ${equip.equip_no}`,
       body: `
         <div style="text-align:center;padding:8px 0">
           <div id="qr-display" style="display:inline-block;padding:16px;background:#fff;border-radius:8px;border:1px solid var(--gray-200)"></div>
-          <div style="margin-top:12px;font-size:16px;font-weight:700;color:var(--navy)">${equip.equip_no}</div>
-          <div style="font-size:12px;color:var(--gray-400);margin-top:2px">${equip.spec || ''} · ${equip.site_name || ''}</div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:8px;word-break:break-all;padding:0 8px">
+          <div style="margin-top:14px;font-size:18px;font-weight:700;color:var(--navy);letter-spacing:0.3px">${equip.equip_no}</div>
+          ${siteLine   ? `<div style="font-size:14px;font-weight:700;color:var(--navy);margin-top:4px">${siteLine}</div>`   : ''}
+          ${serialLine ? `<div style="font-size:14px;font-weight:700;color:var(--navy);margin-top:2px;font-family:monospace">${serialLine}</div>` : ''}
+          ${inDate     ? `<div style="font-size:14px;font-weight:700;color:var(--navy);margin-top:2px">${inDate}</div>`     : ''}
+          <div style="font-size:11px;color:#94a3b8;margin-top:10px;word-break:break-all;padding:0 8px">
             스캔 시 앱으로 바로 연결됩니다
           </div>
         </div>
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>
-        <button class="btn btn-primary btn-sm"
-          onclick="QrScanner.printQrCode('${equipNoEsc}','${qrCodeEsc}','${specEsc}','${siteNameEsc}')">
-          인쇄
-        </button>
+        <button class="btn btn-primary btn-sm" onclick="QrScanner.printQrCode()">인쇄</button>
       `,
     });
 
@@ -309,37 +310,44 @@ const QrScanner = (() => {
     }, 100);
   }
 
-  function printQrCode(equipNo, qrCode, spec, siteName) {
-    const qrUrl = _qrUrl(qrCode);
-    const win = window.open('', '_blank', 'width=600,height=700');
+  function printQrCode() {
+    const equip = _currentEquip;
+    if (!equip) return;
+    const qrUrl    = _qrUrl(equip.qr_code);
+    const equipNo  = equip.equip_no  || '';
+    const siteLine = [equip.site_name, equip.company].filter(Boolean).join(' · ');
+    const serial   = equip.serial_no || '';
+    const inDate   = equip.in_date   ? `반입일: ${equip.in_date}` : '';
+
+    const win = window.open('', '_blank', 'width=600,height=750');
     if (!win) { Toast.error('팝업 차단을 해제해주세요.'); return; }
     win.document.write(`
       <!DOCTYPE html><html><head>
         <meta charset="UTF-8">
         <title>QR 코드 — ${equipNo}</title>
         <style>
-          body { margin:0;padding:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif }
-          .card { text-align:center;padding:40px;border:2px solid #1B365D;border-radius:16px;max-width:380px }
+          body { margin:0;padding:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Malgun Gothic',sans-serif }
+          .card { text-align:center;padding:40px 36px;border:2px solid #1B365D;border-radius:16px;max-width:380px }
           h2 { color:#1B365D;margin:0 0 20px;font-size:22px }
-          #qr { display:inline-block;margin:0 auto 16px }
-          p { color:#3D3D3D;margin:4px 0;font-size:14px }
-          .equip-no { font-size:20px;font-weight:700;color:#1B365D;margin-bottom:6px }
-          .sub { font-size:13px;color:#555 }
-          .hint { font-size:11px;color:#999;margin-top:10px }
+          #qr { display:inline-block;margin:0 auto 20px }
+          .equip-no { font-size:22px;font-weight:700;color:#1B365D;margin-bottom:6px }
+          .info-line { font-size:15px;font-weight:700;color:#1B365D;margin:3px 0 }
+          .info-mono { font-size:15px;font-weight:700;color:#1B365D;margin:3px 0;font-family:monospace }
         </style>
       </head><body>
         <div class="card">
           <h2>AJ 고소작업대</h2>
           <div id="qr"></div>
           <div class="equip-no">${equipNo}</div>
-          <div class="sub">${spec} · ${siteName}</div>
-          <div class="hint">QR 스캔으로 사용 시작 / 종료 / AS 신청</div>
+          ${siteLine ? `<div class="info-line">${siteLine}</div>` : ''}
+          ${serial   ? `<div class="info-mono">${serial}</div>`   : ''}
+          ${inDate   ? `<div class="info-line">${inDate}</div>`   : ''}
         </div>
         <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
         <script>
           window.onload = () => {
             new QRCode(document.getElementById('qr'), {
-              text: '${qrUrl.replace(/'/g, "\\'")}',
+              text: '${qrUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}',
               width:220, height:220,
               colorDark:'#1B365D', colorLight:'#ffffff',
               correctLevel: QRCode.CorrectLevel.H

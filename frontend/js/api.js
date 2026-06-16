@@ -55,6 +55,11 @@ const Api = (() => {
         _sb.from('equipment').select('*').order('created_at', { ascending: false }),
         params
       ));
+    } else if (base === 'equipment/models') {
+      // 기존 모델명 목록 (datalist 자동완성용)
+      const { data: rows } = await _sb.from('equipment').select('model').not('model', 'is', null).neq('model', '');
+      const models = [...new Set((rows || []).map(r => r.model).filter(Boolean))].sort();
+      return models;
     } else if (base.match(/^equipment\/\d+$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('equipment').select('*').eq('id', id).maybeSingle());

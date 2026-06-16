@@ -43,9 +43,20 @@ const AdminSettingsPage = (() => {
         </div>
 
       </div>
+
+      <!-- 장비 모델 현황 (전체 너비) -->
+      <div class="card" style="margin-top:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="font-size:15px;font-weight:700;color:var(--navy);margin:0">장비 모델 현황</h3>
+          <button class="btn btn-outline btn-sm" onclick="AdminSettingsPage.reloadEquipModels()">새로고침</button>
+        </div>
+        <div id="equip-models-list">
+          <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
+        </div>
+      </div>
     `;
 
-    await Promise.all([_loadSites(), _loadProjects(), _loadCompanies()]);
+    await Promise.all([_loadSites(), _loadProjects(), _loadCompanies(), _loadEquipModels()]);
   }
 
   // ── 현장 목록 ────────────────────────────────────────────
@@ -459,10 +470,85 @@ const AdminSettingsPage = (() => {
     }
   }
 
+  // ── 장비 모델 현황 ───────────────────────────────────────
+  async function _loadEquipModels() {
+    const el = document.getElementById('equip-models-list');
+    if (!el) return;
+    try {
+      const { data: rows } = await _sb.from('equipment')
+        .select('equip_no,model,serial_no,spec,site_name,company,status,in_date')
+        .order('model', { ascending: true, nullsFirst: false });
+
+      if (!rows?.length) {
+        el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">장비 데이터 없음</div>';
+        return;
+      }
+
+      // 모델별 그룹핑
+      const groups = {};
+      rows.forEach(r => {
+        const key = r.model || '(모델 미입력)';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+
+      const statusLabel = { in_use:'사용중', returned:'반출완료', stock:'재고', transit:'이동중' };
+
+      el.innerHTML = Object.entries(groups).map(([modelName, items]) => `
+        <div style="margin-bottom:20px">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);padding:6px 10px;
+                      background:var(--gray-100);border-radius:6px;margin-bottom:8px">
+            ${modelName} <span style="font-weight:400;color:var(--gray-500)">(${items.length}대)</span>
+          </div>
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="color:var(--gray-500)">
+                <th style="padding:5px 10px;text-align:left;font-weight:600">장비번호</th>
+                <th style="padding:5px 10px;text-align:left;font-weight:600">시리얼번호</th>
+                <th style="padding:5px 10px;text-align:left;font-weight:600">제원</th>
+                <th style="padding:5px 10px;text-align:left;font-weight:600">현장</th>
+                <th style="padding:5px 10px;text-align:left;font-weight:600">업체</th>
+                <th style="padding:5px 10px;text-align:left;font-weight:600">반입일</th>
+                <th style="padding:5px 10px;text-align:left;font-weight:600">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(r => `
+                <tr style="border-bottom:1px solid var(--gray-100)">
+                  <td style="padding:6px 10px;font-weight:600;color:var(--navy)">${r.equip_no}</td>
+                  <td style="padding:6px 10px;font-family:monospace;color:var(--gray-600)">${r.serial_no || '-'}</td>
+                  <td style="padding:6px 10px">${r.spec || '-'}</td>
+                  <td style="padding:6px 10px">${r.site_name || '-'}</td>
+                  <td style="padding:6px 10px">${r.company || '-'}</td>
+                  <td style="padding:6px 10px">${r.in_date || '-'}</td>
+                  <td style="padding:6px 10px">
+                    <span style="font-size:11px;padding:2px 7px;border-radius:10px;
+                      background:${r.status==='in_use'?'#dbeafe':r.status==='returned'?'#f3f4f6':'#fef9c3'};
+                      color:${r.status==='in_use'?'#1e40af':r.status==='returned'?'#6b7280':'#92400e'}">
+                      ${statusLabel[r.status] || r.status}
+                    </span>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">불러오기 실패</div>';
+      console.error('[EquipModels]', e);
+    }
+  }
+
+  function reloadEquipModels() { _loadEquipModels(); }
+
   return {
     render,
     openAddSite, openEditSite, deleteSite,
     openAddProject, openEditProject, deleteProject,
     openAddCompany, openEditCompany, deleteCompany,
+    reloadEquipModels,
   };
 })();

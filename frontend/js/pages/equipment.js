@@ -56,7 +56,7 @@ const EquipmentPage = (() => {
           <thead>
             <tr>
               ${isAj ? `<th style="width:36px"><input type="checkbox" id="eq-check-all" title="전체 선택"></th>` : ''}
-              <th>장비번호</th>
+              <th>장비번호 / 모델 / 시리얼</th>
               <th>제원</th>
               <th>현장</th>
               <th>프로젝트</th>
@@ -181,7 +181,14 @@ const EquipmentPage = (() => {
                 data-has-qr="${e.qr_code ? '1' : '0'}" onchange="EquipmentPage._updateBulkBtn()">
             </td>
           ` : ''}
-          <td><strong>${e.equip_no}</strong></td>
+          <td>
+            <strong>${e.equip_no}</strong>
+            ${(e.model || e.serial_no) ? `
+              <div style="font-size:11px;color:var(--gray-400);margin-top:2px;line-height:1.6">
+                ${e.model ? `<span>${e.model}</span>` : ''}
+                ${e.serial_no ? `<span style="font-family:monospace;margin-left:${e.model?'4px':'0'}">${e.serial_no}</span>` : ''}
+              </div>` : ''}
+          </td>
           <td>${e.spec || '-'}</td>
           <td>${e.site_name || e.site_id || '-'}</td>
           <td>${e.project || '-'}</td>
@@ -196,7 +203,7 @@ const EquipmentPage = (() => {
             }
             ${isAj ? `
               <button class="btn btn-outline btn-sm" style="margin-left:4px"
-                onclick="EquipmentPage.openEditForm(${e.id},'${(e.equip_no||'').replace(/'/g,"\\'")}','${e.spec||''}','${e.site_id||''}','${(e.company||'').replace(/'/g,"\\'")}','${e.status}')">
+                onclick="EquipmentPage.openEditForm(${e.id})">
                 수정
               </button>
             ` : ''}
@@ -367,10 +374,16 @@ const EquipmentPage = (() => {
 
   // ── 장비 추가 (AJ) ──────────────────────────────────────
   async function openAddForm() {
-    const sites = await Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]);
+    const [sites, models] = await Promise.all([
+      Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]),
+      Api.get('/equipment/models').catch(() => []),
+    ]);
     Modal.open({
       title: '장비 추가',
       body: `
+        <datalist id="add-model-list">
+          ${models.map(m=>`<option value="${m}">`).join('')}
+        </datalist>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
@@ -395,9 +408,15 @@ const EquipmentPage = (() => {
             <input id="add-company" class="form-input" placeholder="업체명">
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">모델명</label>
-          <input id="add-model" class="form-input" placeholder="모델명 (선택)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">모델명</label>
+            <input id="add-model" class="form-input" list="add-model-list" placeholder="예: GR20NS">
+          </div>
+          <div class="form-group">
+            <label class="form-label">시리얼번호</label>
+            <input id="add-serial" class="form-input" placeholder="예: GJ512-001" style="font-family:monospace">
+          </div>
         </div>
       `,
       footer: `
@@ -417,7 +436,8 @@ const EquipmentPage = (() => {
         await Api.post('/equipment', {
           equip_no,
           spec:      document.getElementById('add-spec').value,
-          model:     document.getElementById('add-model').value.trim(),
+          model:     document.getElementById('add-model').value.trim() || null,
+          serial_no: document.getElementById('add-serial').value.trim() || null,
           site_id:   siteId,
           site_name: siteName,
           company:   document.getElementById('add-company').value.trim(),
@@ -431,10 +451,25 @@ const EquipmentPage = (() => {
   }
 
   // ── 장비 수정 (AJ) ──────────────────────────────────────
-  function openEditForm(id, equipNo, spec, siteId, company, status) {
+  async function openEditForm(id) {
+    const e = _listCache.find(x => x.id === id);
+    if (!e) { Toast.error('장비 정보를 찾을 수 없습니다.'); return; }
+    const models = await Api.get('/equipment/models').catch(() => []);
+    const { equipNo, spec, siteId, company, status, model, serial_no } = {
+      equipNo:   e.equip_no  || '',
+      spec:      e.spec      || '',
+      siteId:    e.site_id   || '',
+      company:   e.company   || '',
+      status:    e.status    || 'in_use',
+      model:     e.model     || '',
+      serial_no: e.serial_no || '',
+    };
     Modal.open({
       title: `장비 수정 — ${equipNo}`,
       body: `
+        <datalist id="ed-model-list">
+          ${models.map(m=>`<option value="${m}">`).join('')}
+        </datalist>
         <div class="form-group">
           <label class="form-label">장비번호</label>
           <input id="ed-equip-no" class="form-input" value="${equipNo}">
@@ -458,6 +493,16 @@ const EquipmentPage = (() => {
           <label class="form-label">업체명</label>
           <input id="ed-company" class="form-input" value="${company}">
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">모델명</label>
+            <input id="ed-model" class="form-input" list="ed-model-list" value="${model}" placeholder="예: GR20NS">
+          </div>
+          <div class="form-group">
+            <label class="form-label">시리얼번호</label>
+            <input id="ed-serial" class="form-input" value="${serial_no}" placeholder="예: GJ512-001" style="font-family:monospace">
+          </div>
+        </div>
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
@@ -470,10 +515,12 @@ const EquipmentPage = (() => {
       try {
         const newStatus = document.getElementById('ed-status').value;
         const updateBody = {
-          equip_no: document.getElementById('ed-equip-no').value.trim(),
-          spec:     document.getElementById('ed-spec').value,
-          status:   newStatus,
-          company:  document.getElementById('ed-company').value.trim(),
+          equip_no:  document.getElementById('ed-equip-no').value.trim(),
+          spec:      document.getElementById('ed-spec').value,
+          status:    newStatus,
+          company:   document.getElementById('ed-company').value.trim(),
+          model:     document.getElementById('ed-model').value.trim() || null,
+          serial_no: document.getElementById('ed-serial').value.trim() || null,
         };
         if (newStatus === 'returned' && status !== 'returned') {
           updateBody.out_date = new Date().toISOString().slice(0, 10);
