@@ -510,5 +510,5 @@ const Api = (() => {
     return result;
   }
 
-  return { get, post, patch, delete: del, uploadFile };
+  return { get, post, patch, del, delete: del, uploadFile };
 })();

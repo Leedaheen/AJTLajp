@@ -43,6 +43,19 @@ const QrScanner = (() => {
     try {
       const equip = await Api.get(`/equipment/qr/${encodeURIComponent(qrCode)}`);
       if (!equip) {
+        // 반출 완료로 QR이 삭제된 장비인지 확인
+        if (qrCode.startsWith('AJ-')) {
+          const equipNo = qrCode.slice(3);
+          const { data: returned } = await _sb.from('equipment')
+            .select('equip_no,site_name,out_date')
+            .eq('equip_no', equipNo)
+            .eq('status', 'returned')
+            .maybeSingle();
+          if (returned) {
+            Toast.error(`반출된 장비입니다. (${returned.equip_no}${returned.out_date ? ' · ' + returned.out_date : ''})`);
+            return;
+          }
+        }
         Toast.error('등록되지 않은 QR코드입니다.');
         return;
       }
@@ -201,7 +214,6 @@ const QrScanner = (() => {
 
   // ── 사용 시작 ────────────────────────────────────────────
   async function _handleStart(equip) {
-    // 이미 가동 중인지 확인
     const { data: active } = await _sb
       .from('usage_logs')
       .select('id,team_name,recorder')
@@ -215,7 +227,8 @@ const QrScanner = (() => {
       return;
     }
     Modal.close();
-    setTimeout(() => UsageLogPage.openStartForm(equip), 100);
+    App.showPage('usage-log');
+    setTimeout(() => UsageLogPage.openStartForm(equip), 150);
   }
 
   // ── 사용 종료 ────────────────────────────────────────────
@@ -233,7 +246,8 @@ const QrScanner = (() => {
       return;
     }
     Modal.close();
-    setTimeout(() => UsageLogPage.openEndForm(active.id, active.equip_no), 100);
+    App.showPage('usage-log');
+    setTimeout(() => UsageLogPage.openEndForm(active.id, active.equip_no), 150);
   }
 
   // ── AS 요청 ──────────────────────────────────────────────

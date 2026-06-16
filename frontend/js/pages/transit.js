@@ -160,7 +160,7 @@ const TransitPage = (() => {
             ${typeLabel}완료
           </button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDispatchForm(${t.id})">배차정보 등록</button>
-          <button class="btn btn-outline btn-sm" onclick="TransitPage.openQrPrint(${t.id})">QR생성</button>
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openQrPrint(${t.id})">QR 보기/인쇄</button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
         `;
@@ -200,7 +200,7 @@ const TransitPage = (() => {
           <div><span class="text-muted">희망일:</span> ${t.requested_date || '-'}</div>
           <div><span class="text-muted">확정일:</span> ${t.scheduled_date || '-'}</div>
           <div><span class="text-muted">신청자:</span> ${t.reporter_name} (${t.reporter_phone})</div>
-          <div><span class="text-muted">배차:</span> ${t.driver_info || '-'}</div>
+          <div><span class="text-muted">배차:</span> ${[t.vehicle_info, t.driver_info].filter(Boolean).join(' / ') || '-'}</div>
         </div>
 
         ${t.aj_equip ? `
@@ -665,7 +665,7 @@ const TransitPage = (() => {
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
 
     try {
-      await Api.post('/transit', {
+      const saved = await Api.post('/transit', {
         record_id:      `TR-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
         type,
         site_id:        siteId,
@@ -685,7 +685,20 @@ const TransitPage = (() => {
       });
       Modal.close();
       Toast.success('신청이 완료되었습니다. AJ관리자 검토 후 일정이 확정됩니다.');
-      switchTab('requested');
+
+      // 탭 전환
+      _currentTab = 'requested';
+      _updateTabStyles();
+
+      // 새 레코드를 즉시 DOM에 표시 (loadList 완료 전에도 보임)
+      if (saved) {
+        _transitCache[saved.id] = saved;
+        const c = document.getElementById('transit-list');
+        if (c) c.innerHTML = _renderCard(saved);
+      }
+
+      // 백그라운드에서 전체 목록 새로고침 (Realtime 경쟁 조건과 무관하게 보장)
+      loadList();
     } catch (e) { btn.disabled = false; btn.textContent = '신청 완료'; console.error('[transit] 신청 실패:', e); }
   }
 
@@ -947,10 +960,10 @@ const TransitPage = (() => {
           .select('id');
         if (upErr) throw upErr;
 
-        // qr_code 매칭 실패 시 equip_no로 재시도
+        // qr_code 매칭 실패 시 equip_no로 재시도 (QR도 함께 삭제)
         if (!updated?.length) {
           const { error: upErr2 } = await _sb.from('equipment')
-            .update({ status: 'returned', out_date: today })
+            .update({ status: 'returned', out_date: today, qr_code: null })
             .eq('equip_no', equip_no);
           if (upErr2) throw upErr2;
         }
@@ -1021,15 +1034,16 @@ const TransitPage = (() => {
     const today = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit' });
     const typeLabel = t.type === 'in' ? '반입' : '반출';
 
-    const pages = equipNos.map(no => {
-      const qrData  = encodeURIComponent(`AJ-${no}`);
-      const qrUrl   = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${qrData}&ecc=M`;
+    const origin   = window.location.origin;
+    const pathname = window.location.pathname;
+
+    const pages = equipNos.map((no, idx) => {
+      const qrCode  = `AJ-${no}`;
+      const qrUrl   = `${origin}${pathname}?qr=${encodeURIComponent(qrCode)}`;
       const specInfo = (() => {
         const specs = t.equip_specs || [];
-        // 장비번호 순서로 spec 할당
         const pool = [];
         specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) pool.push(s.spec); });
-        const idx = equipNos.indexOf(no);
         return pool[idx] || pool[0] || '';
       })();
 
@@ -1039,16 +1053,18 @@ const TransitPage = (() => {
           <div style="font-size:14px;color:#666;margin-bottom:8px">AJ렌탈 고소작업대</div>
           <div style="font-size:22px;font-weight:700;color:#1B365D;margin-bottom:4px">${no}</div>
           ${specInfo ? `<div style="font-size:14px;color:#555;margin-bottom:24px">${specInfo}</div>` : '<div style="margin-bottom:24px"></div>'}
-          <img src="${qrUrl}" width="280" height="280" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px">
+          <div id="qr-transit-${idx}" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;display:inline-block"></div>
           <div style="margin-top:20px;font-size:13px;color:#888">
             ${typeLabel}일: ${t.scheduled_date || today} · ${t.site_name}
           </div>
           <div style="margin-top:6px;font-size:12px;color:#aaa">${t.company}</div>
+          <script>window['_qurl_t${idx}']='${qrUrl.replace(/'/g,"\\'")}'; <\/script>
         </div>
       `;
     }).join('');
 
     const win = window.open('', '_blank', 'width=800,height=900');
+    if (!win) { Toast.error('팝업 차단을 해제해주세요.'); return; }
     win.document.write(`
       <!DOCTYPE html>
       <html>
@@ -1064,12 +1080,25 @@ const TransitPage = (() => {
           }
         </style>
       </head>
-      <body>${pages}</body>
+      <body>${pages}
+        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+        <script>
+          window.onload = () => {
+            ${equipNos.map((no, i) => `
+              new QRCode(document.getElementById('qr-transit-${i}'), {
+                text: window['_qurl_t${i}'],
+                width: 280, height: 280,
+                colorDark: '#1B365D', colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.H
+              });
+            `).join('')}
+            setTimeout(() => window.print(), 600);
+          };
+        <\/script>
+      </body>
       </html>
     `);
     win.document.close();
-    // QR 이미지 로드 후 인쇄
-    win.onload = () => win.print();
   }
 
   // ── 로그 뷰어 (AJ 전용) ──────────────────────────────────

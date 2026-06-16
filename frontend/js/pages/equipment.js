@@ -22,7 +22,7 @@ const EquipmentPage = (() => {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${isAj ? `
             <button id="btn-bulk-qr" class="btn btn-outline btn-sm hidden" onclick="EquipmentPage.openBulkQr()">
-              선택 QR 생성
+              선택 QR 보기/인쇄
             </button>
             <button class="btn btn-primary btn-sm" onclick="EquipmentPage.openAddForm()">+ 장비 추가</button>
           ` : ''}
@@ -190,9 +190,9 @@ const EquipmentPage = (() => {
           <td class="text-sm">${e.in_date || '-'}</td>
           <td class="text-sm">${e.out_date || '-'}</td>
           <td style="white-space:nowrap">
-            ${e.qr_code
-              ? `<button class="btn btn-outline btn-sm" onclick="EquipmentPage.showQr(${e.id})">QR 보기</button>`
-              : (isAj ? `<button class="btn btn-outline btn-sm" onclick="EquipmentPage.genQr(${e.id},'${(e.equip_no||'').replace(/'/g,"\\'")}')">QR 생성</button>` : '')
+            ${(e.qr_code || isAj)
+              ? `<button class="btn btn-outline btn-sm" onclick="EquipmentPage.${e.qr_code ? 'showQr' : 'genQr'}(${e.id},'${(e.equip_no||'').replace(/'/g,"\\'")}')">QR 보기</button>`
+              : ''
             }
             ${isAj ? `
               <button class="btn btn-outline btn-sm" style="margin-left:4px"
