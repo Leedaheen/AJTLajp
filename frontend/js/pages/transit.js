@@ -725,13 +725,18 @@ const TransitPage = (() => {
         </div>
         <div class="form-group">
           <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
-          <input id="sc-equip-nos" class="form-input"
-            placeholder="GK111, GF123, GG456"
-            value="${t.aj_equip || ''}">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="sc-equip-nos" class="form-input"
+              placeholder="GK111, GF123, GG456"
+              value="${t.aj_equip || ''}">
+            <button class="btn btn-outline btn-sm" style="white-space:nowrap;flex-shrink:0"
+              onclick="TransitPage._onScEquipRegister()">목록 생성</button>
+          </div>
           <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
-            쉼표(,)로 구분. 예: GK111, GF123
+            쉼표(,)로 구분 입력 후 목록 생성을 눌러 모델명/시리얼번호를 입력하세요.
           </div>
         </div>
+        <div id="sc-equip-detail-list"></div>
         <div class="form-group">
           <label class="form-label">배차 차량</label>
           <input id="sc-vehicle" class="form-input"
@@ -755,6 +760,11 @@ const TransitPage = (() => {
       `,
     });
 
+    // 기존 장비번호가 있으면 목록 자동 생성
+    if (t.aj_equip) {
+      setTimeout(() => TransitPage._onScEquipRegister(), 100);
+    }
+
     document.getElementById('btn-confirm-schedule').onclick = async () => {
       const date     = document.getElementById('sc-date').value;
       const equipNos = document.getElementById('sc-equip-nos').value.trim();
@@ -777,6 +787,33 @@ const TransitPage = (() => {
           status:         newStatus,
         });
 
+        // 장비 모델/시리얼 정보를 equipment 테이블에 upsert
+        const nosList = equipNos.split(',').map(s => s.trim()).filter(Boolean);
+        for (let i = 0; i < nosList.length; i++) {
+          const equip_no  = nosList[i];
+          const model     = document.getElementById(`sc-model-${i}`)?.value.trim() || null;
+          const serial_no = document.getElementById(`sc-serial-${i}`)?.value.trim() || null;
+          if (!model && !serial_no) continue;
+          // equip_no 기준 UPDATE → 없으면 INSERT (status: transit)
+          const { data: upd } = await _sb.from('equipment')
+            .update({ model, serial_no })
+            .eq('equip_no', equip_no)
+            .select('id');
+          if (!upd?.length) {
+            await _sb.from('equipment').insert({
+              equip_no,
+              model,
+              serial_no,
+              site_id:    t.site_id,
+              site_name:  t.site_name,
+              company:    t.company,
+              transit_id: transitId,
+              status:     'transit',
+              record_id:  `EQ-${equip_no}-${Date.now()}`,
+            });
+          }
+        }
+
         // 날짜가 다른 경우 협력사에게 앱 내 알림 발송
         if (dateChanged && t.created_by) {
           await Api.post('/notifications', {
@@ -794,8 +831,74 @@ const TransitPage = (() => {
           ? '일정이 저장되었습니다. 협력사 확인 후 최종 확정됩니다.'
           : '일정이 확정되었습니다.');
         loadList();
-      } catch { btn.disabled = false; btn.textContent = '확정'; }
+      } catch (e) { btn.disabled = false; btn.textContent = '확정'; console.error('[Schedule]', e); }
     };
+  }
+
+  // 장비번호 목록 생성 버튼 핸들러
+  async function _onScEquipRegister() {
+    const nos = (document.getElementById('sc-equip-nos')?.value || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    const container = document.getElementById('sc-equip-detail-list');
+    if (!container) return;
+    if (!nos.length) { Toast.error('장비번호를 먼저 입력해주세요.'); return; }
+
+    container.innerHTML = `<div style="text-align:center;padding:12px"><span class="spinner"></span></div>`;
+
+    // 기존 장비 데이터 조회 (모델/시리얼 pre-fill)
+    const { data: existing } = await _sb.from('equipment')
+      .select('equip_no,model,serial_no')
+      .in('equip_no', nos);
+    const existMap = {};
+    (existing || []).forEach(r => { existMap[r.equip_no] = r; });
+
+    // 모델명 자동완성 목록
+    const { data: modelRows } = await _sb.from('equipment')
+      .select('model').not('model', 'is', null).neq('model', '');
+    const models = [...new Set((modelRows || []).map(r => r.model).filter(Boolean))].sort();
+
+    container.innerHTML = `
+      <datalist id="sc-model-list">
+        ${models.map(m => `<option value="${m}">`).join('')}
+      </datalist>
+      <div style="margin-bottom:10px;padding:12px;background:var(--gray-50,#f9fafb);border:1px solid var(--gray-200);border-radius:8px">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px">
+          장비 ${nos.length}대 — 모델명 / 시리얼번호 입력
+        </div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:1px solid var(--gray-200)">
+              <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600)">장비번호</th>
+              <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600)">모델명</th>
+              <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600)">시리얼번호</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${nos.map((no, i) => {
+              const ex = existMap[no] || {};
+              return `
+                <tr style="border-bottom:1px solid var(--gray-100)">
+                  <td style="padding:7px 10px;font-family:monospace;font-weight:600;color:var(--navy);white-space:nowrap">${no}</td>
+                  <td style="padding:5px 8px">
+                    <input id="sc-model-${i}" class="form-input" list="sc-model-list"
+                      value="${ex.model || ''}"
+                      placeholder="예: GR20NS"
+                      style="padding:5px 8px;font-size:13px">
+                  </td>
+                  <td style="padding:5px 8px">
+                    <input id="sc-serial-${i}" class="form-input"
+                      value="${ex.serial_no || ''}"
+                      placeholder="예: GJ512-001"
+                      style="padding:5px 8px;font-size:13px;font-family:monospace">
+                  </td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    `;
   }
 
   // ── 협력사 일정 확인완료 ──────────────────────────────────
@@ -938,8 +1041,6 @@ const TransitPage = (() => {
         const equipData = {
           equip_no,
           spec,
-          model,
-          serial_no,
           site_id:    t.site_id,
           site_name:  t.site_name,
           company:    t.company,
@@ -949,18 +1050,21 @@ const TransitPage = (() => {
           transit_id: transitId,
           qr_code,
         };
+        // 모델/시리얼은 이미 일정확정 시 저장되어 있을 수 있으나, 완료폼에서 직접 입력한 값 우선
+        if (model)     equipData.model     = model;
+        if (serial_no) equipData.serial_no = serial_no;
 
-        // UPDATE 먼저 시도 (qr_code 기준) — SELECT RLS 우회, UPDATE 정책(aj 전체) 적용
-        const { data: updated, error: upErr } = await _sb.from('equipment')
-          .update({ ...equipData, qr_code })
-          .eq('qr_code', qr_code)
+        // equip_no 기준 UPDATE 먼저 (일정확정 시 transit 상태로 미리 생성된 레코드 처리)
+        const { data: updByNo, error: upNoErr } = await _sb.from('equipment')
+          .update(equipData)
+          .eq('equip_no', equip_no)
           .select('id');
-        if (upErr) throw upErr;
+        if (upNoErr) throw upNoErr;
 
-        // qr_code로 매칭된 행이 없으면 신규 INSERT
-        if (!updated?.length) {
+        // equip_no 매칭 없으면 신규 INSERT
+        if (!updByNo?.length) {
           const { error: insErr } = await _sb.from('equipment')
-            .insert({ ...equipData, qr_code, record_id: `EQ-${equip_no}-${Date.now()}` });
+            .insert({ ...equipData, record_id: `EQ-${equip_no}-${Date.now()}` });
           if (insErr) throw insErr;
         }
       } catch (e) { console.warn('[EquipIn] upsert failed:', equip_no, e.message); }
@@ -1608,7 +1712,7 @@ ${pages.join('')}
     render, switchTab, loadList,
     openNewForm, addSpecRow,
     _onTypeChange, _onSiteChange, _onCompanyChange,
-    _onEquipCheck, _toggleManualInput,
+    _onEquipCheck, _toggleManualInput, _onScEquipRegister,
     _onDocFileChange,
     openScheduleForm, confirmSchedule,
     openCompleteForm, openCancelForm,
