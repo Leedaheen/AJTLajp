@@ -182,7 +182,7 @@ const TransitPage = (() => {
     }
 
     return `
-      <div class="card" style="margin-bottom:12px">
+      <div class="card" id="transit-card-${t.id}" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
           <div>
             <span class="badge ${st.cls||''}" ${st.style?`style="${st.style}"`:''}>
@@ -1238,13 +1238,20 @@ const TransitPage = (() => {
       const btn = document.getElementById('btn-save-dispatch');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
-        await Api.patch(`/transit/${transitId}/dispatch`, {
+        const updated = await Api.patch(`/transit/${transitId}/dispatch`, {
           vehicle_info: vehicle,
           driver_info:  driver,
         });
+        // _transitCache 즉시 업데이트 후 카드 재렌더링
+        if (updated && _transitCache[transitId]) {
+          _transitCache[transitId] = { ..._transitCache[transitId], ...updated };
+          const card = document.getElementById(`transit-card-${transitId}`);
+          if (card) card.outerHTML = _renderCard(_transitCache[transitId]);
+        } else {
+          loadList();
+        }
         Modal.close();
         Toast.success('배차정보가 저장되었습니다.');
-        loadList();
       } catch { btn.disabled = false; btn.textContent = '저장'; }
     };
   }
