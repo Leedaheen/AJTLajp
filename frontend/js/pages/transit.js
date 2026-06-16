@@ -1267,11 +1267,15 @@ const TransitPage = (() => {
         await Api.patch(`/transit/${transitId}/dispatch`, {
           vehicle_info: vehicle,
           driver_info:  driver,
-        });
+        }, { silent: true });
         Modal.close();
         Toast.success('배차정보가 저장되었습니다.');
         await loadList();
-      } catch { btn.disabled = false; btn.textContent = '저장'; }
+      } catch (e) {
+        console.error('[dispatch] 저장 실패:', e);
+        btn.disabled = false; btn.textContent = '저장';
+        Toast.error('배차정보 저장에 실패했습니다. 권한을 확인하거나 다시 시도해주세요.');
+      }
     };
   }
 
