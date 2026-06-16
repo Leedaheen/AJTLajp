@@ -26,9 +26,10 @@ const Api = (() => {
     if (params.equip)     query = query.ilike('equip_no', `%${params.equip}%`);
     if (params.equip_no)  query = query.eq('equip_no', params.equip_no);
     if (params.role)      query = query.eq('role', params.role);
-    if (params.q)         query = query.or(
-      `equip_no.ilike.%${params.q}%,company.ilike.%${params.q}%`
-    );
+    if (params.q) {
+      const sq = params.q.replace(/[,%()]/g, '');
+      if (sq) query = query.or(`equip_no.ilike.%${sq}%,company.ilike.%${sq}%`);
+    }
     if (params.limit)     query = query.limit(Number(params.limit));
     return query;
   }
@@ -80,9 +81,10 @@ const Api = (() => {
       if (params.statuses) q = q.in('status', params.statuses.split(','));
       if (params.site_id)  q = q.eq('site_id', params.site_id);
       if (params.tech_id)  q = q.eq('tech_id', params.tech_id);
-      if (params.q)        q = q.or(
-        `equip_no.ilike.%${params.q}%,company.ilike.%${params.q}%,fault_type.ilike.%${params.q}%`
-      );
+      if (params.q) {
+        const sq = params.q.replace(/[,%()]/g, '');
+        if (sq) q = q.or(`equip_no.ilike.%${sq}%,company.ilike.%${sq}%,fault_type.ilike.%${sq}%`);
+      }
       if (params.limit)    q = q.limit(Number(params.limit));
       ({ data, error } = await q);
     } else if (base === 'usage-logs/summary') {

@@ -66,8 +66,8 @@ const TransitPage = (() => {
   // ── 렌더 ─────────────────────────────────────────────────
   async function render() {
     const user = Auth.getUser();
-    const isAj = user.role === 'aj';
-    const canRequest = ['partner','aj'].includes(user.role);
+    const isAj = ['aj', 'admin'].includes(user.role);
+    const canRequest = ['partner','aj','admin'].includes(user.role);
 
     document.getElementById('page-transit').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
@@ -127,7 +127,7 @@ const TransitPage = (() => {
 
   function _renderCard(t) {
     const user      = Auth.getUser();
-    const isAj      = user.role === 'aj';
+    const isAj      = ['aj', 'admin'].includes(user.role);
     const isPartner = user.role === 'partner';
     const st        = STATUS_MAP[t.status] || { label: t.status, cls: '' };
     const specs     = (t.equip_specs || []).map(s => `${s.spec}×${s.qty}`).join(', ');

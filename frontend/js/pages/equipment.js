@@ -14,7 +14,7 @@ const EquipmentPage = (() => {
 
   async function render() {
     const user = Auth.getUser();
-    const isAj = user.role === 'aj';
+    const isAj = ['aj', 'admin'].includes(user.role);
 
     document.getElementById('page-equipment').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
@@ -158,7 +158,7 @@ const EquipmentPage = (() => {
 
   function _renderTable(list) {
     const user  = Auth.getUser();
-    const isAj  = user.role === 'aj';
+    const isAj  = ['aj', 'admin'].includes(user.role);
     const tbody = document.getElementById('eq-tbody');
 
     // 전체선택 체크박스 초기화

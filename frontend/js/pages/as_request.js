@@ -96,9 +96,10 @@ const AsRequestPage = (() => {
         q = q.eq('status', _currentTab);
       }
       if (siteVal)   q = q.eq('site_id', siteVal);
-      if (searchVal) q = q.or(
-        `equip_no.ilike.%${searchVal}%,company.ilike.%${searchVal}%,fault_type.ilike.%${searchVal}%`
-      );
+      if (searchVal) {
+        const sq = searchVal.replace(/[,%()]/g, '');
+        if (sq) q = q.or(`equip_no.ilike.%${sq}%,company.ilike.%${sq}%,fault_type.ilike.%${sq}%`);
+      }
 
       const { data: list, error } = await q;
       if (error) throw error;
