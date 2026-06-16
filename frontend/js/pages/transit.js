@@ -365,8 +365,9 @@ const TransitPage = (() => {
                      cursor:pointer;text-decoration:underline;padding:0">
               목록에 없으면 직접 입력
             </button>
-            <input id="tr-equip-nos" class="form-input" style="display:none;margin-top:6px"
-              placeholder="GF123, GF516, GG112 (쉼표로 구분)">
+            <input id="tr-equip-nos" class="form-input" style="display:none;margin-top:6px;text-transform:uppercase"
+              placeholder="GF123, GF516, GG112 (쉼표로 구분)"
+              oninput="this.value=this.value.toUpperCase()">
           </div>
         </div>
 
@@ -652,8 +653,8 @@ const TransitPage = (() => {
     } else {
       // 체크리스트 선택값 우선, 없으면 직접 입력값
       const checked = [...document.querySelectorAll('.equip-checkbox:checked')].map(cb => cb.value);
-      const manual  = document.getElementById('tr-equip-nos')?.value.trim() || '';
-      const manualList = manual ? manual.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const manual  = document.getElementById('tr-equip-nos')?.value.trim().toUpperCase() || '';
+      const manualList = manual ? manual.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [];
       const combined = [...new Set([...checked, ...manualList])];
       if (!combined.length) { Toast.error('반출할 장비를 선택하거나 입력해주세요.'); return; }
       equip_nos = combined.join(', ');
@@ -726,7 +727,8 @@ const TransitPage = (() => {
           <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
           <input id="sc-equip-nos" class="form-input"
             placeholder="GK111, GF123, GG456"
-            value="${t.aj_equip || ''}">
+            value="${(t.aj_equip || '').toUpperCase()}"
+            oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           <div style="font-size:11px;color:var(--gray-400);margin-top:4px">
             쉼표(,)로 구분. 입력 완료 후 아래 목록에서 모델명/시리얼번호를 입력하세요.
           </div>
@@ -766,7 +768,7 @@ const TransitPage = (() => {
 
     document.getElementById('btn-confirm-schedule').onclick = async () => {
       const date     = document.getElementById('sc-date').value;
-      const equipNos = document.getElementById('sc-equip-nos').value.trim();
+      const equipNos = document.getElementById('sc-equip-nos').value.trim().toUpperCase();
       if (!date)     { Toast.error('확정 날짜를 선택해주세요.'); return; }
       if (!equipNos) { Toast.error('장비번호를 입력해주세요.'); return; }
 
@@ -791,7 +793,7 @@ const TransitPage = (() => {
           const nosList = equipNos.split(',').map(s => s.trim()).filter(Boolean);
           for (let i = 0; i < nosList.length; i++) {
             const equip_no         = nosList[i];
-            const model            = document.getElementById(`sc-model-${i}`)?.value.trim() || null;
+            const model            = document.getElementById(`sc-model-${i}`)?.value.trim().toUpperCase() || null;
             const serial_no        = document.getElementById(`sc-serial-${i}`)?.value.trim() || null;
             const manufacture_year = document.getElementById(`sc-year-${i}`)?.value.trim() || null;
             if (!model && !serial_no && !manufacture_year) continue;
@@ -890,9 +892,10 @@ const TransitPage = (() => {
                   <td style="padding:7px 10px;font-family:monospace;font-weight:600;color:var(--navy);white-space:nowrap">${no}</td>
                   <td style="padding:5px 8px">
                     <input id="sc-model-${i}" class="form-input" list="sc-model-list"
-                      value="${ex.model || ''}"
+                      value="${(ex.model || '').toUpperCase()}"
                       placeholder="예: GR20NS"
-                      style="padding:5px 8px;font-size:13px">
+                      oninput="this.value=this.value.toUpperCase()"
+                      style="padding:5px 8px;font-size:13px;text-transform:uppercase">
                   </td>
                   <td style="padding:5px 8px">
                     <input id="sc-serial-${i}" class="form-input"
@@ -959,9 +962,10 @@ const TransitPage = (() => {
                   <td style="padding:8px 10px;font-family:monospace;font-weight:600;color:var(--navy);white-space:nowrap">${no}</td>
                   <td style="padding:5px 8px">
                     <input id="eif-model-${i}" class="form-input" list="eif-model-list"
-                      value="${(ex.model || '').replace(/"/g, '&quot;')}"
+                      value="${(ex.model || '').toUpperCase().replace(/"/g, '&quot;')}"
                       placeholder="예: GR20NS"
-                      style="padding:5px 8px;font-size:13px">
+                      oninput="this.value=this.value.toUpperCase()"
+                      style="padding:5px 8px;font-size:13px;text-transform:uppercase">
                   </td>
                   <td style="padding:5px 8px">
                     <input id="eif-serial-${i}" class="form-input"
@@ -993,7 +997,7 @@ const TransitPage = (() => {
       try {
         for (let i = 0; i < nos.length; i++) {
           const equip_no       = nos[i];
-          const model          = document.getElementById(`eif-model-${i}`)?.value.trim() || null;
+          const model          = document.getElementById(`eif-model-${i}`)?.value.trim().toUpperCase() || null;
           const serial_no      = document.getElementById(`eif-serial-${i}`)?.value.trim() || null;
           const manufacture_year = document.getElementById(`eif-year-${i}`)?.value.trim() || null;
 
@@ -1086,7 +1090,8 @@ const TransitPage = (() => {
                   </td>
                   <td style="padding:6px 10px">
                     <input id="model-row-${i}" class="form-input" list="complete-model-list"
-                      placeholder="모델명" style="padding:4px 8px;min-width:100px">
+                      placeholder="모델명" oninput="this.value=this.value.toUpperCase()"
+                      style="padding:4px 8px;min-width:100px;text-transform:uppercase">
                   </td>
                   <td style="padding:6px 10px">
                     <input id="serial-row-${i}" class="form-input"
@@ -1099,7 +1104,7 @@ const TransitPage = (() => {
         ` : `
           <div class="form-group">
             <label class="form-label">반입 장비번호 <span style="color:var(--red)">*</span></label>
-            <input id="complete-equip-nos" class="form-input" placeholder="GF123, GF124 (쉼표로 구분)">
+            <input id="complete-equip-nos" class="form-input" placeholder="GF123, GF124 (쉼표로 구분)" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
         `}
       ` : `
@@ -1151,7 +1156,7 @@ const TransitPage = (() => {
     if (!finalEquipNos.length) {
       const nosEl = document.getElementById('complete-equip-nos');
       if (nosEl?.value.trim()) {
-        finalEquipNos = nosEl.value.trim().split(',').map(s => s.trim()).filter(Boolean);
+        finalEquipNos = nosEl.value.trim().toUpperCase().split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
       }
     }
 
@@ -1159,7 +1164,7 @@ const TransitPage = (() => {
       const equip_no = finalEquipNos[i];
       const specEl   = document.getElementById(`spec-row-${i}`);
       const spec     = specEl?.value || specPool[i] || specPool[0] || '';
-      const model    = document.getElementById(`model-row-${i}`)?.value.trim()  || null;
+      const model    = document.getElementById(`model-row-${i}`)?.value.trim().toUpperCase()  || null;
       const serial_no = document.getElementById(`serial-row-${i}`)?.value.trim() || null;
 
       try {

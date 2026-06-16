@@ -387,7 +387,7 @@ const EquipmentPage = (() => {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
-            <input id="add-equip-no" class="form-input" placeholder="예: GK111">
+            <input id="add-equip-no" class="form-input" placeholder="예: GK111" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
           <div class="form-group">
             <label class="form-label">제원 <span style="color:var(--red)">*</span></label>
@@ -411,7 +411,7 @@ const EquipmentPage = (() => {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">모델명</label>
-            <input id="add-model" class="form-input" list="add-model-list" placeholder="예: GR20NS">
+            <input id="add-model" class="form-input" list="add-model-list" placeholder="예: GR20NS" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
           <div class="form-group">
             <label class="form-label">시리얼번호</label>
@@ -425,7 +425,7 @@ const EquipmentPage = (() => {
       `,
     });
     document.getElementById('btn-do-add').onclick = async () => {
-      const equip_no = document.getElementById('add-equip-no').value.trim();
+      const equip_no = document.getElementById('add-equip-no').value.trim().toUpperCase();
       if (!equip_no) { Toast.error('장비번호를 입력해주세요.'); return; }
       const siteEl = document.getElementById('add-site');
       const siteId = siteEl.value;
@@ -436,7 +436,7 @@ const EquipmentPage = (() => {
         await Api.post('/equipment', {
           equip_no,
           spec:      document.getElementById('add-spec').value,
-          model:     document.getElementById('add-model').value.trim() || null,
+          model:     document.getElementById('add-model').value.trim().toUpperCase() || null,
           serial_no: document.getElementById('add-serial').value.trim() || null,
           site_id:   siteId,
           site_name: siteName,
@@ -472,7 +472,7 @@ const EquipmentPage = (() => {
         </datalist>
         <div class="form-group">
           <label class="form-label">장비번호</label>
-          <input id="ed-equip-no" class="form-input" value="${equipNo}">
+          <input id="ed-equip-no" class="form-input" value="${equipNo}" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
@@ -496,7 +496,7 @@ const EquipmentPage = (() => {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">모델명</label>
-            <input id="ed-model" class="form-input" list="ed-model-list" value="${model}" placeholder="예: GR20NS">
+            <input id="ed-model" class="form-input" list="ed-model-list" value="${model}" placeholder="예: GR20NS" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
           <div class="form-group">
             <label class="form-label">시리얼번호</label>
@@ -515,11 +515,11 @@ const EquipmentPage = (() => {
       try {
         const newStatus = document.getElementById('ed-status').value;
         const updateBody = {
-          equip_no:  document.getElementById('ed-equip-no').value.trim(),
+          equip_no:  document.getElementById('ed-equip-no').value.trim().toUpperCase(),
           spec:      document.getElementById('ed-spec').value,
           status:    newStatus,
           company:   document.getElementById('ed-company').value.trim(),
-          model:     document.getElementById('ed-model').value.trim() || null,
+          model:     document.getElementById('ed-model').value.trim().toUpperCase() || null,
           serial_no: document.getElementById('ed-serial').value.trim() || null,
         };
         if (newStatus === 'returned' && status !== 'returned') {
