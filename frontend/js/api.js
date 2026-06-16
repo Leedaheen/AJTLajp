@@ -204,7 +204,7 @@ const Api = (() => {
     } else if (base.match(/^transit\/\d+\/partner-confirm$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('transit')
-        .update({ status: 'confirmed', partner_confirmed_at: new Date().toISOString() })
+        .update({ status: 'confirmed' })
         .eq('id', id).select().single()
       );
     } else if (base.match(/^transit\/\d+\/complete$/)) {

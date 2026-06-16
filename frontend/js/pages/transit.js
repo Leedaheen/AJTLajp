@@ -697,8 +697,7 @@ const TransitPage = (() => {
         if (c) c.innerHTML = _renderCard(saved);
       }
 
-      // 백그라운드에서 전체 목록 새로고침 (Realtime 경쟁 조건과 무관하게 보장)
-      loadList();
+      await loadList();
     } catch (e) { btn.disabled = false; btn.textContent = '신청 완료'; console.error('[transit] 신청 실패:', e); }
   }
 
@@ -833,7 +832,7 @@ const TransitPage = (() => {
         Toast.success(dateChanged
           ? '일정이 저장되었습니다. 협력사 확인 후 최종 확정됩니다.'
           : '일정이 확정되었습니다.');
-        loadList();
+        await loadList();
       } catch (e) { btn.disabled = false; btn.textContent = '확정'; console.error('[Schedule]', e); }
     };
   }
@@ -1034,8 +1033,8 @@ const TransitPage = (() => {
     try {
       await Api.patch(`/transit/${transitId}/partner-confirm`, {});
       Toast.success('일정 확인 완료. 확정 상태로 변경되었습니다.');
-      loadList();
-    } catch {}
+      await loadList();
+    } catch (e) { Toast.error('처리에 실패했습니다.'); console.error('[confirmSchedule]', e); }
   }
 
   // ── 완료 처리 (AJ) ───────────────────────────────────────
@@ -1131,7 +1130,7 @@ const TransitPage = (() => {
         }
         Modal.close();
         Toast.success('완료 처리되었습니다.');
-        loadList();
+        await loadList();
       } catch (e) {
         btn.disabled = false; btn.textContent = '완료 처리';
         console.error('[Complete]', e);
@@ -1260,20 +1259,13 @@ const TransitPage = (() => {
       const btn = document.getElementById('btn-save-dispatch');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
-        const updated = await Api.patch(`/transit/${transitId}/dispatch`, {
+        await Api.patch(`/transit/${transitId}/dispatch`, {
           vehicle_info: vehicle,
           driver_info:  driver,
         });
-        // _transitCache 즉시 업데이트 후 카드 재렌더링
-        if (updated && _transitCache[transitId]) {
-          _transitCache[transitId] = { ..._transitCache[transitId], ...updated };
-          const card = document.getElementById(`transit-card-${transitId}`);
-          if (card) card.outerHTML = _renderCard(_transitCache[transitId]);
-        } else {
-          loadList();
-        }
         Modal.close();
         Toast.success('배차정보가 저장되었습니다.');
+        await loadList();
       } catch { btn.disabled = false; btn.textContent = '저장'; }
     };
   }
@@ -1528,8 +1520,8 @@ const TransitPage = (() => {
         await Api.patch(`/transit/${transitId}/cancel`, { cancelled_reason: reason });
         Modal.close();
         Toast.success('취소 처리되었습니다.');
-        loadList();
-      } catch { btn.disabled = false; btn.textContent = '취소 처리'; }
+        await loadList();
+      } catch (e) { btn.disabled = false; btn.textContent = '취소 처리'; console.error(e); }
     };
   }
 

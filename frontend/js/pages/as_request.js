@@ -339,7 +339,7 @@ const AsRequestPage = (() => {
       });
       Modal.close();
       Toast.success('AS 요청이 접수되었습니다.');
-      loadList();
+      await loadList();
     } catch { btn.disabled = false; btn.textContent = '신청 완료'; }
   }
 
@@ -348,8 +348,8 @@ const AsRequestPage = (() => {
     try {
       await Api.patch(`/as-requests/${reqId}/start`, {});
       Toast.success('처리 시작으로 변경되었습니다.');
-      loadList();
-    } catch {}
+      await loadList();
+    } catch (e) { Toast.error('상태 변경에 실패했습니다.'); console.error(e); }
   }
 
   // ── 자재 수급 중 ─────────────────────────────────────────
@@ -358,8 +358,8 @@ const AsRequestPage = (() => {
     try {
       await Api.patch(`/as-requests/${reqId}/material`, {});
       Toast.success('자재 수급 중으로 변경되었습니다.');
-      loadList();
-    } catch {}
+      await loadList();
+    } catch (e) { Toast.error('상태 변경에 실패했습니다.'); console.error(e); }
   }
 
   // ── 보류 ─────────────────────────────────────────────────
@@ -390,8 +390,8 @@ const AsRequestPage = (() => {
         await Api.patch(`/as-requests/${reqId}/hold`, { hold_reason: reason });
         Modal.close();
         Toast.success('보류 처리되었습니다.');
-        loadList();
-      } catch { btn.disabled = false; btn.textContent = '보류 처리'; }
+        await loadList();
+      } catch (e) { btn.disabled = false; btn.textContent = '보류 처리'; Toast.error('상태 변경에 실패했습니다.'); console.error(e); }
     };
   }
 
@@ -400,8 +400,8 @@ const AsRequestPage = (() => {
     try {
       await Api.patch(`/as-requests/${reqId}/resume`, {});
       Toast.success('처리 재개로 변경되었습니다.');
-      loadList();
-    } catch {}
+      await loadList();
+    } catch (e) { Toast.error('상태 변경에 실패했습니다.'); console.error(e); }
   }
 
   // ── 처리 완료 폼 ─────────────────────────────────────────
@@ -444,8 +444,8 @@ const AsRequestPage = (() => {
         });
         Modal.close();
         Toast.success('AS 처리 완료되었습니다.');
-        loadList();
-      } catch { btn.disabled = false; btn.textContent = '완료 저장'; }
+        await loadList();
+      } catch (e) { btn.disabled = false; btn.textContent = '완료 저장'; console.error(e); }
     };
   }
 
@@ -479,8 +479,8 @@ const AsRequestPage = (() => {
         await Api.patch(`/as-requests/${reqId}/cancel`, { cancel_reason: reason });
         Modal.close();
         Toast.success('취소 처리되었습니다.');
-        loadList();
-      } catch { btn.disabled = false; btn.textContent = '취소 처리'; }
+        await loadList();
+      } catch (e) { btn.disabled = false; btn.textContent = '취소 처리'; console.error(e); }
     };
   }
 
