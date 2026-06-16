@@ -789,33 +789,34 @@ const TransitPage = (() => {
           status:         newStatus,
         });
 
-        // 장비 모델/시리얼 정보를 equipment 테이블에 upsert
-        const nosList = equipNos.split(',').map(s => s.trim()).filter(Boolean);
-        for (let i = 0; i < nosList.length; i++) {
-          const equip_no       = nosList[i];
-          const model          = document.getElementById(`sc-model-${i}`)?.value.trim() || null;
-          const serial_no      = document.getElementById(`sc-serial-${i}`)?.value.trim() || null;
-          const manufacture_year = document.getElementById(`sc-year-${i}`)?.value.trim() || null;
-          if (!model && !serial_no && !manufacture_year) continue;
-          // equip_no 기준 UPDATE → 없으면 INSERT (status: transit)
-          const { data: upd } = await _sb.from('equipment')
-            .update({ model, serial_no, manufacture_year })
-            .eq('equip_no', equip_no)
-            .select('id');
-          if (!upd?.length) {
-            await _sb.from('equipment').insert({
-              equip_no,
-              model,
-              serial_no,
-              manufacture_year,
-              site_id:    t.site_id,
-              site_name:  t.site_name,
-              company:    t.company,
-              transit_id: transitId,
-              status:     'transit',
-              record_id:  `EQ-${equip_no}-${Date.now()}`,
-            });
+        // 장비 모델/시리얼 정보를 equipment 테이블에 upsert (실패해도 메인 흐름 유지)
+        try {
+          const nosList = equipNos.split(',').map(s => s.trim()).filter(Boolean);
+          for (let i = 0; i < nosList.length; i++) {
+            const equip_no         = nosList[i];
+            const model            = document.getElementById(`sc-model-${i}`)?.value.trim() || null;
+            const serial_no        = document.getElementById(`sc-serial-${i}`)?.value.trim() || null;
+            const manufacture_year = document.getElementById(`sc-year-${i}`)?.value.trim() || null;
+            if (!model && !serial_no && !manufacture_year) continue;
+            const equipBody = { model, serial_no };
+            if (manufacture_year) equipBody.manufacture_year = manufacture_year;
+            const { data: upd } = await _sb.from('equipment')
+              .update(equipBody)
+              .eq('equip_no', equip_no)
+              .select('id');
+            if (!upd?.length) {
+              const insertBody = {
+                equip_no, model, serial_no,
+                site_id: t.site_id, site_name: t.site_name,
+                company: t.company, transit_id: transitId,
+                status: 'transit', record_id: `EQ-${equip_no}-${Date.now()}`,
+              };
+              if (manufacture_year) insertBody.manufacture_year = manufacture_year;
+              await _sb.from('equipment').insert(insertBody);
+            }
           }
+        } catch (equipErr) {
+          console.warn('[Schedule] 장비 정보 저장 실패 (무시):', equipErr.message);
         }
 
         // 날짜가 다른 경우 협력사에게 앱 내 알림 발송
