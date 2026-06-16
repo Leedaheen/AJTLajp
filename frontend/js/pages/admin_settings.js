@@ -44,6 +44,17 @@ const AdminSettingsPage = (() => {
 
       </div>
 
+      <!-- 제원표 관리 (전체 너비) -->
+      <div class="card" style="margin-top:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="font-size:15px;font-weight:700;color:var(--navy);margin:0">장비 제원표</h3>
+          <button class="btn btn-primary btn-sm" onclick="AdminSettingsPage.openAddSpec()">+ 제원 추가</button>
+        </div>
+        <div id="specs-list">
+          <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
+        </div>
+      </div>
+
       <!-- 장비 모델 현황 (전체 너비) -->
       <div class="card" style="margin-top:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -56,7 +67,7 @@ const AdminSettingsPage = (() => {
       </div>
     `;
 
-    await Promise.all([_loadSites(), _loadProjects(), _loadCompanies(), _loadEquipModels()]);
+    await Promise.all([_loadSites(), _loadProjects(), _loadCompanies(), _loadSpecs(), _loadEquipModels()]);
   }
 
   // ── 현장 목록 ────────────────────────────────────────────
@@ -544,11 +555,162 @@ const AdminSettingsPage = (() => {
 
   function reloadEquipModels() { _loadEquipModels(); }
 
+  // ── 제원표 관리 ──────────────────────────────────────────
+  async function _loadSpecs() {
+    const el = document.getElementById('specs-list');
+    if (!el) return;
+    try {
+      const list = await Api.get('/equipment-specs');
+      if (!list.length) {
+        el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">등록된 제원이 없습니다.</div>';
+        return;
+      }
+      el.innerHTML = `
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--gray-100)">
+              <th style="padding:8px 12px;text-align:left;font-weight:600">모델명</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:600">제조사</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:600">작업높이</th>
+              <th style="padding:8px 12px;text-align:right;font-weight:600"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(s => `
+              <tr style="border-bottom:1px solid var(--gray-100)">
+                <td style="padding:8px 12px;font-weight:600;color:var(--navy)">${s.model}</td>
+                <td style="padding:8px 12px;color:var(--gray-600)">${s.manufacturer || '-'}</td>
+                <td style="padding:8px 12px">
+                  <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600">
+                    ${s.work_height || '-'}
+                  </span>
+                </td>
+                <td style="padding:8px 12px;text-align:right">
+                  <button class="btn btn-outline btn-sm" style="margin-right:4px"
+                    onclick="AdminSettingsPage.openEditSpec(${s.id},'${(s.model||'').replace(/'/g,"\\'")}','${(s.manufacturer||'').replace(/'/g,"\\'")}','${s.work_height||''}')">수정</button>
+                  <button class="btn btn-danger btn-sm"
+                    onclick="AdminSettingsPage.deleteSpec(${s.id},'${(s.model||'').replace(/'/g,"\\'")}')">삭제</button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        </div>
+      `;
+    } catch {
+      el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">불러오기 실패</div>';
+    }
+  }
+
+  const WORK_HEIGHT_OPTIONS = ['6M','8M','10M','12M','14M','16M','16M굴절','18M','20M굴절'];
+
+  function openAddSpec() {
+    Modal.open({
+      title: '제원 추가',
+      body: `
+        <div class="form-group">
+          <label class="form-label">모델명 <span style="color:var(--red)">*</span></label>
+          <input id="spec-model" class="form-input" placeholder="예: GR20NS">
+        </div>
+        <div class="form-group">
+          <label class="form-label">제조사</label>
+          <input id="spec-mfr" class="form-input" placeholder="예: Genie, JLG, Skyjack">
+        </div>
+        <div class="form-group">
+          <label class="form-label">작업높이</label>
+          <select id="spec-height" class="form-input form-select">
+            <option value="">선택</option>
+            ${WORK_HEIGHT_OPTIONS.map(h => `<option value="${h}">${h}</option>`).join('')}
+          </select>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-do-add-spec">추가</button>
+      `,
+    });
+    document.getElementById('btn-do-add-spec').onclick = async () => {
+      const model = document.getElementById('spec-model').value.trim();
+      if (!model) { Toast.error('모델명을 입력해주세요.'); return; }
+      const btn = document.getElementById('btn-do-add-spec');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        await Api.post('/equipment-specs', {
+          model,
+          manufacturer: document.getElementById('spec-mfr').value.trim() || null,
+          work_height:  document.getElementById('spec-height').value || null,
+        });
+        Modal.close();
+        Toast.success('제원이 추가되었습니다.');
+        _loadSpecs();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = '추가';
+        Toast.error(e.message?.includes('unique') ? '이미 등록된 모델명입니다.' : '추가 실패');
+      }
+    };
+  }
+
+  function openEditSpec(id, model, manufacturer, workHeight) {
+    Modal.open({
+      title: '제원 수정',
+      body: `
+        <div class="form-group">
+          <label class="form-label">모델명 <span style="color:var(--red)">*</span></label>
+          <input id="spec-model" class="form-input" value="${model}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">제조사</label>
+          <input id="spec-mfr" class="form-input" value="${manufacturer}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">작업높이</label>
+          <select id="spec-height" class="form-input form-select">
+            <option value="">선택</option>
+            ${WORK_HEIGHT_OPTIONS.map(h => `<option value="${h}" ${h===workHeight?'selected':''}>${h}</option>`).join('')}
+          </select>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-do-edit-spec">저장</button>
+      `,
+    });
+    document.getElementById('btn-do-edit-spec').onclick = async () => {
+      const newModel = document.getElementById('spec-model').value.trim();
+      if (!newModel) { Toast.error('모델명을 입력해주세요.'); return; }
+      const btn = document.getElementById('btn-do-edit-spec');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        await Api.patch(`/equipment-specs/${id}`, {
+          model:        newModel,
+          manufacturer: document.getElementById('spec-mfr').value.trim() || null,
+          work_height:  document.getElementById('spec-height').value || null,
+        });
+        Modal.close();
+        Toast.success('제원이 수정되었습니다.');
+        _loadSpecs();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = '저장';
+        Toast.error(e.message?.includes('unique') ? '이미 등록된 모델명입니다.' : '저장 실패');
+      }
+    };
+  }
+
+  async function deleteSpec(id, model) {
+    if (!confirm(`"${model}" 제원을 삭제하시겠습니까?`)) return;
+    try {
+      await Api.del(`/equipment-specs/${id}`);
+      Toast.success('삭제되었습니다.');
+      _loadSpecs();
+    } catch { Toast.error('삭제 실패'); }
+  }
+
   return {
     render,
     openAddSite, openEditSite, deleteSite,
     openAddProject, openEditProject, deleteProject,
     openAddCompany, openEditCompany, deleteCompany,
     reloadEquipModels,
+    openAddSpec, openEditSpec, deleteSpec,
   };
 })();

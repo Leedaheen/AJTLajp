@@ -162,10 +162,22 @@ const QrScanner = (() => {
   }
 
   // ── 스캔 결과 액션 시트 ──────────────────────────────────
-  function _showActionSheet(equip) {
+  async function _showActionSheet(equip) {
     const user    = Auth.getUser();
     const canUse  = ['tech', 'partner', 'aj'].includes(user.role);
     const canAs   = ['tech', 'partner', 'aj', 'as_tech'].includes(user.role);
+
+    // 모델이 있으면 제원표 조회
+    let specData = null;
+    if (equip.model) {
+      const { data } = await _sb.from('equipment_specs')
+        .select('*').eq('model', equip.model).maybeSingle();
+      specData = data;
+    }
+
+    const modelLine = equip.model
+      ? `<div style="font-size:12px;color:var(--gray-500);margin-top:3px;font-family:monospace">${equip.model}${equip.serial_no ? ' · ' + equip.serial_no : ''}</div>`
+      : '';
 
     Modal.open({
       title: '장비 확인',
@@ -175,6 +187,7 @@ const QrScanner = (() => {
           <div style="font-size:13px;color:var(--gray-500);margin-top:4px">
             ${equip.spec ? equip.spec + ' · ' : ''}${equip.site_name || equip.site_id || ''}${equip.company ? ' · ' + equip.company : ''}
           </div>
+          ${modelLine}
           ${equip.project ? `<div style="font-size:12px;color:var(--gray-400);margin-top:2px">${equip.project}</div>` : ''}
           <div style="margin-top:8px">
             <span class="badge" style="background:#dbeafe;color:#1e40af">
@@ -202,15 +215,47 @@ const QrScanner = (() => {
               AS 요청
             </button>
           ` : ''}
+          ${specData ? `
+            <button class="btn btn-outline"
+              style="font-size:15px;padding:13px;justify-content:center;border-color:var(--navy);color:var(--navy)"
+              id="qr-action-spec">
+              제원표 확인
+            </button>
+          ` : ''}
         </div>
       `,
       footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>`,
     });
 
-    // 이벤트 바인딩 — inline onclick이 JSON 오브젝트를 안전하게 전달하지 못하므로 여기서 처리
     document.getElementById('qr-action-start')?.addEventListener('click', () => _handleStart(equip));
     document.getElementById('qr-action-end')  ?.addEventListener('click', () => _handleEnd(equip));
     document.getElementById('qr-action-as')   ?.addEventListener('click', () => _handleAs(equip));
+    document.getElementById('qr-action-spec') ?.addEventListener('click', () => _showSpecSheet(specData, equip));
+  }
+
+  // ── 제원표 표시 ──────────────────────────────────────────
+  function _showSpecSheet(spec, equip) {
+    Modal.open({
+      title: `제원표 — ${spec.model}`,
+      body: `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--gray-200);border-radius:10px;overflow:hidden;font-size:14px">
+          ${[
+            ['모델명',   spec.model],
+            ['제조사',   spec.manufacturer || '-'],
+            ['작업높이', spec.work_height  || '-'],
+            ['장비번호', equip.equip_no],
+            ['시리얼',   equip.serial_no   || '-'],
+            ['현장',     equip.site_name   || '-'],
+          ].map(([label, val], i) => `
+            <div style="padding:11px 14px;background:${i%2===0?'var(--gray-50,#f9fafb)':'#fff'};border-bottom:1px solid var(--gray-100)">
+              <div style="font-size:11px;color:var(--gray-400);margin-bottom:2px">${label}</div>
+              <div style="font-weight:600;color:var(--navy)">${val}</div>
+            </div>
+          `).join('')}
+        </div>
+      `,
+      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>`,
+    });
   }
 
   // ── 사용 시작 ────────────────────────────────────────────

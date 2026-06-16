@@ -56,10 +56,16 @@ const Api = (() => {
         params
       ));
     } else if (base === 'equipment/models') {
-      // 기존 모델명 목록 (datalist 자동완성용)
       const { data: rows } = await _sb.from('equipment').select('model').not('model', 'is', null).neq('model', '');
       const models = [...new Set((rows || []).map(r => r.model).filter(Boolean))].sort();
       return models;
+    } else if (base === 'equipment-specs') {
+      ({ data, error } = await _sb.from('equipment_specs').select('*').order('work_height').order('model'));
+      if (!error) return data || [];
+    } else if (base.match(/^equipment-specs\/model\//)) {
+      const model = decodeURIComponent(base.split('/model/')[1]);
+      ({ data, error } = await _sb.from('equipment_specs').select('*').eq('model', model).maybeSingle());
+      if (!error) return data;
     } else if (base.match(/^equipment\/\d+$/)) {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('equipment').select('*').eq('id', id).maybeSingle());
@@ -148,6 +154,8 @@ const Api = (() => {
       ({ data, error } = await _sb.from('as_requests').insert(body).select().single());
     } else if (base === 'equipment') {
       ({ data, error } = await _sb.from('equipment').insert(body).select().single());
+    } else if (base === 'equipment-specs') {
+      ({ data, error } = await _sb.from('equipment_specs').insert(body).select().single());
     } else if (base === 'usage-logs/start' || base === 'usage-logs') {
       ({ data, error } = await _sb.from('usage_logs').insert(body).select().single());
     } else if (base === 'usage-logs/end') {
@@ -324,6 +332,11 @@ const Api = (() => {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('equipment').update(body).eq('id', id).select().single());
 
+    // equipment-specs
+    } else if (base.match(/^equipment-specs\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('equipment_specs').update(body).eq('id', id).select().single());
+
     // sites
     } else if (base.match(/^sites\/\d+$/)) {
       const id = Number(base.split('/')[1]);
@@ -357,6 +370,9 @@ const Api = (() => {
     if (base.match(/^equipment\/\d+$/)) {
       const id = Number(base.split('/')[1]);
       ({ error } = await _sb.from('equipment').delete().eq('id', id));
+    } else if (base.match(/^equipment-specs\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ error } = await _sb.from('equipment_specs').delete().eq('id', id));
     } else if (base.match(/^sites\/\d+$/)) {
       const id = Number(base.split('/')[1]);
       ({ error } = await _sb.from('sites').delete().eq('id', id));
