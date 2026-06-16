@@ -12,7 +12,7 @@ const TransitPage = (() => {
   };
   const LS = 'transit_form_';
 
-  let _currentTab = 'active';
+  let _currentTab = 'all';
   let _transitCache = {};  // id → transit object
   let _loadGen = 0;
 
@@ -49,10 +49,9 @@ const TransitPage = (() => {
   }
 
   const _TABS = [
-    ['active','진행중'],['requested','신청'],['scheduled','협력사확인'],
+    ['all','전체'],['requested','신청'],['scheduled','협력사확인'],
     ['confirmed','확정'],['completed','완료'],['cancelled','취소'],
   ];
-  // 진행중 탭 = 완료·취소되지 않은 모든 상태 (OR 필터)
 
   function _updateTabStyles() {
     _TABS.forEach(([v]) => {
@@ -109,9 +108,7 @@ const TransitPage = (() => {
     c.innerHTML = '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>';
     try {
       let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(100);
-      if (_currentTab === 'active') {
-        q = q.in('status', ['requested', 'scheduled', 'confirmed']);
-      } else if (_currentTab !== 'all') {
+      if (_currentTab !== 'all') {
         q = q.eq('status', _currentTab);
       }
       const { data: list, error } = await q;
