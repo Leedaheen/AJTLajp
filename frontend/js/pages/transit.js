@@ -792,13 +792,14 @@ const TransitPage = (() => {
         // 장비 모델/시리얼 정보를 equipment 테이블에 upsert
         const nosList = equipNos.split(',').map(s => s.trim()).filter(Boolean);
         for (let i = 0; i < nosList.length; i++) {
-          const equip_no  = nosList[i];
-          const model     = document.getElementById(`sc-model-${i}`)?.value.trim() || null;
-          const serial_no = document.getElementById(`sc-serial-${i}`)?.value.trim() || null;
-          if (!model && !serial_no) continue;
+          const equip_no       = nosList[i];
+          const model          = document.getElementById(`sc-model-${i}`)?.value.trim() || null;
+          const serial_no      = document.getElementById(`sc-serial-${i}`)?.value.trim() || null;
+          const manufacture_year = document.getElementById(`sc-year-${i}`)?.value.trim() || null;
+          if (!model && !serial_no && !manufacture_year) continue;
           // equip_no 기준 UPDATE → 없으면 INSERT (status: transit)
           const { data: upd } = await _sb.from('equipment')
-            .update({ model, serial_no })
+            .update({ model, serial_no, manufacture_year })
             .eq('equip_no', equip_no)
             .select('id');
           if (!upd?.length) {
@@ -806,6 +807,7 @@ const TransitPage = (() => {
               equip_no,
               model,
               serial_no,
+              manufacture_year,
               site_id:    t.site_id,
               site_name:  t.site_name,
               company:    t.company,
@@ -847,9 +849,9 @@ const TransitPage = (() => {
 
     container.innerHTML = `<div style="text-align:center;padding:12px"><span class="spinner"></span></div>`;
 
-    // 기존 장비 데이터 조회 (모델/시리얼 pre-fill)
+    // 기존 장비 데이터 조회 (모델/시리얼/제조년 pre-fill)
     const { data: existing } = await _sb.from('equipment')
-      .select('equip_no,model,serial_no')
+      .select('equip_no,model,serial_no,manufacture_year')
       .in('equip_no', nos);
     const existMap = {};
     (existing || []).forEach(r => { existMap[r.equip_no] = r; });
@@ -870,7 +872,7 @@ const TransitPage = (() => {
       </datalist>
       <div style="margin-bottom:10px;padding:12px;background:var(--gray-50,#f9fafb);border:1px solid var(--gray-200);border-radius:8px">
         <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px">
-          장비 ${nos.length}대 — 모델명 / 시리얼번호 입력
+          장비 ${nos.length}대 — 모델명 / 시리얼번호 / 제조년 입력
         </div>
         <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -879,6 +881,7 @@ const TransitPage = (() => {
               <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600)">장비번호</th>
               <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600)">모델명</th>
               <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600)">시리얼번호</th>
+              <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600)">제조년</th>
             </tr>
           </thead>
           <tbody>
@@ -899,6 +902,12 @@ const TransitPage = (() => {
                       placeholder="예: GJ512-001"
                       style="padding:5px 8px;font-size:13px;font-family:monospace">
                   </td>
+                  <td style="padding:5px 8px">
+                    <input id="sc-year-${i}" class="form-input"
+                      value="${ex.manufacture_year || ''}"
+                      placeholder="예: 2021"
+                      style="padding:5px 8px;font-size:13px;width:80px">
+                  </td>
                 </tr>`;
             }).join('')}
           </tbody>
@@ -917,7 +926,7 @@ const TransitPage = (() => {
 
     // 기존 장비 데이터 조회
     const [{ data: existing }, { data: modelRows }] = await Promise.all([
-      _sb.from('equipment').select('equip_no,model,serial_no').in('equip_no', nos),
+      _sb.from('equipment').select('equip_no,model,serial_no,manufacture_year').in('equip_no', nos),
       _sb.from('equipment').select('model').not('model', 'is', null).neq('model', ''),
     ]);
     const existMap = {};
@@ -941,6 +950,7 @@ const TransitPage = (() => {
               <th style="padding:8px 10px;text-align:left;font-weight:600">장비번호</th>
               <th style="padding:8px 10px;text-align:left;font-weight:600">모델명</th>
               <th style="padding:8px 10px;text-align:left;font-weight:600">시리얼번호</th>
+              <th style="padding:8px 10px;text-align:left;font-weight:600">제조년</th>
             </tr>
           </thead>
           <tbody>
@@ -961,6 +971,12 @@ const TransitPage = (() => {
                       placeholder="예: GJ512-001"
                       style="padding:5px 8px;font-size:13px;font-family:monospace">
                   </td>
+                  <td style="padding:5px 8px">
+                    <input id="eif-year-${i}" class="form-input"
+                      value="${(ex.manufacture_year || '').replace(/"/g, '&quot;')}"
+                      placeholder="예: 2021"
+                      style="padding:5px 8px;font-size:13px;width:80px">
+                  </td>
                 </tr>`;
             }).join('')}
           </tbody>
@@ -978,12 +994,13 @@ const TransitPage = (() => {
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
         for (let i = 0; i < nos.length; i++) {
-          const equip_no  = nos[i];
-          const model     = document.getElementById(`eif-model-${i}`)?.value.trim() || null;
-          const serial_no = document.getElementById(`eif-serial-${i}`)?.value.trim() || null;
+          const equip_no       = nos[i];
+          const model          = document.getElementById(`eif-model-${i}`)?.value.trim() || null;
+          const serial_no      = document.getElementById(`eif-serial-${i}`)?.value.trim() || null;
+          const manufacture_year = document.getElementById(`eif-year-${i}`)?.value.trim() || null;
 
           const { data: upd } = await _sb.from('equipment')
-            .update({ model, serial_no })
+            .update({ model, serial_no, manufacture_year })
             .eq('equip_no', equip_no)
             .select('id');
 
@@ -993,6 +1010,7 @@ const TransitPage = (() => {
               equip_no,
               model,
               serial_no,
+              manufacture_year,
               site_id:    t.site_id,
               site_name:  t.site_name,
               company:    t.company,
@@ -1671,7 +1689,7 @@ const TransitPage = (() => {
     ]},
   ];
 
-  function openDocumentForm(transitId) {
+  async function openDocumentForm(transitId) {
     const t = _transitCache[transitId];
     if (!t) { Toast.error('정보를 불러올 수 없습니다. 목록을 새로고침하세요.'); return; }
 
@@ -1682,10 +1700,33 @@ const TransitPage = (() => {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
+    // 장비번호로 model 조회, model로 equipment_specs 조회
+    let equipDataMap = {};
+    if (equipNos.length > 0) {
+      const { data: equipRows } = await _sb.from('equipment')
+        .select('equip_no,model,manufacture_year')
+        .in('equip_no', equipNos);
+      (equipRows || []).forEach(r => { equipDataMap[r.equip_no] = r; });
+
+      const modelNames = [...new Set((equipRows || []).map(r => r.model).filter(Boolean))];
+      if (modelNames.length > 0) {
+        const { data: specRows } = await _sb.from('equipment_specs')
+          .select('model,work_height')
+          .in('model', modelNames);
+        (specRows || []).forEach(r => {
+          Object.values(equipDataMap).forEach(eq => {
+            if (eq.model === r.model) eq._work_height = r.work_height;
+          });
+        });
+      }
+    }
+
     const targets = equipNos.length > 0 ? equipNos : [''];
     const pages = targets.map((no, i) => {
-      const spec = specPool[i] || specPool[0] || '';
-      const info = _SPEC_INFO[spec] || { height: '-', load: '-', model: spec };
+      const equipData = equipDataMap[no] || {};
+      const workHeight = equipData._work_height || specPool[i] || specPool[0] || '';
+      const info = _SPEC_INFO[workHeight] || { height: workHeight || '-', load: '227KG', model: '' };
+      info._mfgYear = equipData.manufacture_year || '';
       return _buildInspectionPage(t, no, info, today) + _buildChecklistPage(no, info);
     });
 
@@ -1695,17 +1736,18 @@ const TransitPage = (() => {
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Malgun Gothic','맑은 고딕',Arial,sans-serif;font-size:9pt;color:#000;background:#fff}
-  .page{width:190mm;margin:6mm auto;page-break-after:always}
+  .page{width:190mm;height:270mm;margin:6mm auto;page-break-after:always;overflow:hidden}
   .page:last-child{page-break-after:auto}
-  h1,h2{text-align:center;font-size:12.5pt;font-weight:bold;border:2px solid #000;padding:5px;margin-bottom:4px}
+  h1,h2{text-align:center;font-size:12pt;font-weight:bold;border:2px solid #000;padding:4px;margin-bottom:4px}
   table{width:100%;border-collapse:collapse}
-  th,td{border:1px solid #666;padding:2px 4px;font-size:8.2pt;vertical-align:middle}
-  .lbl{background:#ebebeb;font-weight:bold;text-align:center;white-space:nowrap;font-size:7.8pt}
-  .sec{background:#cdd5e6;font-weight:bold;font-size:8.5pt}
+  th,td{border:1px solid #666;padding:2px 4px;font-size:7.8pt;vertical-align:middle}
+  .lbl{background:#ebebeb;font-weight:bold;text-align:center;white-space:nowrap;font-size:7.5pt}
+  .sec{background:#cdd5e6;font-weight:bold;font-size:8pt}
   .res{text-align:center;width:30px;font-size:10pt;font-weight:bold}
-  .chk-hdr{background:#d0d8e8;font-weight:bold;text-align:center;font-size:8pt;padding:2px}
+  .chk-hdr{background:#d0d8e8;font-weight:bold;text-align:center;font-size:7.5pt;padding:2px}
   .print-btn{display:block;margin:14px auto;padding:8px 28px;background:#1B365D;color:#fff;border:none;border-radius:6px;font-size:11pt;cursor:pointer;font-family:inherit}
-  @media print{.print-btn{display:none}body{margin:0}.page{margin:0;width:100%}}
+  @page{size:A4 portrait;margin:12mm 10mm}
+  @media print{.print-btn{display:none}body{margin:0}.page{margin:0;width:100%;height:auto}}
 </style>
 </head><body>
 ${pages.join('')}
@@ -1744,16 +1786,16 @@ ${pages.join('')}
     <tr>
       <td class="lbl">사용장소</td><td colspan="3">${site}${t.project ? ' ' + t.project : ''}</td>
       <td class="lbl">동력전달방식</td><td>배터리충전식</td>
-      <td class="lbl">형식번호</td><td>${info.model || '-'}</td>
+      <td class="lbl">형식번호</td><td></td>
     </tr>
     <tr>
       <td class="lbl">운전방식</td><td>자주식</td>
       <td class="lbl" style="width:50px">운행속도</td><td>3.2Km/h</td>
-      <td class="lbl">작업대최대높이/적재용량</td><td colspan="3"><strong>${info.height} ${info.load}</strong></td>
+      <td class="lbl">작업대최대높이/적재용량</td><td colspan="3"><strong>${info.height} / ${info.load}</strong></td>
     </tr>
     <tr>
       <td class="lbl">차량번호</td><td><strong>${equipNo || '-'}</strong></td>
-      <td class="lbl">제조년월일</td><td></td>
+      <td class="lbl">제조년월일</td><td>${info._mfgYear || ''}</td>
       <td class="lbl">안전점검년월일</td><td colspan="3"></td>
     </tr>
     <tr>
