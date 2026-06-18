@@ -11,6 +11,8 @@ const EquipmentPage = (() => {
 
   // 현재 로드된 전체 목록 캐시 (체크박스 일괄처리용)
   let _listCache = [];
+  // 필터 무관 전체 카운트 (뱃지에 항상 전체 수량 표시)
+  let _totalCounts = null;
 
   async function render() {
     const user = Auth.getUser();
@@ -23,6 +25,9 @@ const EquipmentPage = (() => {
           ${isAj ? `
             <button id="btn-bulk-qr" class="btn btn-outline btn-sm hidden" onclick="EquipmentPage.openBulkQr()">
               선택 QR 보기/인쇄
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="EquipmentPage.downloadExcel()" title="필터링된 목록 엑셀 다운로드">
+              ↓ 엑셀
             </button>
             <button class="btn btn-primary btn-sm" onclick="EquipmentPage.openAddForm()">+ 장비 추가</button>
           ` : ''}
@@ -87,8 +92,8 @@ const EquipmentPage = (() => {
       });
     }
 
-    await loadList();
-    Realtime.on('equipment', 'equipment', loadList);
+    await Promise.all([_loadTotals(), loadList()]);
+    Realtime.on('equipment', 'equipment', () => { _loadTotals(); loadList(); });
   }
 
   async function _loadSiteFilter() {
@@ -119,7 +124,7 @@ const EquipmentPage = (() => {
     try {
       const list = await Api.get(`/equipment?${params}`);
       _listCache = list;
-      _renderSummary(list);
+      _renderSummary();
       _renderTable(list);
     } catch {
       tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted">불러오기 실패</td></tr>`;
@@ -133,9 +138,20 @@ const EquipmentPage = (() => {
     loadList();
   }
 
-  function _renderSummary(list) {
-    const counts = { in_use: 0, returned: 0 };
-    list.forEach(e => { if (counts[e.status] !== undefined) counts[e.status]++; });
+  async function _loadTotals() {
+    try {
+      const all = await Api.get('/equipment?limit=5000');
+      _totalCounts = {
+        in_use:   all.filter(e => e.status === 'in_use').length,
+        returned: all.filter(e => e.status === 'returned').length,
+        total:    all.length,
+      };
+      _renderSummary();
+    } catch {}
+  }
+
+  function _renderSummary() {
+    const counts = _totalCounts || { in_use: 0, returned: 0, total: 0 };
     const el = document.getElementById('eq-summary');
     if (!el) return;
 
@@ -151,7 +167,7 @@ const EquipmentPage = (() => {
       </span>
       <span class="badge" style="background:var(--navy);color:#fff;${badgeStyle}"
         onclick="EquipmentPage.filterByStatus('')" title="전체 보기">
-        전체 ${list.length}대
+        전체 ${counts.total}대
       </span>
     `;
   }
@@ -553,5 +569,26 @@ const EquipmentPage = (() => {
     } catch { Toast.error('QR코드 생성에 실패했습니다.'); }
   }
 
-  return { render, loadList, filterByStatus, _updateBulkBtn, openBulkQr, openAddForm, openEditForm, showQr, genQr };
+  function downloadExcel() {
+    const rows = _listCache;
+    if (!rows.length) { Toast.error('다운로드할 데이터가 없습니다.'); return; }
+    const headers = ['장비번호','제원','모델명','시리얼번호','현장','업체','상태','반입일','반출일'];
+    const statusLabel = { in_use:'사용중', returned:'반출완료', transit:'이동중', stock:'재고' };
+    const csv = [
+      headers.join(','),
+      ...rows.map(e => [
+        e.equip_no||'', e.spec||'', e.model||'', e.serial_no||'',
+        e.site_name||e.site_id||'', e.company||'',
+        statusLabel[e.status]||e.status||'', e.in_date||'', e.out_date||'',
+      ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+    ].join('\n');
+    const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `장비현황_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    Toast.success(`${rows.length}건 다운로드 완료`);
+  }
+
+  return { render, loadList, filterByStatus, _updateBulkBtn, openBulkQr, openAddForm, openEditForm, showQr, genQr, downloadExcel };
 })();

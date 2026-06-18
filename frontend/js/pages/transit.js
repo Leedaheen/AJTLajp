@@ -4,12 +4,32 @@
 const TransitPage = (() => {
   const SPEC_OPTIONS = ['6M','8M','10M','12M','14M','16M','16M굴절','18M','20M굴절'];
   const STATUS_MAP = {
-    requested:  { label:'신청 접수',    cls:'badge-pending'  },
-    scheduled:  { label:'협력사 확인중', cls:'badge-active'   },
-    confirmed:  { label:'일정 확정',    style:'background:#1B365D;color:#fff' },
-    completed:  { label:'완료',         style:'background:#065f46;color:#fff' },
-    cancelled:  { label:'취소',         cls:'badge-rejected'  },
+    requested:  { label:'신청 접수'    },
+    scheduled:  { label:'협력사 확인중' },
+    confirmed:  { label:'일정 확정'    },
+    completed:  { label:'완료'         },
+    cancelled:  { label:'취소'         },
   };
+
+  // 반입=파란계열, 반출=빨간계열, 단계별로 진해짐
+  function _typeBadge(type, status) {
+    if (status === 'cancelled') return 'background:#f3f4f6;color:#6b7280';
+    const inMap = {
+      requested: 'background:#eff6ff;color:#1e40af',
+      scheduled:  'background:#bfdbfe;color:#1e3a8a',
+      confirmed:  'background:#1B365D;color:#fff',
+      completed:  'background:#0f2744;color:#e0f2fe',
+    };
+    const outMap = {
+      requested: 'background:#fff1f2;color:#9f1239',
+      scheduled:  'background:#fecdd3;color:#881337',
+      confirmed:  'background:#dc2626;color:#fff',
+      completed:  'background:#7f1d1d;color:#fee2e2',
+    };
+    const m = type === 'in' ? inMap : outMap;
+    return m[status] || 'background:#e5e7eb;color:#374151';
+  }
+
   const LS = 'transit_form_';
 
   let _currentTab = 'all';
@@ -183,12 +203,12 @@ const TransitPage = (() => {
       <div class="card" id="transit-card-${t.id}" style="margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
           <div>
-            <span class="badge ${st.cls||''}" ${st.style?`style="${st.style}"`:''}>
+            <span class="badge" style="${_typeBadge(t.type, t.status)}">
               ${typeLabel} · ${st.label}
             </span>
             <div style="font-size:16px;font-weight:700;color:var(--navy);margin-top:6px">${t.company}</div>
             <div class="text-sm text-muted" style="margin-top:2px">
-              ${t.site_name}${t.project ? ' · ' + t.project : ''}${specs ? ' · ' + specs : ''}
+              ${t.site_name}${t.project ? ' · ' + t.project : ''}${t.floor ? ' · ' + t.floor : ''}${specs ? ' · ' + specs : ''}
             </div>
           </div>
           <div style="text-align:right;font-size:12px;color:var(--gray-400)">
@@ -237,9 +257,11 @@ const TransitPage = (() => {
 
   // ── 신규 신청 폼 (sites/projects/companies 동적 로드) ───────
   async function openNewForm() {
-    const [sites, projects] = await Promise.all([
+    const defaultFloors = ['모듈동','1F외곽','1F','2F','3F','4F','5F','6F','7F','8F','9F'];
+    const [sites, projects, floors] = await Promise.all([
       Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]),
-      Api.get('/projects').catch(() => [{code:'Ph1',name:'Phase 1'},{code:'Ph2',name:'Phase 2'},{code:'Ph3',name:'Phase 3'},{code:'Ph4',name:'Phase 4'}]),
+      Api.get('/projects').catch(() => [{code:'Ph1'},{code:'Ph2'},{code:'Ph3'},{code:'Ph4'}]),
+      Api.get('/floors').catch(() => defaultFloors.map(n => ({name:n}))),
     ]);
 
     Modal.open({
@@ -280,7 +302,7 @@ const TransitPage = (() => {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
             <select id="tr-site" class="form-input form-select"
@@ -292,8 +314,17 @@ const TransitPage = (() => {
             <label class="form-label">프로젝트 <span style="color:var(--red)">*</span></label>
             <select id="tr-project" class="form-input form-select">
               <option value="">-- 선택 --</option>
-              ${projects.map(p => `<option value="${p.code}">${p.code} · ${p.name}</option>`).join('')}
+              ${projects.map(p => `<option value="${p.code}">${p.code}</option>`).join('')}
             </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">사용층수</label>
+            <select id="tr-floor" class="form-input form-select" onchange="TransitPage._onFloorChange()">
+              <option value="">-- 선택 --</option>
+              ${floors.map(f => `<option value="${f.name}">${f.name}</option>`).join('')}
+              <option value="기타">기타(직접입력)</option>
+            </select>
+            <input id="tr-floor-custom" class="form-input" style="display:none;margin-top:4px" placeholder="층수 직접입력">
           </div>
           <div class="form-group">
             <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
@@ -413,6 +444,14 @@ const TransitPage = (() => {
   // ── 업체 변경 → 장비 체크리스트 재로드 ──────────────────
   function _onCompanyChange() {
     _loadEquipChecklist();
+  }
+
+  function _onFloorChange() {
+    const sel = document.getElementById('tr-floor');
+    const inp = document.getElementById('tr-floor-custom');
+    if (!sel || !inp) return;
+    inp.style.display = sel.value === '기타' ? '' : 'none';
+    if (sel.value === '기타') inp.focus();
   }
 
   // ── 업체 드롭다운 채우기 ──────────────────────────────────
@@ -619,10 +658,19 @@ const TransitPage = (() => {
       if (el) el.value = noteParts.join('\n');
     }
 
-    // 양중담당자 위치 (층 정보)
+    // 사용층수
     if (d.floor) {
-      const el = document.getElementById('tr-manager-location');
-      if (el && !el.value) el.value = d.floor;
+      const sel = document.getElementById('tr-floor');
+      if (sel) {
+        const opt = [...sel.options].find(o => o.value === d.floor);
+        if (opt) {
+          sel.value = d.floor;
+        } else {
+          sel.value = '기타';
+          const inp = document.getElementById('tr-floor-custom');
+          if (inp) { inp.style.display = ''; inp.value = d.floor; }
+        }
+      }
     }
 
     Toast.success('사용계획서 내용이 자동으로 입력되었습니다.');
@@ -664,6 +712,12 @@ const TransitPage = (() => {
 
     _saveFormData();
 
+    const floorSel = document.getElementById('tr-floor');
+    const floorCustom = document.getElementById('tr-floor-custom');
+    const floor = floorSel?.value === '기타'
+      ? (floorCustom?.value.trim() || '')
+      : (floorSel?.value || '');
+
     const btn = document.getElementById('btn-submit-transit');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
 
@@ -674,6 +728,7 @@ const TransitPage = (() => {
         site_id:        siteId,
         site_name:      siteName,
         project,
+        floor,
         company,
         equip_specs:    type === 'in' ? equip_specs : [],
         aj_equip:       type === 'out' ? equip_nos : null,
@@ -1123,7 +1178,7 @@ const TransitPage = (() => {
 
         // 클립보드 메시지 생성
         const today = new Date().toISOString().slice(0, 10);
-        const siteProject = [t.site_name, t.project, t.manager_location].filter(Boolean).join(' · ');
+        const siteProject = [t.site_name, t.project, t.floor || t.manager_location].filter(Boolean).join(' · ');
         const equipLines = finalNos.map((no, i) => {
           const spec = isIn ? specPool[i] : equipSpecMap[no];
           return spec ? `${no}-${spec}` : no;
@@ -1857,7 +1912,7 @@ ${pages.join('')}
   return {
     render, switchTab, loadList,
     openNewForm, addSpecRow,
-    _onTypeChange, _onSiteChange, _onCompanyChange,
+    _onTypeChange, _onSiteChange, _onCompanyChange, _onFloorChange,
     _onEquipCheck, _toggleManualInput, _onScEquipRegister,
     _onDocFileChange,
     openScheduleForm, confirmSchedule, openEquipInfoForm,

@@ -133,6 +133,14 @@ const Api = (() => {
       ({ data, error } = await q);
     } else if (base === 'companies/all') {
       ({ data, error } = await _sb.from('companies').select('*').order('name'));
+    } else if (base === 'floors') {
+      ({ data, error } = await _sb.from('floors').select('*').eq('active', true).order('sort_order').order('id'));
+    } else if (base === 'floors/all') {
+      ({ data, error } = await _sb.from('floors').select('*').order('sort_order').order('id'));
+    } else if (base === 'equipment-models') {
+      ({ data, error } = await _sb.from('equipment_models').select('*').eq('active', true).order('spec').order('model'));
+    } else if (base === 'equipment-models/all') {
+      ({ data, error } = await _sb.from('equipment_models').select('*').order('spec').order('model'));
     } else if (base.startsWith('analytics/')) {
       return await _analytics(base.split('/')[1], params);
     } else {
@@ -179,6 +187,10 @@ const Api = (() => {
       ({ data, error } = await _sb.from('projects').insert(body).select().single());
     } else if (base === 'companies') {
       ({ data, error } = await _sb.from('companies').insert(body).select().single());
+    } else if (base === 'floors') {
+      ({ data, error } = await _sb.from('floors').insert(body).select().single());
+    } else if (base === 'equipment-models') {
+      ({ data, error } = await _sb.from('equipment_models').insert(body).select().single());
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
       throw new Error('UNKNOWN_PATH');
@@ -354,6 +366,16 @@ const Api = (() => {
       const id = Number(base.split('/')[1]);
       ({ data, error } = await _sb.from('companies').update(body).eq('id', id).select().single());
 
+    // floors
+    } else if (base.match(/^floors\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('floors').update(body).eq('id', id).select().single());
+
+    // equipment-models
+    } else if (base.match(/^equipment-models\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ data, error } = await _sb.from('equipment_models').update(body).eq('id', id).select().single());
+
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
       throw new Error('UNKNOWN_PATH');
@@ -384,6 +406,12 @@ const Api = (() => {
     } else if (base.match(/^companies\/\d+$/)) {
       const id = Number(base.split('/')[1]);
       ({ error } = await _sb.from('companies').delete().eq('id', id));
+    } else if (base.match(/^floors\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ error } = await _sb.from('floors').delete().eq('id', id));
+    } else if (base.match(/^equipment-models\/\d+$/)) {
+      const id = Number(base.split('/')[1]);
+      ({ error } = await _sb.from('equipment_models').delete().eq('id', id));
     } else {
       if (!silent) Toast.error(`알 수 없는 경로: ${path}`);
       throw new Error('UNKNOWN_PATH');
