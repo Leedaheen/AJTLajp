@@ -159,7 +159,7 @@ const TransitPage = (() => {
             ${typeLabel}완료
           </button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDispatchForm(${t.id})">배차정보 등록</button>
-          ${t.aj_equip ? `<button class="btn btn-outline btn-sm" onclick="TransitPage.openEquipInfoForm(${t.id})">장비정보 수정</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openEquipInfoForm(${t.id})">장비정보 수정</button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openQrPrint(${t.id})">QR 보기/인쇄</button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
@@ -192,15 +192,17 @@ const TransitPage = (() => {
             </div>
           </div>
           <div style="text-align:right;font-size:12px;color:var(--gray-400)">
-            ${new Date(t.created_at).toLocaleDateString('ko-KR')}
+            ${(() => { const d = new Date(t.created_at); return d.toLocaleDateString('ko-KR') + ' ' + d.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}); })()}
           </div>
         </div>
 
         <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">
           <div><span class="text-muted">희망일:</span> ${t.requested_date || '-'}</div>
           <div><span class="text-muted">확정일:</span> ${t.scheduled_date || '-'}</div>
-          <div><span class="text-muted">신청자:</span> ${t.reporter_name} (${t.reporter_phone})</div>
-          <div><span class="text-muted">배차:</span> ${[t.vehicle_info, t.driver_info].filter(Boolean).join(' / ') || '-'}</div>
+          <div><span class="text-muted">신청자:</span> ${t.reporter_name} <a href="tel:${t.reporter_phone}" style="color:var(--navy)">(${t.reporter_phone})</a></div>
+          <div><span class="text-muted">양중담당자:</span> ${t.manager_name || '-'}${t.manager_phone ? ` <a href="tel:${t.manager_phone}" style="color:var(--navy)">(${t.manager_phone})</a>` : ''}</div>
+          <div><span class="text-muted">배차차량:</span> ${t.vehicle_info || '-'}</div>
+          <div><span class="text-muted">배차기사:</span> ${t.driver_info || '-'}</div>
         </div>
 
         ${t.aj_equip ? `
@@ -927,7 +929,7 @@ const TransitPage = (() => {
 
     // 기존 장비 데이터 조회
     const [{ data: existing }, { data: modelRows }] = await Promise.all([
-      _sb.from('equipment').select('equip_no,model,serial_no,manufacture_year').in('equip_no', nos),
+      _sb.from('equipment').select('equip_no,model,serial_no,manufacture_year').in('equip_no', nos).eq('transit_id', transitId),
       _sb.from('equipment').select('model').not('model', 'is', null).neq('model', ''),
     ]);
     const existMap = {};
@@ -1004,6 +1006,7 @@ const TransitPage = (() => {
           const { data: upd } = await _sb.from('equipment')
             .update({ model, serial_no, manufacture_year })
             .eq('equip_no', equip_no)
+            .eq('transit_id', transitId)
             .select('id');
 
           // 장비 레코드가 아직 없으면 INSERT (transit 상태)
@@ -1046,77 +1049,51 @@ const TransitPage = (() => {
     const t     = _transitCache[transitId];
     const isIn  = type === 'in';
     const specs = JSON.parse(decodeURIComponent(specsEncoded));
+    const typeLabel = isIn ? '반입' : '반출';
 
-    // 반입 장비번호 목록 (일정 확정 시 입력된 번호)
     const equipNos = (t?.aj_equip || '')
       .split(',').map(s => s.trim()).filter(Boolean);
 
-    // 기본 spec 결정: equip_specs에서 spec 목록 추출
     const specPool = [];
     specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) specPool.push(s.spec); });
 
-    // 모델명 자동완성 목록
-    const models = isIn ? await Api.get('/equipment/models').catch(() => []) : [];
+    // 반출 시 장비 제원 조회
+    let equipSpecMap = {};
+    if (!isIn && equipNos.length) {
+      const { data: equipRows } = await _sb.from('equipment')
+        .select('equip_no,spec').in('equip_no', equipNos);
+      (equipRows || []).forEach(r => { equipSpecMap[r.equip_no] = r.spec || ''; });
+    }
 
     Modal.open({
-      title: `${isIn ? '반입' : '반출'} 완료 처리`,
-      body: isIn ? `
-        <datalist id="complete-model-list">
-          ${models.map(m=>`<option value="${m}">`).join('')}
-        </datalist>
-        <p style="margin-bottom:14px">
-          <strong>${company}</strong>의 반입을 완료 처리합니다.<br>
-          <span class="text-sm text-muted">각 장비번호별 제원, 모델명, 시리얼번호를 입력해주세요.</span>
+      title: `${typeLabel} 완료 처리`,
+      body: `
+        <p style="margin-bottom:12px">
+          <strong>${company}</strong>의 ${typeLabel}을 완료 처리합니다.
         </p>
+        <div style="margin-bottom:14px;padding:10px 14px;background:#fef9c3;border:1px solid #fde047;
+                    border-radius:8px;font-size:13px;font-weight:600;color:#854d0e">
+          ⚠ 장비번호를 정확히 확인해주세요.
+        </div>
         ${equipNos.length ? `
-          <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px">
-            <thead>
-              <tr style="background:var(--gray-100)">
-                <th style="padding:8px 10px;text-align:left;font-weight:600">장비번호</th>
-                <th style="padding:8px 10px;text-align:left;font-weight:600">제원</th>
-                <th style="padding:8px 10px;text-align:left;font-weight:600">모델명</th>
-                <th style="padding:8px 10px;text-align:left;font-weight:600">시리얼번호</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${equipNos.map((no, i) => `
-                <tr style="border-bottom:1px solid var(--gray-100)">
-                  <td style="padding:8px 10px;font-family:monospace;white-space:nowrap">${no}</td>
-                  <td style="padding:6px 10px">
-                    <select id="spec-row-${i}" class="form-input form-select" style="padding:4px 8px;min-width:80px">
-                      ${SPEC_OPTIONS.map(s => `<option value="${s}" ${(specPool[i]||specPool[0]||'8M')===s?'selected':''}>${s}</option>`).join('')}
-                    </select>
-                  </td>
-                  <td style="padding:6px 10px">
-                    <input id="model-row-${i}" class="form-input" list="complete-model-list"
-                      placeholder="모델명" oninput="this.value=this.value.toUpperCase()"
-                      style="padding:4px 8px;min-width:100px;text-transform:uppercase">
-                  </td>
-                  <td style="padding:6px 10px">
-                    <input id="serial-row-${i}" class="form-input"
-                      placeholder="시리얼번호" style="padding:4px 8px;min-width:110px;font-family:monospace">
-                  </td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
+          <div style="background:var(--gray-100);border-radius:8px;padding:4px 0">
+            ${equipNos.map((no, i) => {
+              const spec = isIn ? (specPool[i] || '') : (equipSpecMap[no] || '');
+              return `
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;
+                            border-bottom:1px solid var(--gray-200)">
+                  <span style="font-family:monospace;font-weight:700;font-size:15px;color:var(--navy)">${no}</span>
+                  ${spec ? `<span class="badge" style="background:var(--gray-200);color:var(--gray-600);font-size:11px">${spec}</span>` : ''}
+                </div>`;
+            }).join('')}
           </div>
         ` : `
           <div class="form-group">
-            <label class="form-label">반입 장비번호 <span style="color:var(--red)">*</span></label>
-            <input id="complete-equip-nos" class="form-input" placeholder="GF123, GF124 (쉼표로 구분)" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
+            <label class="form-label">${typeLabel} 장비번호 <span style="color:var(--red)">*</span></label>
+            <input id="complete-equip-nos" class="form-input" placeholder="GF123, GF124 (쉼표로 구분)"
+              oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
         `}
-      ` : `
-        <p style="margin-bottom:8px"><strong>${company}</strong>의 반출을 완료 처리합니다.</p>
-        ${equipNos.length ? `
-          <div style="padding:10px;background:var(--gray-100);border-radius:8px;font-size:13px;font-family:monospace">
-            ${equipNos.join(', ')}
-          </div>
-          <p class="text-sm text-muted" style="margin-top:8px">
-            위 장비들이 반출완료 처리됩니다.
-          </p>
-        ` : `<p class="text-sm text-muted">신청 시 등록된 장비번호가 반출 완료 처리됩니다.</p>`}
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
@@ -1127,14 +1104,41 @@ const TransitPage = (() => {
     document.getElementById('btn-do-complete').onclick = async () => {
       const btn = document.getElementById('btn-do-complete');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+      // Modal 닫히기 전에 직접입력 값 먼저 읽기
+      let finalNos = equipNos;
+      if (!finalNos.length) {
+        const nosEl = document.getElementById('complete-equip-nos');
+        if (nosEl?.value.trim()) {
+          finalNos = nosEl.value.trim().toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+
       try {
         if (isIn) {
-          await _doCompleteIn(transitId, t, equipNos, specs);
+          await _doCompleteIn(transitId, t, finalNos, specs);
         } else {
-          await _doCompleteOut(transitId, t, equipNos);
+          await _doCompleteOut(transitId, t, finalNos);
         }
+
+        // 클립보드 메시지 생성
+        const today = new Date().toISOString().slice(0, 10);
+        const siteProject = [t.site_name, t.project].filter(Boolean).join('_');
+        const equipLines = finalNos.map((no, i) => {
+          const spec = isIn ? specPool[i] : equipSpecMap[no];
+          return spec ? `${no}-${spec}` : no;
+        }).join('\n');
+        const clipMsg = `${today}\n${typeLabel} 완료\n\n${t.company}\n${siteProject}\n\n${equipLines}`;
+
         Modal.close();
-        Toast.success('완료 처리되었습니다.');
+
+        try {
+          await navigator.clipboard.writeText(clipMsg);
+          Toast.success('완료 처리되었습니다. 메시지가 클립보드에 복사되었습니다.');
+        } catch {
+          Toast.success('완료 처리되었습니다.');
+        }
+
         await loadList();
       } catch (e) {
         btn.disabled = false; btn.textContent = '완료 처리';
@@ -1143,7 +1147,7 @@ const TransitPage = (() => {
     };
   }
 
-  // 반입 완료 처리 — transit 상태 변경 + 장비 레코드 생성
+  // 반입 완료 처리 — transit 상태 변경 + 장비 레코드 생성/갱신
   async function _doCompleteIn(transitId, t, equipNos, specs) {
     await Api.patch(`/transit/${transitId}/complete`, {});
 
@@ -1151,21 +1155,9 @@ const TransitPage = (() => {
     const specPool = [];
     specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) specPool.push(s.spec); });
 
-    // 장비번호가 모달에서 직접 입력된 경우 처리
-    let finalEquipNos = equipNos;
-    if (!finalEquipNos.length) {
-      const nosEl = document.getElementById('complete-equip-nos');
-      if (nosEl?.value.trim()) {
-        finalEquipNos = nosEl.value.trim().toUpperCase().split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-      }
-    }
-
-    for (let i = 0; i < finalEquipNos.length; i++) {
-      const equip_no = finalEquipNos[i];
-      const specEl   = document.getElementById(`spec-row-${i}`);
-      const spec     = specEl?.value || specPool[i] || specPool[0] || '';
-      const model    = document.getElementById(`model-row-${i}`)?.value.trim().toUpperCase()  || null;
-      const serial_no = document.getElementById(`serial-row-${i}`)?.value.trim() || null;
+    for (let i = 0; i < equipNos.length; i++) {
+      const equip_no = equipNos[i];
+      const spec     = specPool[i] || specPool[0] || '';
 
       try {
         const qr_code = `AJ-${equip_no}`;
@@ -1181,18 +1173,13 @@ const TransitPage = (() => {
           transit_id: transitId,
           qr_code,
         };
-        // 모델/시리얼은 이미 일정확정 시 저장되어 있을 수 있으나, 완료폼에서 직접 입력한 값 우선
-        if (model)     equipData.model     = model;
-        if (serial_no) equipData.serial_no = serial_no;
 
-        // equip_no 기준 UPDATE 먼저 (일정확정 시 transit 상태로 미리 생성된 레코드 처리)
         const { data: updByNo, error: upNoErr } = await _sb.from('equipment')
           .update(equipData)
           .eq('equip_no', equip_no)
           .select('id');
         if (upNoErr) throw upNoErr;
 
-        // equip_no 매칭 없으면 신규 INSERT
         if (!updByNo?.length) {
           const { error: insErr } = await _sb.from('equipment')
             .insert({ ...equipData, record_id: `EQ-${equip_no}-${Date.now()}` });
