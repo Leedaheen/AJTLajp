@@ -231,10 +231,74 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 --      (pending/rejected 계정은 자신의 app_users 행만 읽을 수 있습니다)
 --   3. service_role(Edge Function 내부)은 RLS를 우회합니다.
 --      별도 정책 불필요 — Supabase 기본 동작입니다.
+--
+-- 주의: DROP POLICY IF EXISTS 로 기존 정책을 완전히 제거 후 재생성합니다.
+--   Supabase 테이블 에디터로 자동 생성된 default 정책과의 충돌을 방지합니다.
 -- ============================================================
 
 -- ────────────────────────────────────────────────────────────
--- sites / projects
+-- 기존 정책 전체 삭제 (충돌 방지)
+-- ────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "sites_select_active"           ON sites;
+DROP POLICY IF EXISTS "sites_insert_aj"               ON sites;
+DROP POLICY IF EXISTS "sites_update_aj"               ON sites;
+DROP POLICY IF EXISTS "sites_delete_aj"               ON sites;
+
+DROP POLICY IF EXISTS "projects_select_active"        ON projects;
+DROP POLICY IF EXISTS "projects_insert_aj"            ON projects;
+DROP POLICY IF EXISTS "projects_update_aj"            ON projects;
+DROP POLICY IF EXISTS "projects_delete_aj"            ON projects;
+
+DROP POLICY IF EXISTS "companies_select_active"       ON companies;
+DROP POLICY IF EXISTS "companies_insert_aj"           ON companies;
+DROP POLICY IF EXISTS "companies_update_aj"           ON companies;
+DROP POLICY IF EXISTS "companies_delete_aj"           ON companies;
+
+DROP POLICY IF EXISTS "users_select_own"              ON app_users;
+DROP POLICY IF EXISTS "users_select_aj"               ON app_users;
+DROP POLICY IF EXISTS "users_insert_self"             ON app_users;
+DROP POLICY IF EXISTS "users_update_own_profile"      ON app_users;
+DROP POLICY IF EXISTS "users_update_aj"               ON app_users;
+
+DROP POLICY IF EXISTS "transit_select_partner"        ON transit;
+DROP POLICY IF EXISTS "transit_select_aj"             ON transit;
+DROP POLICY IF EXISTS "transit_insert"                ON transit;
+DROP POLICY IF EXISTS "transit_update_aj"             ON transit;
+DROP POLICY IF EXISTS "transit_update_partner_confirm" ON transit;
+DROP POLICY IF EXISTS "transit_update_partner_cancel" ON transit;
+
+DROP POLICY IF EXISTS "equipment_select_active"       ON equipment;
+DROP POLICY IF EXISTS "equipment_insert_aj"           ON equipment;
+DROP POLICY IF EXISTS "equipment_update_aj"           ON equipment;
+
+DROP POLICY IF EXISTS "as_select_by_site"             ON as_requests;
+DROP POLICY IF EXISTS "as_select_aj_astech"           ON as_requests;
+DROP POLICY IF EXISTS "as_insert"                     ON as_requests;
+DROP POLICY IF EXISTS "as_update_astech"              ON as_requests;
+DROP POLICY IF EXISTS "as_update_aj"                  ON as_requests;
+
+DROP POLICY IF EXISTS "usage_select_own"              ON usage_logs;
+DROP POLICY IF EXISTS "usage_select_aj"               ON usage_logs;
+DROP POLICY IF EXISTS "usage_insert"                  ON usage_logs;
+DROP POLICY IF EXISTS "usage_update_own"              ON usage_logs;
+
+DROP POLICY IF EXISTS "notif_select_own"              ON notifications;
+DROP POLICY IF EXISTS "notif_update_own"              ON notifications;
+DROP POLICY IF EXISTS "notif_insert_authenticated"    ON notifications;
+
+-- Supabase 테이블 에디터 자동생성 기본 정책도 삭제
+DROP POLICY IF EXISTS "Enable read access for all users" ON transit;
+DROP POLICY IF EXISTS "Enable read access for all users" ON as_requests;
+DROP POLICY IF EXISTS "Enable read access for all users" ON equipment;
+DROP POLICY IF EXISTS "Enable read access for all users" ON app_users;
+DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON transit;
+DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON as_requests;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON transit;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON as_requests;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON equipment;
+
+-- ────────────────────────────────────────────────────────────
+-- sites / projects / companies
 -- ────────────────────────────────────────────────────────────
 
 CREATE POLICY "sites_select_active"
@@ -249,6 +313,10 @@ CREATE POLICY "sites_update_aj"
   ON sites FOR UPDATE TO authenticated
   USING (get_my_role() = 'aj');
 
+CREATE POLICY "sites_delete_aj"
+  ON sites FOR DELETE TO authenticated
+  USING (get_my_role() = 'aj');
+
 CREATE POLICY "projects_select_active"
   ON projects FOR SELECT TO authenticated
   USING (get_my_role() IS NOT NULL);
@@ -261,107 +329,85 @@ CREATE POLICY "projects_update_aj"
   ON projects FOR UPDATE TO authenticated
   USING (get_my_role() = 'aj');
 
--- ────────────────────────────────────────────────────────────
--- companies
--- ────────────────────────────────────────────────────────────
+CREATE POLICY "projects_delete_aj"
+  ON projects FOR DELETE TO authenticated
+  USING (get_my_role() = 'aj');
 
--- 활성 사용자 전원 조회 가능 (반입/반출 폼 업체 선택용)
 CREATE POLICY "companies_select_active"
-  ON companies FOR SELECT
-  TO authenticated
+  ON companies FOR SELECT TO authenticated
   USING (get_my_role() IS NOT NULL);
 
--- aj만 추가·수정 가능
 CREATE POLICY "companies_insert_aj"
-  ON companies FOR INSERT
-  TO authenticated
+  ON companies FOR INSERT TO authenticated
   WITH CHECK (get_my_role() = 'aj');
 
 CREATE POLICY "companies_update_aj"
-  ON companies FOR UPDATE
-  TO authenticated
+  ON companies FOR UPDATE TO authenticated
+  USING (get_my_role() = 'aj');
+
+CREATE POLICY "companies_delete_aj"
+  ON companies FOR DELETE TO authenticated
   USING (get_my_role() = 'aj');
 
 -- ────────────────────────────────────────────────────────────
 -- app_users
 -- ────────────────────────────────────────────────────────────
 
--- 자기 자신은 항상 조회 가능 (승인 대기 중에도 자신의 상태 확인 필요)
 CREATE POLICY "users_select_own"
-  ON app_users FOR SELECT
-  TO authenticated
+  ON app_users FOR SELECT TO authenticated
   USING (id = auth.uid());
 
--- aj 관리자는 모든 사용자 조회 가능
 CREATE POLICY "users_select_aj"
-  ON app_users FOR SELECT
-  TO authenticated
+  ON app_users FOR SELECT TO authenticated
   USING (get_my_role() = 'aj');
 
--- 신규 가입 시 자신의 행 등록 (OAuth 후 프로필 저장)
 CREATE POLICY "users_insert_self"
-  ON app_users FOR INSERT
-  TO authenticated
+  ON app_users FOR INSERT TO authenticated
   WITH CHECK (id = auth.uid());
 
--- 자신의 연락처·push_sub·notif_prefs 수정 가능
 CREATE POLICY "users_update_own_profile"
-  ON app_users FOR UPDATE
-  TO authenticated
+  ON app_users FOR UPDATE TO authenticated
   USING (id = auth.uid())
-  WITH CHECK (
-    id = auth.uid()
-    -- role, status, approved_by 는 자신이 바꿀 수 없음
-    -- (프론트엔드 수준 제어 + Edge Function으로 이중 보호)
-  );
+  WITH CHECK (id = auth.uid());
 
--- aj만 역할/상태/승인 변경 가능
 CREATE POLICY "users_update_aj"
-  ON app_users FOR UPDATE
-  TO authenticated
+  ON app_users FOR UPDATE TO authenticated
   USING (get_my_role() = 'aj');
-
--- 삭제는 누구도 불가 (soft delete: status = 'rejected')
--- DELETE 정책 미생성 = 전원 차단
 
 -- ────────────────────────────────────────────────────────────
 -- transit (반입/반출)
 -- ────────────────────────────────────────────────────────────
 
--- partner: 자신이 신청한 건 조회
+-- partner: 자신이 신청한 건만 조회
 CREATE POLICY "transit_select_partner"
-  ON transit FOR SELECT
-  TO authenticated
+  ON transit FOR SELECT TO authenticated
   USING (
     get_my_role() = 'partner'
     AND created_by = auth.uid()
   );
 
--- aj: 모든 건 조회
+-- aj: 전체 조회
 CREATE POLICY "transit_select_aj"
-  ON transit FOR SELECT
-  TO authenticated
+  ON transit FOR SELECT TO authenticated
   USING (get_my_role() = 'aj');
 
--- partner·aj: 신청 등록
+-- partner·aj: 신청 등록 (created_by = 본인 강제)
 CREATE POLICY "transit_insert"
-  ON transit FOR INSERT
-  TO authenticated
+  ON transit FOR INSERT TO authenticated
   WITH CHECK (
     get_my_role() IN ('partner','aj')
     AND created_by = auth.uid()
   );
 
--- aj만 수정 가능 (일정 확정, 배차, 상태 변경)
+-- aj: 모든 수정 허용
 CREATE POLICY "transit_update_aj"
-  ON transit FOR UPDATE
-  TO authenticated
-  USING (get_my_role() = 'aj');
+  ON transit FOR UPDATE TO authenticated
+  USING (get_my_role() = 'aj')
+  WITH CHECK (get_my_role() = 'aj');
 
--- partner: 자신이 신청한 scheduled 건을 confirmed로 확인완료 처리
+-- partner: scheduled → confirmed (일정 확인완료)
 CREATE POLICY "transit_update_partner_confirm"
-  ON transit FOR UPDATE
-  TO authenticated
+  ON transit FOR UPDATE TO authenticated
   USING (
     get_my_role() = 'partner'
     AND created_by = auth.uid()
@@ -369,58 +415,47 @@ CREATE POLICY "transit_update_partner_confirm"
   )
   WITH CHECK (status = 'confirmed');
 
--- partner: 자신이 신청한 requested/scheduled 건을 취소
+-- partner: requested/scheduled → cancelled (취소)
 CREATE POLICY "transit_update_partner_cancel"
-  ON transit FOR UPDATE
-  TO authenticated
+  ON transit FOR UPDATE TO authenticated
   USING (
     get_my_role() = 'partner'
     AND created_by = auth.uid()
-    AND status IN ('requested', 'scheduled')
+    AND status IN ('requested','scheduled')
   )
   WITH CHECK (status = 'cancelled');
-
--- 삭제 불가 (change_log로 이력 보존)
 
 -- ────────────────────────────────────────────────────────────
 -- equipment (장비)
 -- ────────────────────────────────────────────────────────────
 
--- 활성 사용자 전원 조회 가능 (QR 스캔, 장비 목록 확인)
--- site_id 'ALL' 인 aj는 전 현장, 나머지는 자신의 현장만
 CREATE POLICY "equipment_select_active"
-  ON equipment FOR SELECT
-  TO authenticated
+  ON equipment FOR SELECT TO authenticated
   USING (
-    get_my_role() IS NOT NULL   -- active 사용자만
+    get_my_role() IS NOT NULL
     AND (
       get_my_site() = 'ALL'
       OR site_id = get_my_site()
-      OR site_id IS NULL        -- 재고(미배치) 장비
+      OR site_id IS NULL
     )
   );
 
--- aj만 장비 등록·수정 가능
 CREATE POLICY "equipment_insert_aj"
-  ON equipment FOR INSERT
-  TO authenticated
+  ON equipment FOR INSERT TO authenticated
   WITH CHECK (get_my_role() = 'aj');
 
 CREATE POLICY "equipment_update_aj"
-  ON equipment FOR UPDATE
-  TO authenticated
-  USING (get_my_role() = 'aj');
-
--- 삭제 불가 (반출 완료 시 status = 'returned'로 처리)
+  ON equipment FOR UPDATE TO authenticated
+  USING (get_my_role() = 'aj')
+  WITH CHECK (get_my_role() = 'aj');
 
 -- ────────────────────────────────────────────────────────────
 -- as_requests (AS 요청)
 -- ────────────────────────────────────────────────────────────
 
--- tech·partner·aj: 자신의 현장 AS 요청 조회
+-- tech·partner: 자신의 현장 AS 조회
 CREATE POLICY "as_select_by_site"
-  ON as_requests FOR SELECT
-  TO authenticated
+  ON as_requests FOR SELECT TO authenticated
   USING (
     get_my_role() IN ('tech','partner')
     AND (
@@ -429,40 +464,34 @@ CREATE POLICY "as_select_by_site"
     )
   );
 
--- as_tech·aj: 모든 AS 요청 조회 (처리/분석 목적)
+-- as_tech·aj: 전체 조회
 CREATE POLICY "as_select_aj_astech"
-  ON as_requests FOR SELECT
-  TO authenticated
+  ON as_requests FOR SELECT TO authenticated
   USING (get_my_role() IN ('as_tech','aj'));
 
 -- tech·partner·aj: AS 요청 등록
 CREATE POLICY "as_insert"
-  ON as_requests FOR INSERT
-  TO authenticated
+  ON as_requests FOR INSERT TO authenticated
   WITH CHECK (get_my_role() IN ('tech','partner','aj'));
 
--- as_tech: 모든 AS 요청 처리 가능 (기사 배정 없이 직접 처리)
+-- as_tech: AS 처리
 CREATE POLICY "as_update_astech"
-  ON as_requests FOR UPDATE
-  TO authenticated
-  USING (get_my_role() = 'as_tech');
+  ON as_requests FOR UPDATE TO authenticated
+  USING (get_my_role() = 'as_tech')
+  WITH CHECK (get_my_role() = 'as_tech');
 
--- aj: 모든 AS 요청 수정 가능 (재배정, 강제 완료)
+-- aj: 모든 AS 수정
 CREATE POLICY "as_update_aj"
-  ON as_requests FOR UPDATE
-  TO authenticated
-  USING (get_my_role() = 'aj');
-
--- 삭제 불가
+  ON as_requests FOR UPDATE TO authenticated
+  USING (get_my_role() = 'aj')
+  WITH CHECK (get_my_role() = 'aj');
 
 -- ────────────────────────────────────────────────────────────
 -- usage_logs (사용 기록)
 -- ────────────────────────────────────────────────────────────
 
--- tech·partner: 자신이 기록한 것 또는 자신의 현장
 CREATE POLICY "usage_select_own"
-  ON usage_logs FOR SELECT
-  TO authenticated
+  ON usage_logs FOR SELECT TO authenticated
   USING (
     get_my_role() IN ('tech','partner')
     AND (
@@ -471,53 +500,39 @@ CREATE POLICY "usage_select_own"
     )
   );
 
--- aj: 모든 사용 기록 조회 (분석용)
 CREATE POLICY "usage_select_aj"
-  ON usage_logs FOR SELECT
-  TO authenticated
+  ON usage_logs FOR SELECT TO authenticated
   USING (get_my_role() = 'aj');
 
--- tech·partner·aj: 사용 기록 등록
 CREATE POLICY "usage_insert"
-  ON usage_logs FOR INSERT
-  TO authenticated
+  ON usage_logs FOR INSERT TO authenticated
   WITH CHECK (
     get_my_role() IN ('tech','partner','aj')
     AND recorder_id = auth.uid()
   );
 
--- 자신이 시작한 기록의 end_time, used_hours, status 수정 가능
 CREATE POLICY "usage_update_own"
-  ON usage_logs FOR UPDATE
-  TO authenticated
+  ON usage_logs FOR UPDATE TO authenticated
   USING (
     recorder_id = auth.uid()
     AND get_my_role() IN ('tech','partner','aj')
   );
 
--- 삭제 불가
-
 -- ────────────────────────────────────────────────────────────
 -- notifications (알림)
 -- ────────────────────────────────────────────────────────────
 
--- 자신에게 온 알림만 조회
 CREATE POLICY "notif_select_own"
-  ON notifications FOR SELECT
-  TO authenticated
+  ON notifications FOR SELECT TO authenticated
   USING (target_id = auth.uid());
 
--- 읽음 처리(is_read 수정)만 본인이 가능
 CREATE POLICY "notif_update_own"
-  ON notifications FOR UPDATE
-  TO authenticated
+  ON notifications FOR UPDATE TO authenticated
   USING (target_id = auth.uid())
   WITH CHECK (target_id = auth.uid());
 
--- 활성 사용자 누구나 알림 등록 가능 (일정 확정 시 협력사에게 알림 발송 등)
 CREATE POLICY "notif_insert_authenticated"
-  ON notifications FOR INSERT
-  TO authenticated
+  ON notifications FOR INSERT TO authenticated
   WITH CHECK (get_my_role() IS NOT NULL);
 
 -- ── Realtime 구독 설정 ─────────────────────────────────────

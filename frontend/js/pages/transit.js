@@ -127,16 +127,20 @@ const TransitPage = (() => {
     if (!c) return;
     c.innerHTML = '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>';
     try {
-      let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(100);
+      let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(500);
       if (_currentTab !== 'all') {
         q = q.eq('status', _currentTab);
       }
-      const { data: list, error } = await q;
+      const { data: raw, error } = await q;
       if (error) throw error;
       if (gen !== _loadGen) return;
+      // RLS 정책 우회 가능성 대비 클라이언트 사이드 필터 이중 적용
+      const list = _currentTab !== 'all'
+        ? (raw || []).filter(t => t.status === _currentTab)
+        : (raw || []);
       _transitCache = {};
-      (list || []).forEach(t => { _transitCache[t.id] = t; });
-      if (!list?.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; return; }
+      list.forEach(t => { _transitCache[t.id] = t; });
+      if (!list.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; return; }
       c.innerHTML = list.map(_renderCard).join('');
     } catch (e) {
       if (gen !== _loadGen) return;

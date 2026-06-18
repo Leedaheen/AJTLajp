@@ -91,7 +91,7 @@ const AsRequestPage = (() => {
       const searchVal = document.getElementById('as-search')?.value.trim();
       const siteVal   = document.getElementById('as-site-filter')?.value;
 
-      let q = _sb.from('as_requests').select('*').order('requested_at', { ascending: false }).limit(100);
+      let q = _sb.from('as_requests').select('*').order('requested_at', { ascending: false }).limit(500);
       if (_currentTab !== 'all') {
         q = q.eq('status', _currentTab);
       }
@@ -101,14 +101,19 @@ const AsRequestPage = (() => {
         if (sq) q = q.or(`equip_no.ilike.%${sq}%,company.ilike.%${sq}%,fault_type.ilike.%${sq}%`);
       }
 
-      const { data: list, error } = await q;
+      const { data: raw, error } = await q;
       if (error) throw error;
       if (gen !== _loadGen) return;
 
-      _cache = {};
-      (list || []).forEach(r => { _cache[r.id] = r; });
+      // RLS 정책 우회 가능성 대비 클라이언트 사이드 필터 이중 적용
+      const list = _currentTab !== 'all'
+        ? (raw || []).filter(r => r.status === _currentTab)
+        : (raw || []);
 
-      if (!list?.length) {
+      _cache = {};
+      list.forEach(r => { _cache[r.id] = r; });
+
+      if (!list.length) {
         container.innerHTML = '<div class="empty-state"><div>AS 요청 내역이 없습니다</div></div>';
         return;
       }
