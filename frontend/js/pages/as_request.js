@@ -143,7 +143,7 @@ const AsRequestPage = (() => {
     const isCreator = r.created_by === user.id ||
                       (r.reporter_name === user.name && r.reporter_phone === user.phone);
     const canAct    = isAj || isTech;
-    const canCancel = canAct || isCreator;
+    const canCancel = canAct || (isCreator && r.status === 'requested');
     const st        = STATUS_MAP[r.status] || { label: r.status, cls: '' };
 
     const fmt = ts => {

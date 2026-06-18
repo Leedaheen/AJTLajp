@@ -551,3 +551,102 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ============================================================
+-- 기존 DB 업그레이드: 누락 컬럼 추가 (이미 있으면 무시됨)
+-- CREATE TABLE IF NOT EXISTS 는 기존 테이블에 새 컬럼을 추가하지 않으므로
+-- 별도 ALTER TABLE 로 처리합니다.
+-- ============================================================
+ALTER TABLE transit   ADD COLUMN IF NOT EXISTS floor text;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS serial_no text;
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS manufacture_year text;
+
+-- ── floors 테이블 (층수 마스터) ──────────────────────────────
+CREATE TABLE IF NOT EXISTS floors (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name       text NOT NULL,
+  sort_order integer DEFAULT 0,
+  active     boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_floors_active ON floors(active, sort_order);
+
+ALTER TABLE floors ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "floors_select_active" ON floors;
+DROP POLICY IF EXISTS "floors_insert_aj"     ON floors;
+DROP POLICY IF EXISTS "floors_update_aj"     ON floors;
+DROP POLICY IF EXISTS "floors_delete_aj"     ON floors;
+
+CREATE POLICY "floors_select_active"
+  ON floors FOR SELECT TO authenticated
+  USING (get_my_role() IS NOT NULL);
+
+CREATE POLICY "floors_insert_aj"
+  ON floors FOR INSERT TO authenticated
+  WITH CHECK (get_my_role() IN ('aj','admin'));
+
+CREATE POLICY "floors_update_aj"
+  ON floors FOR UPDATE TO authenticated
+  USING  (get_my_role() IN ('aj','admin'))
+  WITH CHECK (get_my_role() IN ('aj','admin'));
+
+CREATE POLICY "floors_delete_aj"
+  ON floors FOR DELETE TO authenticated
+  USING (get_my_role() IN ('aj','admin'));
+
+-- ── equipment_models 테이블 (장비 모델 마스터) ───────────────
+CREATE TABLE IF NOT EXISTS equipment_models (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  model      text NOT NULL,
+  spec       text,
+  maker      text,
+  active     boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_eqmodels_active ON equipment_models(active, spec, model);
+
+ALTER TABLE equipment_models ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "eqmodels_select_active" ON equipment_models;
+DROP POLICY IF EXISTS "eqmodels_insert_aj"     ON equipment_models;
+DROP POLICY IF EXISTS "eqmodels_update_aj"     ON equipment_models;
+DROP POLICY IF EXISTS "eqmodels_delete_aj"     ON equipment_models;
+
+CREATE POLICY "eqmodels_select_active"
+  ON equipment_models FOR SELECT TO authenticated
+  USING (get_my_role() IS NOT NULL);
+
+CREATE POLICY "eqmodels_insert_aj"
+  ON equipment_models FOR INSERT TO authenticated
+  WITH CHECK (get_my_role() IN ('aj','admin'));
+
+CREATE POLICY "eqmodels_update_aj"
+  ON equipment_models FOR UPDATE TO authenticated
+  USING  (get_my_role() IN ('aj','admin'))
+  WITH CHECK (get_my_role() IN ('aj','admin'));
+
+CREATE POLICY "eqmodels_delete_aj"
+  ON equipment_models FOR DELETE TO authenticated
+  USING (get_my_role() IN ('aj','admin'));
+
+-- ── 추가 RLS 정책 ────────────────────────────────────────────
+
+-- tech/partner: 본인이 신청한 AS 요청을 'requested' 단계에서만 취소 가능
+DROP POLICY IF EXISTS "as_update_cancel_creator" ON as_requests;
+CREATE POLICY "as_update_cancel_creator"
+  ON as_requests FOR UPDATE TO authenticated
+  USING (
+    get_my_role() IN ('tech','partner')
+    AND created_by = auth.uid()
+    AND status = 'requested'
+  )
+  WITH CHECK (status = 'cancelled');
+
+-- as_tech: QR 스캔 AS 신청 시 사용 기록에서 현재 층수 자동입력을 위한 SELECT 권한
+DROP POLICY IF EXISTS "usage_select_as_tech" ON usage_logs;
+CREATE POLICY "usage_select_as_tech"
+  ON usage_logs FOR SELECT TO authenticated
+  USING (get_my_role() = 'as_tech');
