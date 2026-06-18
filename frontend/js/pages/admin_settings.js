@@ -63,37 +63,23 @@ const AdminSettingsPage = (() => {
             <button class="btn btn-primary btn-sm"
               onclick="event.stopPropagation();AdminSettingsPage.openAddFloor()">+ 층수 추가</button>
           </summary>
-          <div id="floors-list" style="padding:8px">
+          <div id="floors-list" style="padding:8px;overflow-y:auto;max-height:280px">
             <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
           </div>
         </details>
 
-      </div>
-
-      <!-- 장비 모델 관리 (전체 너비) -->
-      <details class="card" style="margin-top:16px;padding:0">
-        <summary style="${_ACCORD_SUMMARY}">
-          <h3 style="${_ACCORD_TITLE}">장비 모델 관리</h3>
-          <button class="btn btn-primary btn-sm"
-            onclick="event.stopPropagation();AdminSettingsPage.openAddEquipModel()">+ 모델 추가</button>
-        </summary>
-        <div id="equip-models-crud" style="padding:8px 0">
-          <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
-        </div>
-      </details>
-
-      <!-- 전체 장비 현황 엑셀 다운로드 -->
-      <div class="card" style="margin-top:16px;display:flex;align-items:center;
-                               justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div>
-          <h3 style="${_ACCORD_TITLE}">전체 장비 현황</h3>
-          <div style="font-size:12px;color:var(--gray-400);margin-top:4px">
-            현재 등록된 전체 장비 데이터를 엑셀(CSV)로 내려받습니다.
+        <!-- 장비 모델 관리 -->
+        <details class="card" style="padding:0">
+          <summary style="${_ACCORD_SUMMARY}">
+            <h3 style="${_ACCORD_TITLE}">장비 모델 관리</h3>
+            <button class="btn btn-primary btn-sm"
+              onclick="event.stopPropagation();AdminSettingsPage.openAddEquipModel()">+ 모델 추가</button>
+          </summary>
+          <div id="equip-models-crud" style="padding:8px 0">
+            <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
           </div>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="AdminSettingsPage.downloadAllEquipment()">
-          ↓ 전체장비현황 엑셀 내려받기
-        </button>
+        </details>
+
       </div>
     `;
 
@@ -717,6 +703,5 @@ const AdminSettingsPage = (() => {
     openAddCompany, openEditCompany, deleteCompany,
     openAddFloor, openEditFloor, toggleFloor, deleteFloor,
     openAddEquipModel, openEditEquipModel, toggleEquipModel, deleteEquipModel,
-    downloadAllEquipment,
   };
 })();

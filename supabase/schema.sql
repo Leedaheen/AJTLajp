@@ -650,3 +650,60 @@ DROP POLICY IF EXISTS "usage_select_as_tech" ON usage_logs;
 CREATE POLICY "usage_select_as_tech"
   ON usage_logs FOR SELECT TO authenticated
   USING (get_my_role() = 'as_tech');
+
+-- ── 추가 스키마 업그레이드 ─────────────────────────────────
+
+-- transit 시간 컬럼 추가
+ALTER TABLE transit ADD COLUMN IF NOT EXISTS requested_time text;
+ALTER TABLE transit ADD COLUMN IF NOT EXISTS scheduled_time text;
+
+-- AS SELECT RLS 수정: site_id=NULL 사용자도 본인 신청 건 조회 가능
+DROP POLICY IF EXISTS "as_select_by_site" ON as_requests;
+CREATE POLICY "as_select_by_site"
+  ON as_requests FOR SELECT TO authenticated
+  USING (
+    get_my_role() IN ('tech','partner')
+    AND (
+      get_my_site() = 'ALL'
+      OR site_id = get_my_site()
+      OR created_by = auth.uid()
+    )
+  );
+
+-- ── 고객지원 게시판 테이블 ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS support_posts (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  category    text NOT NULL,
+  title       text NOT NULL,
+  body        text,
+  attachments jsonb DEFAULT '[]',
+  author_name text,
+  created_at  timestamptz DEFAULT now(),
+  updated_at  timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_posts_created ON support_posts(created_at DESC);
+
+ALTER TABLE support_posts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "support_select_authenticated" ON support_posts;
+DROP POLICY IF EXISTS "support_insert_aj"            ON support_posts;
+DROP POLICY IF EXISTS "support_update_aj"            ON support_posts;
+DROP POLICY IF EXISTS "support_delete_aj"            ON support_posts;
+
+CREATE POLICY "support_select_authenticated"
+  ON support_posts FOR SELECT TO authenticated
+  USING (get_my_role() IS NOT NULL);
+
+CREATE POLICY "support_insert_aj"
+  ON support_posts FOR INSERT TO authenticated
+  WITH CHECK (get_my_role() IN ('aj','admin'));
+
+CREATE POLICY "support_update_aj"
+  ON support_posts FOR UPDATE TO authenticated
+  USING  (get_my_role() IN ('aj','admin'))
+  WITH CHECK (get_my_role() IN ('aj','admin'));
+
+CREATE POLICY "support_delete_aj"
+  ON support_posts FOR DELETE TO authenticated
+  USING (get_my_role() IN ('aj','admin'));

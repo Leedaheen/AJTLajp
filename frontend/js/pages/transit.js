@@ -182,8 +182,7 @@ const TransitPage = (() => {
             onclick="TransitPage.openCompleteForm(${t.id},'${t.type}','${safeCompany}','${specsAttr}')">
             ${typeLabel}완료
           </button>
-          <button class="btn btn-outline btn-sm" onclick="TransitPage.openDispatchForm(${t.id})">배차정보 등록</button>
-          <button class="btn btn-outline btn-sm" onclick="TransitPage.openEquipInfoForm(${t.id})">장비정보 수정</button>
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openEditConfirmedForm(${t.id})">수정</button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openQrPrint(${t.id})">QR 보기/인쇄</button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
@@ -221,8 +220,8 @@ const TransitPage = (() => {
         </div>
 
         <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">
-          <div><span class="text-muted">희망일:</span> ${t.requested_date || '-'}</div>
-          <div><span class="text-muted">확정일:</span> ${t.scheduled_date || '-'}</div>
+          <div><span class="text-muted">희망일:</span> ${t.requested_date || '-'}${t.requested_time ? ' ' + t.requested_time : ''}</div>
+          <div><span class="text-muted">확정일:</span> ${t.scheduled_date || '-'}${t.scheduled_time ? ' ' + t.scheduled_time : ''}</div>
           <div><span class="text-muted">신청자:</span> ${t.reporter_name} <a href="tel:${t.reporter_phone}" style="color:var(--navy)">(${t.reporter_phone})</a></div>
           <div><span class="text-muted">양중담당자:</span> ${t.manager_name || '-'}${t.manager_phone ? ` <a href="tel:${t.manager_phone}" style="color:var(--navy)">(${t.manager_phone})</a>` : ''}</div>
           <div><span class="text-muted">배차차량:</span> ${t.vehicle_info || '-'}</div>
@@ -321,7 +320,7 @@ const TransitPage = (() => {
               ${projects.map(p => `<option value="${p.code}">${p.code}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group" id="tr-floor-section">
             <label class="form-label">사용층수</label>
             <select id="tr-floor" class="form-input form-select" onchange="TransitPage._onFloorChange()">
               <option value="">-- 선택 --</option>
@@ -363,9 +362,15 @@ const TransitPage = (() => {
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" id="tr-date-label">희망 반입 날짜 <span style="color:var(--red)">*</span></label>
-          <input id="tr-date" type="date" class="form-input">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label" id="tr-date-label">희망 반입 날짜 <span style="color:var(--red)">*</span></label>
+            <input id="tr-date" type="date" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label" id="tr-time-label">희망 시간</label>
+            <input id="tr-time" type="time" class="form-input">
+          </div>
         </div>
 
         <div id="tr-specs-section" class="form-group">
@@ -429,14 +434,20 @@ const TransitPage = (() => {
   }
 
   function _onTypeChange(type) {
-    const label   = document.getElementById('tr-date-label');
-    const specsEl = document.getElementById('tr-specs-section');
-    const equipEl = document.getElementById('tr-equip-nos-section');
-    if (label)   label.innerHTML = `희망 ${type === 'in' ? '반입' : '반출'} 날짜 <span style="color:var(--red)">*</span>`;
-    if (specsEl) specsEl.style.display = type === 'in' ? '' : 'none';
-    if (equipEl) equipEl.style.display = type === 'out' ? '' : 'none';
-    // 반출 선택 시 장비 목록 로드 시도
-    if (type === 'out') _loadEquipChecklist();
+    const label     = document.getElementById('tr-date-label');
+    const timeLabel = document.getElementById('tr-time-label');
+    const specsEl   = document.getElementById('tr-specs-section');
+    const equipEl   = document.getElementById('tr-equip-nos-section');
+    const floorEl   = document.getElementById('tr-floor-section');
+    const noteEl    = document.getElementById('tr-note');
+    const isOut     = type === 'out';
+    if (label)     label.innerHTML = `희망 ${isOut ? '반출' : '반입'} 날짜 <span style="color:var(--red)">*</span>`;
+    if (timeLabel) timeLabel.textContent = `희망 ${isOut ? '반출' : '반입'} 시간`;
+    if (specsEl)   specsEl.style.display = isOut ? 'none' : '';
+    if (equipEl)   equipEl.style.display = isOut ? '' : 'none';
+    if (floorEl)   floorEl.style.display = isOut ? 'none' : '';
+    if (noteEl)    noteEl.placeholder    = isOut ? '양중위치 / 특이사항 입력' : '특이사항 입력';
+    if (isOut) _loadEquipChecklist();
   }
 
   // ── 현장 변경 → 업체 목록 재로드 ────────────────────────
@@ -732,7 +743,7 @@ const TransitPage = (() => {
         site_id:        siteId,
         site_name:      siteName,
         project,
-        floor,
+        floor:          type === 'in' ? floor : null,
         company,
         equip_specs:    type === 'in' ? equip_specs : [],
         aj_equip:       type === 'out' ? equip_nos : null,
@@ -741,6 +752,7 @@ const TransitPage = (() => {
         manager_name:   document.getElementById('tr-manager').value.trim(),
         manager_phone:  document.getElementById('tr-manager-phone').value.trim(),
         requested_date: date,
+        requested_time: document.getElementById('tr-time')?.value || null,
         note:           document.getElementById('tr-note').value.trim(),
         created_by:     Auth.getUser()?.id,
         status:         'requested',
@@ -1321,6 +1333,152 @@ const TransitPage = (() => {
         console.error('[dispatch] 저장 실패:', e);
         btn.disabled = false; btn.textContent = '저장';
         Toast.error('배차정보 저장에 실패했습니다. 권한을 확인하거나 다시 시도해주세요.');
+      }
+    };
+  }
+
+  // ── 확정 단계 통합 수정 (AJ) ─────────────────────────────
+  async function openEditConfirmedForm(transitId) {
+    const t = _transitCache[transitId];
+    if (!t) { Toast.error('정보를 불러올 수 없습니다. 목록을 새로고침하세요.'); return; }
+
+    const nos = (t.aj_equip || '').split(',').map(s => s.trim()).filter(Boolean);
+    let existMap = {};
+    let models = [];
+    if (nos.length) {
+      const [{ data: existing }, { data: modelRows }] = await Promise.all([
+        _sb.from('equipment').select('equip_no,model,serial_no,manufacture_year').in('equip_no', nos).eq('transit_id', transitId),
+        _sb.from('equipment').select('model').not('model', 'is', null).neq('model', ''),
+      ]);
+      (existing || []).forEach(r => { existMap[r.equip_no] = r; });
+      models = [...new Set((modelRows || []).map(r => r.model).filter(Boolean))].sort();
+    }
+
+    const typeLabel = t.type === 'in' ? '반입' : '반출';
+    Modal.open({
+      title: `확정 정보 수정 — ${t.company}`,
+      body: `
+        <datalist id="ecf-model-list">
+          ${models.map(m => `<option value="${m}">`).join('')}
+        </datalist>
+        <div style="background:var(--gray-100);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px">
+          <strong>${t.company}</strong> · ${t.site_name} · ${typeLabel}
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">확정 날짜</label>
+            <input id="ecf-date" type="date" class="form-input" value="${t.scheduled_date || t.requested_date || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">확정 시간</label>
+            <input id="ecf-time" type="time" class="form-input" value="${t.scheduled_time || t.requested_time || ''}">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">장비번호</label>
+          <input id="ecf-equip-nos" class="form-input"
+            value="${(t.aj_equip || '').toUpperCase()}"
+            oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase"
+            placeholder="GK111, GF123 (쉼표로 구분)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">배차 차량</label>
+          <input id="ecf-vehicle" class="form-input"
+            placeholder="예: 5톤 트럭 12가3456"
+            value="${t.vehicle_info || ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">담당 기사 / 연락처</label>
+          <input id="ecf-driver" class="form-input"
+            placeholder="예: 홍길동 / 010-0000-0000"
+            value="${t.driver_info || ''}">
+        </div>
+
+        ${nos.length ? `
+        <div class="form-group">
+          <label class="form-label">장비 정보 (모델명 / 시리얼 / 제조년)</label>
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:380px">
+            <thead><tr style="background:var(--gray-100)">
+              <th style="padding:7px 8px;text-align:left">장비번호</th>
+              <th style="padding:7px 8px;text-align:left">모델명</th>
+              <th style="padding:7px 8px;text-align:left">시리얼번호</th>
+              <th style="padding:7px 8px;text-align:left">제조년</th>
+            </tr></thead>
+            <tbody>
+              ${nos.map((no, i) => {
+                const ex = existMap[no] || {};
+                return `<tr style="border-bottom:1px solid var(--gray-100)">
+                  <td style="padding:6px 8px;font-family:monospace;font-weight:600;color:var(--navy)">${no}</td>
+                  <td style="padding:4px 6px"><input id="ecf-model-${i}" class="form-input" list="ecf-model-list"
+                    value="${(ex.model || '').replace(/"/g, '&quot;')}" placeholder="GR20NS"
+                    oninput="this.value=this.value.toUpperCase()" style="padding:4px 6px;font-size:12px;text-transform:uppercase"></td>
+                  <td style="padding:4px 6px"><input id="ecf-serial-${i}" class="form-input"
+                    value="${(ex.serial_no || '').replace(/"/g, '&quot;')}" placeholder="GJ001"
+                    style="padding:4px 6px;font-size:12px;font-family:monospace"></td>
+                  <td style="padding:4px 6px"><input id="ecf-year-${i}" class="form-input"
+                    value="${(ex.manufacture_year || '').replace(/"/g, '&quot;')}" placeholder="2021"
+                    style="padding:4px 6px;font-size:12px;width:70px"></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+          </div>
+        </div>` : ''}
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-ecf">저장</button>
+      `,
+    });
+
+    document.getElementById('btn-save-ecf').onclick = async () => {
+      const btn = document.getElementById('btn-save-ecf');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        const newEquipNos = document.getElementById('ecf-equip-nos').value.trim().toUpperCase();
+        const newNos = newEquipNos ? newEquipNos.split(',').map(s => s.trim()).filter(Boolean) : nos;
+
+        // Transit 레코드 업데이트
+        await Api.patch(`/transit/${transitId}/dispatch`, {
+          scheduled_date: document.getElementById('ecf-date').value || undefined,
+          scheduled_time: document.getElementById('ecf-time').value || undefined,
+          vehicle_info:   document.getElementById('ecf-vehicle').value.trim(),
+          driver_info:    document.getElementById('ecf-driver').value.trim(),
+          aj_equip:       newEquipNos || undefined,
+        }, { silent: true });
+
+        // 장비 정보 업데이트 (원본 nos 기준)
+        for (let i = 0; i < nos.length; i++) {
+          const equip_no       = nos[i];
+          const model          = document.getElementById(`ecf-model-${i}`)?.value.trim().toUpperCase() || null;
+          const serial_no      = document.getElementById(`ecf-serial-${i}`)?.value.trim() || null;
+          const manufacture_year = document.getElementById(`ecf-year-${i}`)?.value.trim() || null;
+          if (!model && !serial_no && !manufacture_year) continue;
+
+          const { data: upd } = await _sb.from('equipment')
+            .update({ model, serial_no, manufacture_year })
+            .eq('equip_no', equip_no).eq('transit_id', transitId).select('id');
+
+          if (!upd?.length) {
+            await _sb.from('equipment').insert({
+              equip_no, model, serial_no, manufacture_year,
+              site_id: t.site_id, site_name: t.site_name, company: t.company,
+              transit_id: transitId, status: 'transit',
+              record_id: `EQ-${equip_no}-${Date.now()}`,
+            });
+          }
+        }
+
+        Modal.close();
+        Toast.success('수정되었습니다.');
+        await loadList();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = '저장';
+        Toast.error('저장 실패: ' + (e.message || '오류가 발생했습니다.'));
       }
     };
   }
@@ -1921,7 +2079,7 @@ ${pages.join('')}
     _onDocFileChange,
     openScheduleForm, confirmSchedule, openEquipInfoForm,
     openCompleteForm, openCancelForm,
-    openDispatchForm, openQrPrint,
+    openDispatchForm, openEditConfirmedForm, openQrPrint,
     openDocumentForm, openLogViewer,
   };
 })();

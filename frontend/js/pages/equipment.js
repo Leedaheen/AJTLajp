@@ -13,6 +13,8 @@ const EquipmentPage = (() => {
   let _listCache = [];
   // 필터 무관 전체 카운트 (뱃지에 항상 전체 수량 표시)
   let _totalCounts = null;
+  // 반출 예정 장비번호 세트
+  let _outTransitEquips = new Set();
 
   async function render() {
     const user = Auth.getUser();
@@ -29,6 +31,7 @@ const EquipmentPage = (() => {
             <button class="btn btn-outline btn-sm" onclick="EquipmentPage.downloadExcel()" title="필터링된 목록 엑셀 다운로드">
               ↓ 엑셀
             </button>
+            <button class="btn btn-outline btn-sm" onclick="EquipmentPage.openBulkUpload()">대량 업로드</button>
             <button class="btn btn-primary btn-sm" onclick="EquipmentPage.openAddForm()">+ 장비 추가</button>
           ` : ''}
         </div>
@@ -122,13 +125,33 @@ const EquipmentPage = (() => {
     tbody.innerHTML = `<tr><td colspan="10" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>`;
 
     try {
-      const list = await Api.get(`/equipment?${params}`);
+      const [list] = await Promise.all([
+        Api.get(`/equipment?${params}`),
+        _loadOutTransitEquips(),
+      ]);
       _listCache = list;
       _renderSummary();
       _renderTable(list);
     } catch {
       tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted">불러오기 실패</td></tr>`;
     }
+  }
+
+  async function _loadOutTransitEquips() {
+    try {
+      const { data } = await _sb.from('transit')
+        .select('aj_equip')
+        .eq('type', 'out')
+        .in('status', ['requested', 'scheduled', 'confirmed']);
+      _outTransitEquips = new Set();
+      (data || []).forEach(row => {
+        if (!row.aj_equip) return;
+        row.aj_equip.split(',').forEach(no => {
+          const n = no.trim().toUpperCase();
+          if (n) _outTransitEquips.add(n);
+        });
+      });
+    } catch {}
   }
 
   // status 값으로 eq-status 드롭다운 세팅 후 목록 재로드 (뱃지 클릭)
@@ -209,7 +232,10 @@ const EquipmentPage = (() => {
           <td>${e.site_name || e.site_id || '-'}</td>
           <td>${e.project || '-'}</td>
           <td>${e.company || '-'}</td>
-          <td><span class="badge" style="${st.style}">${st.label}</span></td>
+          <td>
+            <span class="badge" style="${st.style}">${st.label}</span>
+            ${_outTransitEquips.has((e.equip_no || '').toUpperCase()) ? `<span class="badge" style="background:#fce7f3;color:#9d174d;margin-left:4px">반출예정</span>` : ''}
+          </td>
           <td class="text-sm">${e.in_date || '-'}</td>
           <td class="text-sm">${e.out_date || '-'}</td>
           <td style="white-space:nowrap">
@@ -390,9 +416,10 @@ const EquipmentPage = (() => {
 
   // ── 장비 추가 (AJ) ──────────────────────────────────────
   async function openAddForm() {
-    const [sites, models] = await Promise.all([
+    const [sites, models, companies] = await Promise.all([
       Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]),
       Api.get('/equipment/models').catch(() => []),
+      Api.get('/companies').catch(() => []),
     ]);
     Modal.open({
       title: '장비 추가',
@@ -414,19 +441,23 @@ const EquipmentPage = (() => {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">현장</label>
+            <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
             <select id="add-site" class="form-input form-select">
+              <option value="">-- 현장 선택 --</option>
               ${sites.map(s=>`<option value="${s.code}" data-name="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">업체명</label>
-            <input id="add-company" class="form-input" placeholder="업체명">
+            <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
+            <select id="add-company" class="form-input form-select">
+              <option value="">-- 업체 선택 --</option>
+              ${companies.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}
+            </select>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">모델명</label>
+            <label class="form-label">모델명 <span style="color:var(--red)">*</span></label>
             <input id="add-model" class="form-input" list="add-model-list" placeholder="예: GR20NS" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
           <div class="form-group">
@@ -443,20 +474,25 @@ const EquipmentPage = (() => {
     document.getElementById('btn-do-add').onclick = async () => {
       const equip_no = document.getElementById('add-equip-no').value.trim().toUpperCase();
       if (!equip_no) { Toast.error('장비번호를 입력해주세요.'); return; }
-      const siteEl = document.getElementById('add-site');
-      const siteId = siteEl.value;
+      const siteEl   = document.getElementById('add-site');
+      const siteId   = siteEl.value;
+      if (!siteId) { Toast.error('현장을 선택해주세요.'); return; }
       const siteName = siteEl.options[siteEl.selectedIndex]?.getAttribute('data-name') || siteId;
+      const company  = document.getElementById('add-company').value;
+      if (!company) { Toast.error('업체명을 선택해주세요.'); return; }
+      const model    = document.getElementById('add-model').value.trim().toUpperCase();
+      if (!model) { Toast.error('모델명을 입력해주세요.'); return; }
       const btn = document.getElementById('btn-do-add');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
       try {
         await Api.post('/equipment', {
           equip_no,
           spec:      document.getElementById('add-spec').value,
-          model:     document.getElementById('add-model').value.trim().toUpperCase() || null,
+          model:     model || null,
           serial_no: document.getElementById('add-serial').value.trim() || null,
           site_id:   siteId,
           site_name: siteName,
-          company:   document.getElementById('add-company').value.trim(),
+          company,
           status:    'in_use',
         });
         Modal.close();
@@ -464,6 +500,124 @@ const EquipmentPage = (() => {
         loadList();
       } catch { btn.disabled=false; btn.textContent='추가'; }
     };
+  }
+
+  // ── 대량 업로드 (AJ) ─────────────────────────────────────
+  function openBulkUpload() {
+    Modal.open({
+      title: '장비 대량 업로드',
+      body: `
+        <div style="margin-bottom:16px">
+          <p style="font-size:13px;color:var(--gray-600);margin-bottom:10px">
+            엑셀 양식을 다운받아 입력 후 CSV 파일로 업로드하세요.
+          </p>
+          <button class="btn btn-outline btn-sm" onclick="EquipmentPage._downloadBulkTemplate()">
+            ↓ 양식 다운로드 (CSV)
+          </button>
+        </div>
+        <div>
+          <label class="form-label">CSV 파일 업로드 <span style="color:var(--red)">*</span></label>
+          <input id="bulk-file" type="file" accept=".csv"
+            style="display:block;width:100%;padding:8px;border:1px dashed var(--gray-300);
+            border-radius:8px;font-size:13px;cursor:pointer;background:var(--gray-50)">
+          <div style="margin-top:6px;font-size:11px;color:var(--gray-400)">
+            헤더: 장비번호, 제원, 현장코드, 현장명, 업체명, 모델명, 시리얼번호
+          </div>
+        </div>
+        <div id="bulk-preview" style="margin-top:12px"></div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-bulk-upload" disabled>업로드</button>
+      `,
+    });
+
+    let _parsed = [];
+    document.getElementById('bulk-file').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const text = ev.target.result;
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) {
+          document.getElementById('bulk-preview').innerHTML = '<p style="color:var(--red);font-size:13px">데이터가 없습니다.</p>';
+          return;
+        }
+        // skip header
+        _parsed = lines.slice(1).map(line => {
+          const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+          return {
+            equip_no:  (cols[0] || '').toUpperCase(),
+            spec:      cols[1] || '',
+            site_id:   cols[2] || '',
+            site_name: cols[3] || '',
+            company:   cols[4] || '',
+            model:     (cols[5] || '').toUpperCase() || null,
+            serial_no: cols[6] || null,
+            status:    'in_use',
+          };
+        }).filter(r => r.equip_no);
+
+        const errors = _parsed.filter(r => !r.spec || !r.site_id || !r.company || !r.model);
+        const preview = document.getElementById('bulk-preview');
+        preview.innerHTML = `
+          <div style="font-size:13px;color:var(--gray-600);margin-bottom:6px">
+            유효 데이터: <strong>${_parsed.length}</strong>행
+            ${errors.length ? `<span style="color:var(--red);margin-left:8px">(필수값 누락 ${errors.length}행 — 업로드 시 제외됨)</span>` : ''}
+          </div>
+          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px">
+            <table style="width:100%;font-size:12px;border-collapse:collapse">
+              <thead style="background:var(--gray-100)">
+                <tr>${['장비번호','제원','현장코드','업체명','모델명'].map(h=>`<th style="padding:5px 8px;text-align:left">${h}</th>`).join('')}</tr>
+              </thead>
+              <tbody>
+                ${_parsed.slice(0, 20).map(r => `<tr style="border-top:1px solid var(--gray-100)">
+                  <td style="padding:4px 8px;font-family:monospace">${r.equip_no}</td>
+                  <td style="padding:4px 8px">${r.spec}</td>
+                  <td style="padding:4px 8px">${r.site_id}</td>
+                  <td style="padding:4px 8px">${r.company}</td>
+                  <td style="padding:4px 8px">${r.model || ''}</td>
+                </tr>`).join('')}
+                ${_parsed.length > 20 ? `<tr><td colspan="5" style="padding:6px 8px;color:var(--gray-400);text-align:center">... 외 ${_parsed.length - 20}행</td></tr>` : ''}
+              </tbody>
+            </table>
+          </div>
+        `;
+        const btn = document.getElementById('btn-bulk-upload');
+        if (btn) btn.disabled = (_parsed.length === 0);
+      };
+      reader.readAsText(file, 'UTF-8');
+    });
+
+    document.getElementById('btn-bulk-upload').onclick = async () => {
+      const valid = _parsed.filter(r => r.equip_no && r.spec && r.site_id && r.company && r.model);
+      if (!valid.length) { Toast.error('업로드할 유효 데이터가 없습니다.'); return; }
+      const btn = document.getElementById('btn-bulk-upload');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        const { error } = await _sb.from('equipment').insert(
+          valid.map(r => ({ ...r, record_id: `EQ-${r.equip_no}-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }))
+        );
+        if (error) throw error;
+        Modal.close();
+        Toast.success(`${valid.length}대가 등록되었습니다.`);
+        loadList();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = '업로드';
+        Toast.error(e.message || '업로드에 실패했습니다.');
+      }
+    };
+  }
+
+  function _downloadBulkTemplate() {
+    const header = '장비번호,제원,현장코드,현장명,업체명,모델명,시리얼번호';
+    const example = 'GK111,8M,P4,P4 복합동,샘플업체,GR20NS,SN-001';
+    const blob = new Blob(['﻿' + header + '\n' + example + '\n'], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '장비_대량업로드_양식.csv'; a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── 장비 수정 (AJ) ──────────────────────────────────────
@@ -590,5 +744,5 @@ const EquipmentPage = (() => {
     Toast.success(`${rows.length}건 다운로드 완료`);
   }
 
-  return { render, loadList, filterByStatus, _updateBulkBtn, openBulkQr, openAddForm, openEditForm, showQr, genQr, downloadExcel };
+  return { render, loadList, filterByStatus, _updateBulkBtn, openBulkQr, openAddForm, openBulkUpload, _downloadBulkTemplate, openEditForm, showQr, genQr, downloadExcel };
 })();

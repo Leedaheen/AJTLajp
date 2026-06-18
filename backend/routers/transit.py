@@ -70,23 +70,26 @@ async def create_transit(body: TransitCreateRequest, current_user: dict = Depend
     record_id = f"TR-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
     data = {
-        "record_id":       record_id,
-        "type":            body.type,
-        "site_id":         body.site_id,
-        "site_name":       SITE_NAMES.get(body.site_id, body.site_id),
-        "company":         body.company,
-        "equip_specs":     [s.dict() for s in body.equip_specs],
-        "aj_equip":        body.equip_nos or "",
-        "reporter_name":   body.reporter_name,
-        "reporter_phone":  body.reporter_phone,
-        "manager_name":    body.manager_name,
-        "manager_phone":   body.manager_phone,
-        "manager_location":body.manager_location,
-        "requested_date":  body.requested_date,
-        "note":            body.note,
-        "status":          "requested",
-        "change_log":      [],
-        "created_by":      current_user["sub"],
+        "record_id":        record_id,
+        "type":             body.type,
+        "site_id":          body.site_id,
+        "site_name":        SITE_NAMES.get(body.site_id, body.site_id),
+        "company":          body.company,
+        "project":          body.project,
+        "floor":            body.floor if body.type == "in" else None,
+        "equip_specs":      [s.dict() for s in body.equip_specs],
+        "aj_equip":         body.aj_equip or body.equip_nos or "",
+        "reporter_name":    body.reporter_name,
+        "reporter_phone":   body.reporter_phone,
+        "manager_name":     body.manager_name,
+        "manager_phone":    body.manager_phone,
+        "manager_location": body.manager_location,
+        "requested_date":   body.requested_date,
+        "requested_time":   body.requested_time,
+        "note":             body.note,
+        "status":           "requested",
+        "change_log":       [],
+        "created_by":       current_user["sub"],
     }
     res = supabase.table("transit").insert(data).execute()
     transit = res.data[0]
@@ -128,6 +131,8 @@ async def schedule_transit(
         "driver_info":    body.driver_info,
         "change_log":     change_log,
     }
+    if body.scheduled_time is not None:
+        update["scheduled_time"] = body.scheduled_time
     if body.note is not None:
         update["note"] = body.note
     if new_status == "confirmed":
@@ -172,10 +177,17 @@ async def dispatch_transit(
     body: TransitDispatchRequest,
     current_user: dict = Depends(require_role("aj")),
 ):
-    supabase.table("transit").update({
+    patch = {
         "vehicle_info": body.vehicle_info,
         "driver_info":  body.driver_info,
-    }).eq("id", transit_id).execute()
+    }
+    if body.scheduled_date is not None:
+        patch["scheduled_date"] = body.scheduled_date
+    if body.scheduled_time is not None:
+        patch["scheduled_time"] = body.scheduled_time
+    if body.aj_equip is not None:
+        patch["aj_equip"] = body.aj_equip
+    supabase.table("transit").update(patch).eq("id", transit_id).execute()
     return {"ok": True}
 
 

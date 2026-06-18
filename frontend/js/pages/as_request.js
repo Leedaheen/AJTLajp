@@ -252,8 +252,8 @@ const AsRequestPage = (() => {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">장비번호</label>
-            <input id="as-equip-no" class="form-input" placeholder="예: GF592">
+            <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
+            <input id="as-equip-no" class="form-input" placeholder="예: GF592" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
           <div class="form-group">
             <label class="form-label">장비 모델명</label>
@@ -269,7 +269,7 @@ const AsRequestPage = (() => {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">세부 위치</label>
+            <label class="form-label">세부 위치 <span style="color:var(--red)">*</span></label>
             <input id="as-location-detail" class="form-input" placeholder="예: A구역, 동편">
           </div>
         </div>
@@ -318,9 +318,12 @@ const AsRequestPage = (() => {
     const reporter = document.getElementById('as-reporter').value.trim();
     const phone    = document.getElementById('as-phone').value.trim();
 
+    const equipNo  = document.getElementById('as-equip-no').value.trim();
+    if (!equipNo)  { Toast.error('장비번호를 입력해주세요.'); return; }
     if (!company || !floor || !desc || !reporter || !phone) {
       Toast.error('필수 항목을 모두 입력해주세요.'); return;
     }
+    if (!detail) { Toast.error('세부 위치를 입력해주세요.'); return; }
 
     const btn = document.getElementById('btn-submit-as');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
@@ -330,7 +333,7 @@ const AsRequestPage = (() => {
         site_id:       siteId,
         site_name:     siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
         company,
-        equip_no:      document.getElementById('as-equip-no').value.trim(),
+        equip_no:      equipNo,
         equip_spec:    document.getElementById('as-equip-spec').value.trim(),
         location,
         fault_type:    fault,

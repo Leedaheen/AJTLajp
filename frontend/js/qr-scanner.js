@@ -60,7 +60,18 @@ const QrScanner = (() => {
         Toast.error('등록되지 않은 QR코드입니다.');
         return;
       }
-      _showActionSheet(equip);
+      // 반출 예정 여부 확인
+      let pendingOut = false;
+      try {
+        const { data: outTransit } = await _sb.from('transit')
+          .select('id')
+          .eq('type', 'out')
+          .in('status', ['requested', 'scheduled', 'confirmed'])
+          .ilike('aj_equip', `%${equip.equip_no}%`)
+          .limit(1);
+        pendingOut = !!(outTransit && outTransit.length);
+      } catch {}
+      _showActionSheet(equip, pendingOut);
     } catch {
       Toast.error('장비 정보를 불러올 수 없습니다.');
     }
@@ -161,8 +172,15 @@ const QrScanner = (() => {
     _video = null; _canvas = null; _ctx = null;
   }
 
+  const _STATUS_LABEL = {
+    in_use:   { text: '사용중',   style: 'background:#dbeafe;color:#1e40af' },
+    transit:  { text: '반입예정', style: 'background:#fef3c7;color:#92400e' },
+    returned: { text: '반출완료', style: 'background:#f3f4f6;color:#374151' },
+    stock:    { text: '재고',     style: 'background:#dcfce7;color:#166534' },
+  };
+
   // ── 스캔 결과 액션 시트 ──────────────────────────────────
-  async function _showActionSheet(equip) {
+  async function _showActionSheet(equip, pendingOut = false) {
     const user    = Auth.getUser();
     const canUse  = ['tech', 'partner', 'aj'].includes(user.role);
     const canAs   = ['tech', 'partner', 'aj', 'as_tech'].includes(user.role);
@@ -179,6 +197,8 @@ const QrScanner = (() => {
       ? `<div style="font-size:12px;color:var(--gray-500);margin-top:3px;font-family:monospace">${equip.model}${equip.serial_no ? ' · ' + equip.serial_no : ''}</div>`
       : '';
 
+    const statusInfo = _STATUS_LABEL[equip.status] || { text: equip.status, style: 'background:#f3f4f6;color:#374151' };
+
     Modal.open({
       title: '장비 확인',
       body: `
@@ -189,11 +209,11 @@ const QrScanner = (() => {
           </div>
           ${modelLine}
           ${equip.project ? `<div style="font-size:12px;color:var(--gray-400);margin-top:2px">${equip.project}</div>` : ''}
-          <div style="margin-top:8px">
-            <span class="badge" style="background:#dbeafe;color:#1e40af">
-              ${equip.status === 'in_use' ? '사용중' : equip.status === 'returned' ? '반출완료' : equip.status}
-            </span>
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+            <span class="badge" style="${statusInfo.style}">${statusInfo.text}</span>
+            ${pendingOut ? `<span class="badge" style="background:#fce7f3;color:#9d174d">반출예정</span>` : ''}
           </div>
+          ${pendingOut ? `<div style="margin-top:8px;font-size:12px;color:#9d174d;font-weight:600">반출예정인 장비입니다.</div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;gap:10px">
           ${canUse ? `

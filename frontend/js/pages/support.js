@@ -63,7 +63,7 @@ const SupportPage = (() => {
     '14M':'#f59e0b','16M':'#ef4444','16M굴절':'#e8192c','18M':'#8b5cf6','20M굴절':'#ec4899',
   };
 
-  const _sb = window._supabase;
+  const _sb = window._sb;
   let _posts    = [];
   let _expanded = new Set();
   let _filter   = { q: '', category: '' };
@@ -234,7 +234,9 @@ const SupportPage = (() => {
         ${p.body ? `<p style="font-size:13px;color:var(--gray-600);line-height:1.7;margin-bottom:${p.attachments?.length?'14px':'0'}">${p.body}</p>` : ''}
         ${p.isStatic ? _renderSpecGrid(p.attachments) : _renderAttachList(p.attachments)}
         ${canDelete ? `
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--gray-200);text-align:right">
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--gray-200);text-align:right;display:flex;gap:6px;justify-content:flex-end">
+            <button class="btn btn-sm" style="color:var(--navy);border:1px solid var(--navy);background:none;font-size:11px;padding:3px 10px"
+              onclick="SupportPage.openEditForm(${p.id})">수정</button>
             <button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:none;font-size:11px;padding:3px 10px"
               onclick="SupportPage.deletePost(${p.id})">삭제</button>
           </div>` : ''}
@@ -451,6 +453,71 @@ const SupportPage = (() => {
     }
   }
 
+  // ── 수정 ─────────────────────────────────────────────────
+  function openEditForm(id) {
+    const post = _posts.find(p => p.id === id);
+    if (!post || post.isStatic) { Toast.error('수정할 수 없는 게시글입니다.'); return; }
+
+    Modal.open({
+      title: '게시글 수정',
+      body: `
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div>
+            <label class="form-label">카테고리 <span style="color:var(--red)">*</span></label>
+            <select id="ep-category" class="form-input form-select">
+              <option value="">-- 선택 --</option>
+              <option value="매뉴얼">매뉴얼</option>
+              <option value="서식">서식</option>
+              <option value="안전서류">안전서류</option>
+              <option value="공지">공지</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">제목 <span style="color:var(--red)">*</span></label>
+            <input id="ep-title" type="text" class="form-input" value="${(post.title || '').replace(/"/g, '&quot;')}">
+          </div>
+          <div>
+            <label class="form-label">내용</label>
+            <textarea id="ep-body" class="form-input" rows="5" style="resize:vertical;min-height:100px">${post.body || ''}</textarea>
+          </div>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-ep-save">저장</button>
+      `,
+    });
+
+    // 카테고리 선택값 설정
+    setTimeout(() => {
+      const sel = document.getElementById('ep-category');
+      if (sel) sel.value = post.category || '';
+    }, 50);
+
+    document.getElementById('btn-ep-save').onclick = async () => {
+      const category = document.getElementById('ep-category').value.trim();
+      const title    = document.getElementById('ep-title').value.trim();
+      const body     = document.getElementById('ep-body').value.trim();
+      if (!category) { Toast.error('카테고리를 선택해주세요.'); return; }
+      if (!title)    { Toast.error('제목을 입력해주세요.'); return; }
+      const btn = document.getElementById('btn-ep-save');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        const { error } = await _sb.from('support_posts')
+          .update({ category, title, body: body || null, updated_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) throw error;
+        Modal.close();
+        Toast.success('수정되었습니다.');
+        await _loadPosts();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = '저장';
+        Toast.error(e.message || '수정에 실패했습니다.');
+      }
+    };
+  }
+
   // ── 삭제 ─────────────────────────────────────────────────
   async function deletePost(id) {
     if (!confirm('이 게시글을 삭제하시겠습니까?')) return;
@@ -534,5 +601,5 @@ const SupportPage = (() => {
     document.head.appendChild(s);
   }
 
-  return { render, switchTab, filterDocs, togglePost, download, openWriteForm, deletePost, askFaq, sendMessage };
+  return { render, switchTab, filterDocs, togglePost, download, openWriteForm, openEditForm, deletePost, askFaq, sendMessage };
 })();
