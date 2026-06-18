@@ -17,6 +17,7 @@ from database import supabase
 from models.transit import (
     TransitCreateRequest,
     TransitScheduleRequest,
+    TransitDispatchRequest,
     TransitUpdateRequest,
     TransitCancelRequest,
     TransitCompleteRequest,
@@ -118,15 +119,19 @@ async def schedule_transit(
     }
     change_log = (old.get("change_log") or []) + [log_entry]
 
+    new_status = body.status if body.status in ("scheduled", "confirmed") else "scheduled"
     update = {
-        "status":         "scheduled",
+        "status":         new_status,
         "scheduled_date": body.scheduled_date,
+        "aj_equip":       body.aj_equip,
         "vehicle_info":   body.vehicle_info,
         "driver_info":    body.driver_info,
         "change_log":     change_log,
     }
     if body.note is not None:
         update["note"] = body.note
+    if new_status == "confirmed":
+        update["partner_confirmed_at"] = now_str
 
     supabase.table("transit").update(update).eq("id", transit_id).execute()
 
@@ -138,6 +143,39 @@ async def schedule_transit(
         body=f"확정일: {body.scheduled_date} / 배차: {body.driver_info or '미정'}",
         ref_id=str(transit_id),
     )
+    return {"ok": True}
+
+
+# ─── 협력사 일정 확인완료 ─────────────────────────────────────
+@router.patch("/{transit_id}/partner-confirm")
+async def partner_confirm_transit(
+    transit_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] not in ("partner", "aj", "admin"):
+        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    old = _get_or_404(transit_id)
+    if old["status"] != "scheduled":
+        raise HTTPException(status_code=400, detail="협력사 확인 대기 상태가 아닙니다.")
+    now_str = _now_str()
+    supabase.table("transit").update({
+        "status":                "confirmed",
+        "partner_confirmed_at":  now_str,
+    }).eq("id", transit_id).execute()
+    return {"ok": True}
+
+
+# ─── 배차정보 등록 (AJ) ───────────────────────────────────────
+@router.patch("/{transit_id}/dispatch")
+async def dispatch_transit(
+    transit_id: int,
+    body: TransitDispatchRequest,
+    current_user: dict = Depends(require_role("aj")),
+):
+    supabase.table("transit").update({
+        "vehicle_info": body.vehicle_info,
+        "driver_info":  body.driver_info,
+    }).eq("id", transit_id).execute()
     return {"ok": True}
 
 

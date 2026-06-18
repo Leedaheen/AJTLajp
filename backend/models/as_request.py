@@ -25,3 +25,12 @@ class AsRequestAssignRequest(BaseModel):
 class AsRequestResolveRequest(BaseModel):
     resolve_note: str
     material_used: Optional[str] = None
+    tech_name: Optional[str] = None
+
+
+class AsRequestHoldRequest(BaseModel):
+    hold_reason: str
+
+
+class AsRequestCancelRequest(BaseModel):
+    cancel_reason: str

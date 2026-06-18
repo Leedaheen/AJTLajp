@@ -32,9 +32,17 @@ class TransitCompleteRequest(BaseModel):
 class TransitScheduleRequest(BaseModel):
     """AJ관리자: 일정 확정 + 배차 입력"""
     scheduled_date: str
+    status: Optional[str] = "scheduled"
+    aj_equip: Optional[str] = ""
     vehicle_info: Optional[str] = ""
     driver_info: Optional[str] = ""
     note: Optional[str] = None
+
+
+class TransitDispatchRequest(BaseModel):
+    """배차정보 등록"""
+    vehicle_info: Optional[str] = ""
+    driver_info: Optional[str] = ""
 
 
 class TransitUpdateRequest(BaseModel):

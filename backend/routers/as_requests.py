@@ -14,7 +14,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from auth import get_current_user, require_role
 from database import supabase
-from models.as_request import AsRequestCreateRequest, AsRequestAssignRequest, AsRequestResolveRequest
+from models.as_request import (
+    AsRequestCreateRequest,
+    AsRequestAssignRequest,
+    AsRequestResolveRequest,
+    AsRequestHoldRequest,
+    AsRequestCancelRequest,
+)
 from services.push_service import send_push
 
 router = APIRouter(prefix="/as-requests", tags=["as-requests"])
@@ -89,7 +95,7 @@ async def create_as_request(body: AsRequestCreateRequest, current_user: dict = D
         "description":   body.description,
         "reporter_name": body.reporter_name,
         "reporter_phone":body.reporter_phone,
-        "status":        "pending",
+        "status":        "requested",
         "created_by":    current_user["sub"],
     }
     res = supabase.table("as_requests").insert(data).execute()
@@ -145,8 +151,8 @@ async def start_as(
     if current_user["role"] not in ("as_tech", "aj"):
         raise HTTPException(status_code=403, detail="권한이 없습니다.")
     supabase.table("as_requests").update({
-        "status": "in_progress",
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "status":        "in_progress",
+        "in_progress_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", req_id).execute()
     return {"ok": True}
 
@@ -164,12 +170,15 @@ async def resolve_as(
     old = _get_or_404(req_id)
     now = datetime.now(timezone.utc)
 
-    supabase.table("as_requests").update({
-        "status":        "resolved",
+    update_data = {
+        "status":        "completed",
         "resolve_note":  body.resolve_note,
         "material_used": body.material_used,
         "resolved_at":   now.isoformat(),
-    }).eq("id", req_id).execute()
+    }
+    if body.tech_name:
+        update_data["tech_name"] = body.tech_name
+    supabase.table("as_requests").update(update_data).eq("id", req_id).execute()
 
     # 신청자에게 완료 알림
     if old.get("created_by"):
@@ -188,13 +197,67 @@ async def resolve_as(
     return {"ok": True}
 
 
-# ─── 취소 (AJ) ───────────────────────────────────────────────
+# ─── 자재 수급 중 ────────────────────────────────────────────
+@router.patch("/{req_id}/material")
+async def material_as(
+    req_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] not in ("as_tech", "aj", "admin"):
+        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    supabase.table("as_requests").update({
+        "status":      "material_pending",
+        "material_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", req_id).execute()
+    return {"ok": True}
+
+
+# ─── 보류 ─────────────────────────────────────────────────────
+@router.patch("/{req_id}/hold")
+async def hold_as(
+    req_id: int,
+    body: AsRequestHoldRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] not in ("as_tech", "aj", "admin"):
+        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    supabase.table("as_requests").update({
+        "status":      "held",
+        "hold_reason": body.hold_reason,
+        "held_at":     datetime.now(timezone.utc).isoformat(),
+    }).eq("id", req_id).execute()
+    return {"ok": True}
+
+
+# ─── 처리 재개 (보류 → 처리중) ───────────────────────────────
+@router.patch("/{req_id}/resume")
+async def resume_as(
+    req_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] not in ("as_tech", "aj", "admin"):
+        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    supabase.table("as_requests").update({
+        "status":        "in_progress",
+        "in_progress_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", req_id).execute()
+    return {"ok": True}
+
+
+# ─── 취소 ─────────────────────────────────────────────────────
 @router.patch("/{req_id}/cancel")
 async def cancel_as(
     req_id: int,
-    current_user: dict = Depends(require_role("aj")),
+    body: AsRequestCancelRequest,
+    current_user: dict = Depends(get_current_user),
 ):
-    supabase.table("as_requests").update({"status": "cancelled"}).eq("id", req_id).execute()
+    if current_user["role"] not in ("as_tech", "aj", "admin", "partner", "tech"):
+        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    supabase.table("as_requests").update({
+        "status":       "cancelled",
+        "cancel_reason": body.cancel_reason,
+        "cancelled_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", req_id).execute()
     return {"ok": True}
 
 
