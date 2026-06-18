@@ -5,7 +5,7 @@ const EquipmentPage = (() => {
   const SPEC_OPTIONS = ['6M','8M','10M','12M','14M','16M','16M굴절','18M','20M굴절'];
   const STATUS_MAP = {
     in_use:   { label:'사용중',   style:'background:#dbeafe;color:#1e40af' },
-    transit:  { label:'이동중',   style:'background:#fef3c7;color:#92400e' },
+    transit:  { label:'반입예정', style:'background:#fef3c7;color:#92400e' },
     returned: { label:'반출완료', style:'background:#f3f4f6;color:#374151' },
   };
 

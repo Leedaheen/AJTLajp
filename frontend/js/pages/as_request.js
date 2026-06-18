@@ -1,14 +1,14 @@
 /**
  * AS 요청 관리 페이지
- * - 기사 배정 없이 AS기사가 직접 처리
- * - 상태: 접수대기 → 처리중 → (자재수급중) → 처리완료 / 보류 / 취소
+ * - 상태: 접수대기 → 자재수급중 / 보류 / 처리완료
+ * - AS 신청: QR 스캔 경유 (협력사는 수기 신청도 가능)
  */
 const AsRequestPage = (() => {
   const FAULT_TYPES = ['배터리 불량','유압 불량','조향 불량','리프트 불량','타이어 파손','충전기 불량','기타'];
+  const FLOOR_OPTS  = ['모듈동','1F외곽','1F','2F','3F','4F','5F','6F','7F','8F','9F'];
 
   const STATUS_MAP = {
     requested:        { label:'접수 대기',   cls:'badge-pending' },
-    in_progress:      { label:'처리 중',     style:'background:#fef3c7;color:#92400e' },
     material_pending: { label:'자재 수급 중', style:'background:#ffedd5;color:#9a3412' },
     held:             { label:'보류',        style:'background:#f1f5f9;color:#475569' },
     completed:        { label:'처리 완료',   style:'background:#d1fae5;color:#065f46' },
@@ -16,11 +16,11 @@ const AsRequestPage = (() => {
   };
 
   let _currentTab = 'all';
-  let _cache = {};  // id → request object
-  let _loadGen = 0; // 동시 loadList 경쟁 방지용 세대 카운터
+  let _cache = {};
+  let _loadGen = 0;
 
   const _TABS = [
-    ['all','전체'],['requested','접수대기'],['in_progress','처리중'],
+    ['all','전체'],['requested','접수대기'],
     ['material_pending','자재수급'],['held','보류'],['completed','완료'],['cancelled','취소'],
   ];
 
@@ -29,7 +29,7 @@ const AsRequestPage = (() => {
       const btn = document.getElementById(`as-tab-${v}`);
       if (!btn) return;
       const on = v === _currentTab;
-      btn.style.color       = on ? 'var(--navy)' : 'var(--gray-400)';
+      btn.style.color        = on ? 'var(--navy)' : 'var(--gray-400)';
       btn.style.borderBottom = on ? '2px solid var(--navy)' : '2px solid transparent';
     });
   }
@@ -37,12 +37,13 @@ const AsRequestPage = (() => {
   // ── 렌더 ─────────────────────────────────────────────────
   async function render() {
     const user = Auth.getUser();
-    const canRequest = ['tech','partner','aj','admin'].includes(user.role);
+    // 협력사만 수기 AS 신청 가능. aj/admin은 관리 목적으로 허용.
+    const canManualRequest = ['partner','aj','admin'].includes(user.role);
 
     document.getElementById('page-as-request').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
         <h2 class="section-title" style="margin:0">AS 요청 관리</h2>
-        ${canRequest ? `<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openNewForm()">+ AS 신청</button>` : ''}
+        ${canManualRequest ? `<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openNewForm()">+ AS 신청</button>` : ''}
       </div>
 
       <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;flex-wrap:wrap">
@@ -56,13 +57,17 @@ const AsRequestPage = (() => {
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-        <input id="as-search" type="text" class="search-input" style="flex:1;min-width:180px"
+        <input id="as-search" type="text" class="search-input" style="flex:1;min-width:160px"
           placeholder="장비번호, 업체명, 고장유형 검색"
           onkeydown="if(event.key==='Enter')AsRequestPage.loadList()">
         <select id="as-site-filter" class="form-input form-select" style="width:120px">
           <option value="">전체 현장</option>
           <option value="P4">P4 복합동</option>
           <option value="P5">P5 복합동</option>
+        </select>
+        <select id="as-floor-filter" class="form-input form-select" style="width:110px">
+          <option value="">전체 층수</option>
+          ${FLOOR_OPTS.map(f => `<option value="${f}">${f}</option>`).join('')}
         </select>
         <button class="btn btn-primary btn-sm" onclick="AsRequestPage.loadList()">검색</button>
       </div>
@@ -90,11 +95,10 @@ const AsRequestPage = (() => {
     try {
       const searchVal = document.getElementById('as-search')?.value.trim();
       const siteVal   = document.getElementById('as-site-filter')?.value;
+      const floorVal  = document.getElementById('as-floor-filter')?.value;
 
       let q = _sb.from('as_requests').select('*').order('requested_at', { ascending: false }).limit(500);
-      if (_currentTab !== 'all') {
-        q = q.eq('status', _currentTab);
-      }
+      if (_currentTab !== 'all') q = q.eq('status', _currentTab);
       if (siteVal)   q = q.eq('site_id', siteVal);
       if (searchVal) {
         const sq = searchVal.replace(/[,%()]/g, '');
@@ -105,10 +109,16 @@ const AsRequestPage = (() => {
       if (error) throw error;
       if (gen !== _loadGen) return;
 
-      // RLS 정책 우회 가능성 대비 클라이언트 사이드 필터 이중 적용
-      const list = _currentTab !== 'all'
+      // 클라이언트 이중 필터
+      let list = _currentTab !== 'all'
         ? (raw || []).filter(r => r.status === _currentTab)
         : (raw || []);
+
+      if (floorVal) {
+        list = list.filter(r =>
+          r.location === floorVal || (r.location || '').startsWith(floorVal + ' ')
+        );
+      }
 
       _cache = {};
       list.forEach(r => { _cache[r.id] = r; });
@@ -152,7 +162,6 @@ const AsRequestPage = (() => {
       return `${m}m`;
     };
 
-    // 완료/취소 타임스탬프 + 소요시간 (접수 시간은 카드 우상단에 이미 표시)
     const tsItems = [
       r.in_progress_at && `<span><span class="text-muted">처리시작:</span> ${fmt(r.in_progress_at)}</span>`,
       r.material_at    && `<span><span class="text-muted">자재수급:</span> ${fmt(r.material_at)}</span>`,
@@ -161,24 +170,21 @@ const AsRequestPage = (() => {
       r.cancelled_at   && `<span><span class="text-muted">취소:</span> ${fmt(r.cancelled_at)}</span>`,
     ].filter(Boolean);
 
-    // 버튼
     const btns = [];
     if (canAct) {
-      if (r.status === 'requested') {
-        btns.push(`<button class="btn btn-primary btn-sm" onclick="AsRequestPage.startWork(${r.id})">처리 시작</button>`);
-        btns.push(`<button class="btn btn-outline btn-sm" onclick="AsRequestPage.openHoldForm(${r.id})">보류</button>`);
-      }
-      if (r.status === 'in_progress') {
+      // requested 또는 in_progress(레거시) 상태: 처리중 단계 없이 바로 다음 단계로
+      if (r.status === 'requested' || r.status === 'in_progress') {
         btns.push(`<button class="btn btn-outline btn-sm" onclick="AsRequestPage.setMaterial(${r.id})">자재수급중</button>`);
-        btns.push(`<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openResolveForm(${r.id})">처리 완료</button>`);
         btns.push(`<button class="btn btn-outline btn-sm" onclick="AsRequestPage.openHoldForm(${r.id})">보류</button>`);
+        btns.push(`<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openResolveForm(${r.id})">처리 완료</button>`);
       }
       if (r.status === 'material_pending') {
         btns.push(`<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openResolveForm(${r.id})">처리 완료</button>`);
         btns.push(`<button class="btn btn-outline btn-sm" onclick="AsRequestPage.openHoldForm(${r.id})">보류</button>`);
       }
       if (r.status === 'held') {
-        btns.push(`<button class="btn btn-primary btn-sm" onclick="AsRequestPage.resumeWork(${r.id})">처리 재개</button>`);
+        btns.push(`<button class="btn btn-outline btn-sm" onclick="AsRequestPage.setMaterial(${r.id})">자재수급중</button>`);
+        btns.push(`<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openResolveForm(${r.id})">처리 완료</button>`);
       }
     }
     if (canCancel && !['completed','cancelled'].includes(r.status)) {
@@ -226,7 +232,7 @@ const AsRequestPage = (() => {
       </div>`;
   }
 
-  // ── AS 신청 폼 ───────────────────────────────────────────
+  // ── 협력사 수기 AS 신청 폼 ──────────────────────────────
   function openNewForm() {
     Modal.open({
       title: 'AS 신청',
@@ -250,26 +256,16 @@ const AsRequestPage = (() => {
             <input id="as-equip-no" class="form-input" placeholder="예: GF592">
           </div>
           <div class="form-group">
-            <label class="form-label">장비 제원</label>
+            <label class="form-label">장비 모델명</label>
             <input id="as-equip-spec" class="form-input" placeholder="예: 8M">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">층 <span style="color:var(--red)">*</span></label>
+            <label class="form-label">사용층수 <span style="color:var(--red)">*</span></label>
             <select id="as-floor" class="form-input form-select">
               <option value="">-- 선택 --</option>
-              <option value="모듈동">모듈동</option>
-              <option value="1F외곽">1F외곽</option>
-              <option value="1F">1F</option>
-              <option value="2F">2F</option>
-              <option value="3F">3F</option>
-              <option value="4F">4F</option>
-              <option value="5F">5F</option>
-              <option value="6F">6F</option>
-              <option value="7F">7F</option>
-              <option value="8F">8F</option>
-              <option value="9F">9F</option>
+              ${FLOOR_OPTS.map(f => `<option value="${f}">${f}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -349,15 +345,6 @@ const AsRequestPage = (() => {
     } catch { btn.disabled = false; btn.textContent = '신청 완료'; }
   }
 
-  // ── 처리 시작 ────────────────────────────────────────────
-  async function startWork(reqId) {
-    try {
-      await Api.patch(`/as-requests/${reqId}/start`, {});
-      Toast.success('처리 시작으로 변경되었습니다.');
-      await loadList();
-    } catch (e) { Toast.error('상태 변경에 실패했습니다.'); console.error(e); }
-  }
-
   // ── 자재 수급 중 ─────────────────────────────────────────
   async function setMaterial(reqId) {
     if (!confirm('자재 수급 중으로 변경하시겠습니까?')) return;
@@ -399,15 +386,6 @@ const AsRequestPage = (() => {
         await loadList();
       } catch (e) { btn.disabled = false; btn.textContent = '보류 처리'; Toast.error('상태 변경에 실패했습니다.'); console.error(e); }
     };
-  }
-
-  // ── 처리 재개 (보류 → 처리중) ────────────────────────────
-  async function resumeWork(reqId) {
-    try {
-      await Api.patch(`/as-requests/${reqId}/resume`, {});
-      Toast.success('처리 재개로 변경되었습니다.');
-      await loadList();
-    } catch (e) { Toast.error('상태 변경에 실패했습니다.'); console.error(e); }
   }
 
   // ── 처리 완료 폼 ─────────────────────────────────────────
@@ -455,7 +433,7 @@ const AsRequestPage = (() => {
     };
   }
 
-  // ── 취소 폼 (사유 필수) ───────────────────────────────────
+  // ── 취소 폼 ───────────────────────────────────────────────
   function openCancelForm(reqId) {
     const r = _cache[reqId];
     Modal.open({
@@ -490,38 +468,170 @@ const AsRequestPage = (() => {
     };
   }
 
-  // ── QR 스캔으로 진입 (장비 정보 미리 채움) ───────────────
-  function openNewFormWithEquip(equip) {
-    openNewForm();
-    setTimeout(() => {
-      const siteEl    = document.getElementById('as-site');
-      const equipNoEl = document.getElementById('as-equip-no');
-      const specEl    = document.getElementById('as-equip-spec');
-      const companyEl = document.getElementById('as-company');
+  // ── QR 스캔 경유 AS 신청 ─────────────────────────────────
+  async function openNewFormWithEquip(equip) {
+    // 중복 AS 요청 확인 (처리 진행 중인 건이 있으면 차단)
+    const { data: dup } = await _sb.from('as_requests')
+      .select('id,status,fault_type,reporter_name')
+      .eq('equip_no', equip.equip_no)
+      .in('status', ['requested','in_progress','material_pending','held'])
+      .maybeSingle();
 
-      if (siteEl && equip.site_id)  { siteEl.value    = equip.site_id;  siteEl.disabled   = true; }
-      if (equipNoEl && equip.equip_no) {
-        equipNoEl.value    = equip.equip_no;
-        equipNoEl.readOnly = true;
-        equipNoEl.style.background = 'var(--gray-100)';
-      }
-      if (specEl && equip.spec) {
-        specEl.value    = equip.spec;
-        specEl.readOnly = true;
-        specEl.style.background = 'var(--gray-100)';
-      }
-      if (companyEl && equip.company) {
-        companyEl.value    = equip.company;
-        companyEl.readOnly = true;
-        companyEl.style.background = 'var(--gray-100)';
-      }
-    }, 80);
+    if (dup) {
+      const dupStatus = STATUS_MAP[dup.status]?.label || dup.status;
+      Modal.open({
+        title: 'AS 요청 중복',
+        body: `
+          <div style="text-align:center;padding:16px 0">
+            <div style="font-size:15px;font-weight:700;color:var(--red);margin-bottom:14px">
+              이미 접수된 AS 요청이 있습니다
+            </div>
+            <div style="background:var(--gray-100);border-radius:8px;padding:12px 14px;font-size:13px;text-align:left">
+              <div style="margin-bottom:4px"><span class="text-muted">장비번호:</span> <strong>${equip.equip_no}</strong></div>
+              <div style="margin-bottom:4px"><span class="text-muted">고장유형:</span> ${dup.fault_type || '-'}</div>
+              <div style="margin-bottom:4px"><span class="text-muted">현재 상태:</span> ${dupStatus}</div>
+              <div><span class="text-muted">신청자:</span> ${dup.reporter_name || '-'}</div>
+            </div>
+            <div style="margin-top:14px;font-size:13px;color:var(--gray-500)">
+              중복 접수는 불가합니다.<br>AS 처리 완료 후 재신청해주세요.
+            </div>
+          </div>
+        `,
+        footer: `<button class="btn btn-primary btn-sm" onclick="Modal.close()">확인</button>`,
+      });
+      return;
+    }
+
+    // 현재 사용중인 기록에서 층수 자동 조회
+    let autoFloor = '';
+    try {
+      const { data: log } = await _sb.from('usage_logs')
+        .select('floor')
+        .eq('equip_no', equip.equip_no)
+        .eq('status', 'using')
+        .order('start_time', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (log?.floor) autoFloor = log.floor;
+    } catch {}
+
+    const user      = Auth.getUser();
+    const siteName  = equip.site_name || (equip.site_id === 'P4' ? 'P4 복합동' : equip.site_id === 'P5' ? 'P5 복합동' : equip.site_id || '');
+    const modelLabel = equip.spec || equip.model || '-';
+
+    const floorField = autoFloor
+      ? `<input id="as-qr-floor" class="form-input" value="${autoFloor}" readonly
+           style="background:var(--gray-100);color:var(--gray-500)">`
+      : `<select id="as-qr-floor" class="form-input form-select">
+           <option value="">-- 선택 --</option>
+           ${FLOOR_OPTS.map(f => `<option value="${f}">${f}</option>`).join('')}
+         </select>`;
+
+    Modal.open({
+      title: 'AS 신청',
+      body: `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">현장명</label>
+            <input class="form-input" value="${siteName}" readonly style="background:var(--gray-100);color:var(--gray-500)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">업체명</label>
+            <input class="form-input" value="${equip.company || '-'}" readonly style="background:var(--gray-100);color:var(--gray-500)">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">장비번호</label>
+            <input class="form-input" value="${equip.equip_no}" readonly style="background:var(--gray-100);color:var(--gray-500)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">장비 모델명</label>
+            <input class="form-input" value="${modelLabel}" readonly style="background:var(--gray-100);color:var(--gray-500)">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">사용층수 <span style="color:var(--red)">*</span></label>
+            ${floorField}
+          </div>
+          <div class="form-group">
+            <label class="form-label">세부 위치</label>
+            <input id="as-qr-detail" class="form-input" placeholder="예: A구역, 동편">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">고장 유형 <span style="color:var(--red)">*</span></label>
+          <select id="as-qr-fault" class="form-input form-select">
+            ${FAULT_TYPES.map(f => `<option value="${f}">${f}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">증상 설명 <span style="color:var(--red)">*</span></label>
+          <textarea id="as-qr-desc" class="form-input" rows="3" placeholder="고장 증상을 상세히 설명해주세요"></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-label">신청자</label>
+            <input class="form-input" value="${user?.name || ''}" readonly style="background:var(--gray-100);color:var(--gray-500)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">연락처</label>
+            <input class="form-input" value="${user?.phone || ''}" readonly style="background:var(--gray-100);color:var(--gray-500)">
+          </div>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-submit-as-qr">신청 완료</button>
+      `,
+    });
+
+    document.getElementById('btn-submit-as-qr').onclick = () => _submitNewAsWithEquip(equip, user);
+  }
+
+  async function _submitNewAsWithEquip(equip, user) {
+    const floor  = document.getElementById('as-qr-floor').value;
+    const detail = document.getElementById('as-qr-detail').value.trim();
+    const fault  = document.getElementById('as-qr-fault').value;
+    const desc   = document.getElementById('as-qr-desc').value.trim();
+
+    if (!floor) { Toast.error('사용층수를 선택해주세요.'); return; }
+    if (!desc)  { Toast.error('증상 설명을 입력해주세요.'); return; }
+
+    const location = detail ? `${floor} ${detail}` : floor;
+    const siteName = equip.site_name || (equip.site_id === 'P4' ? 'P4 복합동' : 'P5 복합동');
+
+    const btn = document.getElementById('btn-submit-as-qr');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      await Api.post('/as-requests', {
+        site_id:        equip.site_id,
+        site_name:      siteName,
+        company:        equip.company || '',
+        equip_no:       equip.equip_no,
+        equip_id:       equip.id,
+        equip_spec:     equip.spec || equip.model || '',
+        location,
+        fault_type:     fault,
+        description:    desc,
+        reporter_name:  user?.name || '',
+        reporter_phone: user?.phone || '',
+        created_by:     user?.id,
+      });
+      Modal.close();
+      Toast.success('AS 요청이 접수되었습니다.');
+      await loadList();
+    } catch {
+      btn.disabled = false;
+      btn.textContent = '신청 완료';
+    }
   }
 
   return {
     render, switchTab, loadList,
     openNewForm, openNewFormWithEquip,
-    startWork, setMaterial, resumeWork,
-    openHoldForm, openResolveForm, openCancelForm,
+    setMaterial, openHoldForm, openResolveForm, openCancelForm,
   };
 })();

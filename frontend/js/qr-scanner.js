@@ -297,10 +297,9 @@ const QrScanner = (() => {
   }
 
   // ── AS 요청 ──────────────────────────────────────────────
-  function _handleAs(equip) {
+  async function _handleAs(equip) {
     Modal.close();
-    App.showPage('as-request');
-    setTimeout(() => AsRequestPage.openNewFormWithEquip(equip), 150);
+    await AsRequestPage.openNewFormWithEquip(equip);
   }
 
   // QR 이미지에 담을 URL 생성 (스캔 시 앱으로 바로 진입)
