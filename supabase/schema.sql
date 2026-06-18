@@ -536,10 +536,18 @@ CREATE POLICY "notif_insert_authenticated"
   WITH CHECK (get_my_role() IS NOT NULL);
 
 -- ── Realtime 구독 설정 ─────────────────────────────────────
--- RLS가 활성화된 테이블에서 Realtime 사용 시
--- 사용자는 자신이 SELECT 권한을 가진 행의 변경만 수신합니다.
--- Supabase 대시보드 → Database → Replication 에서도 설정 가능합니다.
-ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE transit;
-ALTER PUBLICATION supabase_realtime ADD TABLE as_requests;
-ALTER PUBLICATION supabase_realtime ADD TABLE equipment;
+-- 이미 등록된 테이블은 건너뜁니다 (idempotent).
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['notifications','transit','as_requests','equipment']
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', t);
+    END IF;
+  END LOOP;
+END $$;
