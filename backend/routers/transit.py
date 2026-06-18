@@ -85,12 +85,14 @@ async def create_transit(body: TransitCreateRequest, current_user: dict = Depend
         "manager_phone":    body.manager_phone,
         "manager_location": body.manager_location,
         "requested_date":   body.requested_date,
-        "requested_time":   body.requested_time,
         "note":             body.note,
         "status":           "requested",
         "change_log":       [],
         "created_by":       current_user["sub"],
     }
+    # 컬럼이 DB에 존재할 때만 포함 (스키마 마이그레이션 전 방어 처리)
+    if body.requested_time:
+        data["requested_time"] = body.requested_time
     res = supabase.table("transit").insert(data).execute()
     transit = res.data[0]
 
