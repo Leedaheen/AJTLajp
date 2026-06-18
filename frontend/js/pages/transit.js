@@ -1123,7 +1123,7 @@ const TransitPage = (() => {
 
         // 클립보드 메시지 생성
         const today = new Date().toISOString().slice(0, 10);
-        const siteProject = [t.site_name, t.project].filter(Boolean).join('_');
+        const siteProject = [t.site_name, t.project, t.manager_location].filter(Boolean).join(' · ');
         const equipLines = finalNos.map((no, i) => {
           const spec = isIn ? specPool[i] : equipSpecMap[no];
           return spec ? `${no}-${spec}` : no;
