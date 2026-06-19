@@ -4,7 +4,7 @@
  */
 const AdminPage = (() => {
   const ROLE_LABELS = {
-    tech: '기술인', partner: '협력사 담당자', aj: 'AJ관리자', as_tech: 'AS기사',
+    tech: '기술인', partner: '협력사 담당자', aj: 'AJ관리자', as_tech: 'AS기사', pro: '프로',
   };
   const STATUS_LABELS = {
     pending: '<span class="badge badge-pending">승인 대기</span>',
@@ -173,9 +173,10 @@ const AdminPage = (() => {
         <div class="form-group">
           <label class="form-label">역할</label>
           <select id="sel-new-role" class="form-input form-select">
-            <option value="tech" ${currentRole==='tech'?'selected':''}>기술인</option>
+            <option value="tech"    ${currentRole==='tech'   ?'selected':''}>기술인</option>
             <option value="partner" ${currentRole==='partner'?'selected':''}>협력사 담당자</option>
-            <option value="aj" ${currentRole==='aj'?'selected':''}>AJ관리자</option>
+            <option value="pro"     ${currentRole==='pro'    ?'selected':''}>프로</option>
+            <option value="aj"      ${currentRole==='aj'     ?'selected':''}>AJ관리자</option>
             <option value="as_tech" ${currentRole==='as_tech'?'selected':''}>AS기사</option>
           </select>
         </div>

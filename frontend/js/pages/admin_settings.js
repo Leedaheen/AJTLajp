@@ -18,7 +18,19 @@ const AdminSettingsPage = (() => {
     document.getElementById('page-admin-settings').innerHTML = `
       <h2 class="section-title" style="margin-bottom:20px">관리자설정</h2>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;align-items:start">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;align-items:start">
+
+        <!-- 발주처 관리 (최우선) -->
+        <details class="card" style="padding:0" open>
+          <summary style="${_ACCORD_SUMMARY}">
+            <h3 style="${_ACCORD_TITLE}">발주처 관리</h3>
+            <button class="btn btn-primary btn-sm"
+              onclick="event.stopPropagation();AdminSettingsPage.openAddClient()">+ 발주처 추가</button>
+          </summary>
+          <div id="clients-list" style="padding:8px 0">
+            <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
+          </div>
+        </details>
 
         <!-- 현장 관리 -->
         <details class="card" style="padding:0">
@@ -63,7 +75,7 @@ const AdminSettingsPage = (() => {
             <button class="btn btn-primary btn-sm"
               onclick="event.stopPropagation();AdminSettingsPage.openAddFloor()">+ 층수 추가</button>
           </summary>
-          <div id="floors-list" style="padding:8px;overflow-y:auto;max-height:280px">
+          <div id="floors-list" style="padding:8px;overflow-y:auto;max-height:300px">
             <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
           </div>
         </details>
@@ -84,9 +96,112 @@ const AdminSettingsPage = (() => {
     `;
 
     await Promise.all([
-      _loadSites(), _loadProjects(), _loadCompanies(),
+      _loadClients(), _loadSites(), _loadProjects(), _loadCompanies(),
       _loadFloors(), _loadEquipModelsCrud(),
     ]);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // 발주처 관리
+  // ─────────────────────────────────────────────────────────
+  async function _loadClients() {
+    const el = document.getElementById('clients-list');
+    if (!el) return;
+    try {
+      const { data: list = [] } = await window._sb.from('clients').select('*').order('sort_order').order('name');
+      if (!list.length) { el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">발주처 없음</div>'; return; }
+      el.innerHTML = list.map(c => `
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:10px 12px;border-bottom:1px solid var(--gray-100)">
+          <div>
+            <span style="font-weight:600;font-size:14px">${c.name}</span>
+            <span style="margin-left:8px;font-size:12px;color:var(--gray-400)">${c.code || ''}</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge" style="${c.active?'background:#d1fae5;color:#065f46':'background:#fee2e2;color:#991b1b'}">
+              ${c.active?'활성':'비활성'}
+            </span>
+            <button class="btn btn-outline btn-sm"
+              onclick="AdminSettingsPage.openEditClient(${c.id},'${_esc(c.code)}','${_esc(c.name)}',${c.active})">수정</button>
+            <button onclick="AdminSettingsPage.deleteClient(${c.id},'${_esc(c.name)}')"
+              style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:18px;line-height:1;padding:2px 4px;border-radius:4px"
+              onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">×</button>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) { el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">불러오기 실패</div>'; }
+  }
+
+  function openAddClient() {
+    Modal.open({
+      title: '발주처 추가',
+      body: `
+        <div class="form-group">
+          <label class="form-label">발주처 코드 <span style="color:var(--red)">*</span></label>
+          <input id="client-code" class="form-input" placeholder="예: SAMSUNG_EA">
+        </div>
+        <div class="form-group">
+          <label class="form-label">발주처명 <span style="color:var(--red)">*</span></label>
+          <input id="client-name" class="form-input" placeholder="예: E&A">
+        </div>
+      `,
+      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+               <button class="btn btn-primary btn-sm" id="btn-add-client">추가</button>`,
+    });
+    document.getElementById('btn-add-client').onclick = async () => {
+      const code = document.getElementById('client-code').value.trim().toUpperCase();
+      const name = document.getElementById('client-name').value.trim();
+      if (!code) { Toast.error('코드를 입력해주세요.'); return; }
+      if (!name) { Toast.error('발주처명을 입력해주세요.'); return; }
+      const btn = document.getElementById('btn-add-client');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        const { error } = await window._sb.from('clients').insert({ code, name, active: true });
+        if (error) throw error;
+        Modal.close(); Toast.success('발주처가 추가되었습니다.'); _loadClients();
+      } catch { btn.disabled = false; btn.textContent = '추가'; Toast.error('추가 실패'); }
+    };
+  }
+
+  function openEditClient(id, code, name, active) {
+    Modal.open({
+      title: `발주처 수정 — ${name}`,
+      body: `
+        <div class="form-group"><label class="form-label">발주처 코드</label>
+          <input id="client-code-edit" class="form-input" value="${code}"></div>
+        <div class="form-group"><label class="form-label">발주처명</label>
+          <input id="client-name-edit" class="form-input" value="${name}"></div>
+        <div class="form-group"><label class="form-label">상태</label>
+          <select id="client-active-edit" class="form-input form-select">
+            <option value="true" ${active?'selected':''}>활성</option>
+            <option value="false" ${!active?'selected':''}>비활성</option>
+          </select></div>
+      `,
+      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+               <button class="btn btn-primary btn-sm" id="btn-edit-client">저장</button>`,
+    });
+    document.getElementById('btn-edit-client').onclick = async () => {
+      const btn = document.getElementById('btn-edit-client');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        const { error } = await window._sb.from('clients').update({
+          code:   document.getElementById('client-code-edit').value.trim().toUpperCase(),
+          name:   document.getElementById('client-name-edit').value.trim(),
+          active: document.getElementById('client-active-edit').value === 'true',
+        }).eq('id', id);
+        if (error) throw error;
+        Modal.close(); Toast.success('수정되었습니다.'); _loadClients();
+      } catch { btn.disabled = false; btn.textContent = '저장'; Toast.error('수정 실패'); }
+    };
+  }
+
+  async function deleteClient(id, name) {
+    if (!confirm(`발주처 "${name}"을 삭제하시겠습니까?`)) return;
+    try {
+      const { error } = await window._sb.from('clients').delete().eq('id', id);
+      if (error) throw error;
+      Toast.success('삭제되었습니다.'); _loadClients();
+    } catch { Toast.error('삭제 실패'); }
   }
 
   // ─────────────────────────────────────────────────────────
@@ -399,29 +514,25 @@ const AdminSettingsPage = (() => {
         el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">등록된 층수 없음</div>';
         return;
       }
-      el.innerHTML = `
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:4px">
-          ${list.map(f => `
-            <div style="display:flex;align-items:center;justify-content:space-between;
-                        padding:6px 8px;border-radius:6px;font-size:13px;
-                        background:${f.active?'var(--gray-50)':'#fff8f8'};
-                        border:1px solid ${f.active?'var(--gray-200)':'#fca5a5'}">
-              <span style="font-weight:600;color:${f.active?'var(--navy)':'var(--gray-400)'};font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.name}</span>
-              <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px">
-                <button title="수정" onclick="AdminSettingsPage.openEditFloor(${f.id},'${_esc(f.name)}',${f.active})"
-                  style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:13px;padding:1px 3px"
-                  onmouseover="this.style.color='var(--navy)'" onmouseout="this.style.color='var(--gray-400)'">✎</button>
-                <button title="${f.active?'비활성화':'활성화'}" onclick="AdminSettingsPage.toggleFloor(${f.id},${f.active})"
-                  style="background:none;border:none;cursor:pointer;font-size:11px;padding:1px 3px;
-                         color:${f.active?'#16a34a':'#9ca3af'}">${f.active?'●':'○'}</button>
-                <button title="삭제" onclick="AdminSettingsPage.deleteFloor(${f.id},'${_esc(f.name)}')"
-                  style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:15px;line-height:1;padding:1px 3px"
-                  onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">×</button>
-              </div>
-            </div>
-          `).join('')}
+      el.innerHTML = list.map(f => `
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:8px 12px;border-bottom:1px solid var(--gray-100);
+                    background:${f.active?'':'#fff8f8'}">
+          <span style="font-weight:600;font-size:13px;color:${f.active?'var(--navy)':'var(--gray-400)'}">${f.name}</span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <span class="badge" style="${f.active?'background:#d1fae5;color:#065f46':'background:#fee2e2;color:#991b1b'};font-size:11px">
+              ${f.active?'활성':'비활성'}
+            </span>
+            <button title="${f.active?'비활성화':'활성화'}" onclick="AdminSettingsPage.toggleFloor(${f.id},${f.active})"
+              class="btn btn-outline btn-sm" style="font-size:11px;padding:2px 6px">${f.active?'비활성화':'활성화'}</button>
+            <button title="수정" onclick="AdminSettingsPage.openEditFloor(${f.id},'${_esc(f.name)}',${f.active})"
+              class="btn btn-outline btn-sm" style="font-size:11px;padding:2px 6px">수정</button>
+            <button onclick="AdminSettingsPage.deleteFloor(${f.id},'${_esc(f.name)}')"
+              style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:18px;line-height:1;padding:2px 4px"
+              onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">×</button>
+          </div>
         </div>
-      `;
+      `).join('');
     } catch { el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">불러오기 실패</div>'; }
   }
 
@@ -698,6 +809,7 @@ const AdminSettingsPage = (() => {
 
   return {
     render,
+    openAddClient, openEditClient, deleteClient,
     openAddSite, openEditSite, deleteSite,
     openAddProject, openEditProject, deleteProject,
     openAddCompany, openEditCompany, deleteCompany,

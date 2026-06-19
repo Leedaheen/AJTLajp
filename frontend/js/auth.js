@@ -105,13 +105,17 @@ const Auth = (() => {
   }
 
   // ── 역할 선택 모달 ───────────────────────────────────────────
-  function _showRoleModal(session) {
+  async function _showRoleModal(session) {
+    // 발주처 목록 동적 로드
+    const { data: clients = [] } = await window._sb.from('clients').select('code,name').eq('active', true).order('sort_order').order('name');
+    const clientOpts = clients.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+
     Modal.open({
       title: '역할 및 현장 선택',
       body: `
         <p class="text-sm text-muted" style="margin-bottom:16px">
           사용하실 역할과 담당 현장을 선택해주세요.<br>
-          협력사·AS기사는 AJ관리자 승인 후 이용 가능합니다.
+          협력사·AS기사·프로는 AJ관리자 승인 후 이용 가능합니다.
         </p>
         <div class="form-group">
           <label class="form-label">역할 선택 <span style="color:var(--red)">*</span></label>
@@ -119,8 +123,16 @@ const Auth = (() => {
             <option value="">-- 역할을 선택하세요 --</option>
             <option value="tech">기술인 (현장 작업자)</option>
             <option value="partner">협력사 담당자</option>
+            <option value="pro">프로 (열람 전용)</option>
             <option value="aj">AJ관리자</option>
             <option value="as_tech">AS기사 (고장 수리 담당자)</option>
+          </select>
+        </div>
+        <div id="grp-client" class="form-group" style="display:none">
+          <label class="form-label">발주처 <span style="color:var(--red)">*</span></label>
+          <select id="sel-client" class="form-input form-select">
+            <option value="">-- 발주처 선택 --</option>
+            ${clientOpts}
           </select>
         </div>
         <div class="form-group">
@@ -148,10 +160,17 @@ const Auth = (() => {
     });
 
     document.getElementById('sel-role').addEventListener('change', e => {
+      const role    = e.target.value;
       const optAll  = document.getElementById('opt-all');
       const selSite = document.getElementById('sel-site');
-      optAll.style.display = e.target.value === 'aj' ? '' : 'none';
-      if (e.target.value === 'aj') selSite.value = 'ALL';
+      const grpClient = document.getElementById('grp-client');
+
+      // 발주처 선택: 협력사·기술인·프로에게만 표시
+      grpClient.style.display = ['tech','partner','pro'].includes(role) ? '' : 'none';
+
+      // 현장 ALL: AJ관리자만
+      optAll.style.display = role === 'aj' ? '' : 'none';
+      if (role === 'aj') selSite.value = 'ALL';
       else if (selSite.value === 'ALL') selSite.value = 'P4';
     });
 
@@ -163,9 +182,14 @@ const Auth = (() => {
     const siteId  = document.getElementById('sel-site').value;
     const phone   = document.getElementById('inp-phone').value;
     const company = document.getElementById('inp-company').value.trim();
+    const client  = ['tech','partner','pro'].includes(role)
+      ? (document.getElementById('sel-client')?.value || '') : '';
 
     if (!role)    { Toast.error('역할을 선택해주세요.'); return; }
     if (!company) { Toast.error('업체명을 입력해주세요.'); return; }
+    if (['tech','partner','pro'].includes(role) && !client) {
+      Toast.error('발주처를 선택해주세요.'); return;
+    }
 
     const btn = document.getElementById('btn-role-confirm');
     btn.disabled = true;
@@ -173,7 +197,7 @@ const Auth = (() => {
 
     localStorage.setItem('saved_company', company);
 
-    const needApproval = ['partner', 'as_tech'].includes(role);
+    const needApproval = ['partner', 'as_tech', 'pro'].includes(role);
     const { data, error } = await _sb.from('app_users').insert({
       id:        session.user.id,
       google_id: session.user.user_metadata?.provider_id || session.user.id,
@@ -183,6 +207,7 @@ const Auth = (() => {
       role,
       site_id:   siteId,
       company,
+      client_id: client || null,
       status:    needApproval ? 'pending' : 'active',
     }).select().single();
 

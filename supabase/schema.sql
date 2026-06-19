@@ -722,3 +722,29 @@ ALTER TABLE transit ADD COLUMN IF NOT EXISTS completed_by_name text;
 ALTER TABLE transit DROP CONSTRAINT IF EXISTS transit_status_check;
 ALTER TABLE transit ADD CONSTRAINT transit_status_check
   CHECK (status IN ('requested','scheduled','partner_confirmed','confirmed','completed','cancelled'));
+
+
+-- 발주처 테이블
+CREATE TABLE IF NOT EXISTS clients (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code       text UNIQUE NOT NULL,
+  name       text NOT NULL,
+  active     boolean DEFAULT true,
+  sort_order integer DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+
+-- 기본 발주처 3개 삽입 (중복 무시)
+INSERT INTO clients (code, name, sort_order) VALUES
+  ('MOOLSAN',   '물산',   1),
+  ('ENA',       'E&A',    2),
+  ('JOONGHAP',  '중공업', 3)
+ON CONFLICT (code) DO NOTHING;
+
+-- app_users 에 발주처 컬럼 추가
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS client_id text;
+
+-- app_users role 제약에 pro 추가
+ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_role_check;
+ALTER TABLE app_users ADD CONSTRAINT app_users_role_check
+  CHECK (role IN ('tech','partner','aj','as_tech','admin','pro'));
