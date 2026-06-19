@@ -234,10 +234,11 @@ const AsRequestPage = (() => {
 
   // ── 협력사 수기 AS 신청 폼 ──────────────────────────────
   async function openNewForm() {
-    const [sites, companies] = await Promise.all([
-      Api.get('/sites').catch(() => [{ code: 'P4', name: 'P4 복합동' }, { code: 'P5', name: 'P5 복합동' }]),
-      Api.get('/companies?site_id=P4').catch(() => []),
-    ]);
+    const user = Auth.getUser();
+    const userCompany = user?.company || '';
+    const defaultSiteId = user?.site_id === 'ALL' ? 'P4' : (user?.site_id || 'P4');
+
+    const sites = await Api.get('/sites').catch(() => [{ code: 'P4', name: 'P4 복합동' }, { code: 'P5', name: 'P5 복합동' }]);
 
     Modal.open({
       title: 'AS 신청',
@@ -245,16 +246,14 @@ const AsRequestPage = (() => {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
-            <select id="as-site" class="form-input form-select" onchange="AsRequestPage._onAsSiteChange()">
-              ${sites.map(s => `<option value="${s.code}" data-name="${s.name}">${s.name}</option>`).join('')}
+            <select id="as-site" class="form-input form-select" onchange="AsRequestPage._onAsCompanyChange()">
+              ${sites.map(s => `<option value="${s.code}" data-name="${s.name}"${s.code === defaultSiteId ? ' selected' : ''}>${s.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
-            <select id="as-company" class="form-input form-select" onchange="AsRequestPage._onAsCompanyChange()">
-              <option value="">-- 업체 선택 --</option>
-              ${companies.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
-            </select>
+            <label class="form-label">업체명</label>
+            <input id="as-company" class="form-input" value="${userCompany}" readonly
+              style="background:var(--gray-100);color:var(--gray-500);cursor:default">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -310,34 +309,20 @@ const AsRequestPage = (() => {
         <button class="btn btn-primary btn-sm" id="btn-submit-as">신청 완료</button>
       `,
     });
-    const user = Auth.getUser();
     if (user?.name)  document.getElementById('as-reporter').value = user.name;
     if (user?.phone) document.getElementById('as-phone').value    = user.phone;
     document.getElementById('btn-submit-as').onclick = _submitNewAs;
+
+    // 모달 렌더 후 초기 장비 목록 자동 로드
+    _onAsCompanyChange();
   }
 
-  // 현장 변경 → 업체 목록 재로드
+  // 현장 변경 → 장비 목록 재로드 (업체는 고정)
   async function _onAsSiteChange() {
-    const siteId = document.getElementById('as-site')?.value;
-    const coEl   = document.getElementById('as-company');
-    const eqEl   = document.getElementById('as-equip-no');
-    if (coEl) { coEl.innerHTML = '<option value="">-- 업체 선택 --</option>'; }
-    if (eqEl) { eqEl.innerHTML = '<option value="">-- 업체 선택 후 장비 선택 --</option>'; }
-    const floorEl = document.getElementById('as-floor');
-    const specEl  = document.getElementById('as-equip-spec');
-    if (floorEl) floorEl.value = '';
-    if (specEl)  specEl.value  = '';
-    try {
-      const list = await Api.get(`/companies${siteId ? `?site_id=${siteId}` : ''}`);
-      (list || []).forEach(c => {
-        const o = document.createElement('option');
-        o.value = c.name; o.textContent = c.name;
-        coEl.appendChild(o);
-      });
-    } catch { /* 실패 시 빈 목록 유지 */ }
+    await _onAsCompanyChange();
   }
 
-  // 업체 변경 → 해당 업체 사용 장비 목록 로드
+  // 현장/업체 기준 사용 장비 목록 로드 (업체는 사용자 프로필에서 고정)
   async function _onAsCompanyChange() {
     const siteId  = document.getElementById('as-site')?.value;
     const company = document.getElementById('as-company')?.value;
@@ -364,8 +349,8 @@ const AsRequestPage = (() => {
       rows.forEach(e => {
         const o = document.createElement('option');
         o.value = e.equip_no;
-        o.textContent = `${e.equip_no}${e.spec ? '  (' + e.spec + ')' : ''}`;
-        o.dataset.spec = e.spec || '';
+        o.textContent = `${e.equip_no}${e.model ? '  (' + e.model + ')' : ''}`;
+        o.dataset.model = e.model || '';
         eqEl.appendChild(o);
       });
     } catch {
@@ -375,12 +360,12 @@ const AsRequestPage = (() => {
 
   // 장비 선택 → 층수/모델 자동 입력
   async function _onAsEquipChange() {
-    const eqEl   = document.getElementById('as-equip-no');
+    const eqEl    = document.getElementById('as-equip-no');
     const equip_no = eqEl?.value;
-    const spec   = eqEl?.options[eqEl.selectedIndex]?.dataset?.spec || '';
-    const specEl = document.getElementById('as-equip-spec');
+    const model   = eqEl?.options[eqEl.selectedIndex]?.dataset?.model || '';
+    const specEl  = document.getElementById('as-equip-spec');
     const floorEl = document.getElementById('as-floor');
-    if (specEl)  specEl.value  = spec;
+    if (specEl)  specEl.value  = model;
     if (floorEl) floorEl.value = '';
     if (!equip_no) return;
     try {
