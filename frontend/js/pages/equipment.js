@@ -731,21 +731,21 @@ const EquipmentPage = (() => {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
           <div class="form-group" style="margin-bottom:0">
-            <label class="form-label" style="font-size:12px">상태${isAj?'':' <span style="font-size:10px;color:var(--gray-400)">(AJ만)</span>'}</label>
-            <select id="ed-status" class="form-input form-select" style="padding:6px 8px" ${ro}>
+            <label class="form-label">상태${isAj?'':' <span style="font-size:10px;color:var(--gray-400)">(AJ만)</span>'}</label>
+            <select id="ed-status" class="form-input form-select" ${ro}>
               <option value="in_use"   ${status==='in_use'  ?'selected':''}>사용중</option>
               <option value="returned" ${status==='returned'?'selected':''}>반출완료</option>
             </select>
           </div>
           <div class="form-group" style="margin-bottom:0">
-            <label class="form-label" style="font-size:12px">제원</label>
-            <select id="ed-spec" class="form-input form-select" style="padding:6px 8px">
+            <label class="form-label">제원</label>
+            <select id="ed-spec" class="form-input form-select">
               ${SPEC_OPTIONS.map(s=>`<option value="${s}" ${s===spec?'selected':''}>${s}</option>`).join('')}
             </select>
           </div>
           <div class="form-group" style="margin-bottom:0">
-            <label class="form-label" style="font-size:12px">사용층수</label>
-            <select id="ed-floor" class="form-input form-select" style="padding:6px 8px">
+            <label class="form-label">사용층수</label>
+            <select id="ed-floor" class="form-input form-select">
               <option value="">-- 선택 --</option>
               ${floorOptions}
               ${!floorHasMatch && floor ? `<option value="${floor}" selected>${floor}</option>` : ''}
