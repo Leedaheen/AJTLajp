@@ -754,3 +754,25 @@ ALTER TABLE clients DROP COLUMN IF EXISTS code;
 
 -- sites 테이블: 신규 추가 시 code = name 으로 자동 설정 (기존 P4/P5 코드는 유지)
 -- (코드는 내부 참조용으로만 존재, UI에서는 name만 표시/관리)
+
+-- ── 역할별 권한/알림 설정 테이블 ──────────────────────────────
+CREATE TABLE IF NOT EXISTS role_permissions (
+  role       text PRIMARY KEY CHECK (role IN ('tech','partner','pro','as_tech','aj')),
+  menus      jsonb NOT NULL DEFAULT '{}',
+  updated_at timestamptz DEFAULT now()
+);
+
+-- RLS
+ALTER TABLE role_permissions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "rp_select_all" ON role_permissions FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "rp_all_admin"  ON role_permissions FOR ALL
+  USING (EXISTS (
+    SELECT 1 FROM app_users
+    WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    AND role = 'admin'
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM app_users
+    WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    AND role = 'admin'
+  ));

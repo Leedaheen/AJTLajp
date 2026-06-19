@@ -12,9 +12,114 @@ const AdminPage = (() => {
     rejected: '<span class="badge badge-rejected">거절</span>',
   };
 
+  // ── 역할별 권한/알림 설정 ──────────────────────────────────
+  const _PERM_ROLES = ['tech','partner','pro','as_tech','aj'];
+  const _PERM_ROLE_LABELS = { tech:'기술인', partner:'협력사', pro:'프로', as_tech:'AS기사', aj:'AJ관리자' };
+  const _PERM_MENUS = [
+    { group:'홈',        name:'홈 대시보드',    key:'home',           noEdit:true },
+    { group:'반입/반출', name:'일정 조회',      key:'transit_view',   noEdit:true,  notifLabel:'일정 변경' },
+    { group:'반입/반출', name:'신청 / 처리',    key:'transit_edit',                 notifLabel:'신청 접수' },
+    { group:'장비 관리', name:'장비 조회',      key:'equip_view',     noEdit:true,  notifLabel:'장비 변동' },
+    { group:'장비 관리', name:'장비 편집 / QR', key:'equip_edit',                   notifLabel:'등록/삭제' },
+    { group:'AS 요청',   name:'AS 조회',        key:'as_view',        noEdit:true,  notifLabel:'AS 접수' },
+    { group:'AS 요청',   name:'AS 처리',        key:'as_edit',                      notifLabel:'처리 완료' },
+    { group:'사용 기록', name:'기록 조회',      key:'usage_view',     noEdit:true,  notifLabel:'기록 등록' },
+    { group:'사용 기록', name:'기록 등록',      key:'usage_edit',                   notifLabel:'등록 완료' },
+    { group:'분석',      name:'분석 리포트',    key:'analytics',      noEdit:true },
+    { group:'관리자',    name:'사용자 관리',    key:'admin_users',    noEdit:true,  notifLabel:'가입 신청' },
+    { group:'관리자',    name:'관리자 설정',    key:'admin_settings', noEdit:true },
+  ];
+  const _EDIT_STATES = [
+    { label:'편집 없음', cls:'peb-s0' },
+    { label:'전체 수정', cls:'peb-s1' },
+    { label:'현장만',    cls:'peb-s2' },
+    { label:'업체만',    cls:'peb-s3' },
+  ];
+  const _PERM_DEFAULTS = {
+    tech:    { home:{v:1,e:0,n:0}, transit_view:{v:0,e:0,n:0}, transit_edit:{v:0,e:0,n:0}, equip_view:{v:1,e:0,n:0}, equip_edit:{v:0,e:0,n:0}, as_view:{v:1,e:0,n:1}, as_edit:{v:1,e:2,n:1}, usage_view:{v:1,e:0,n:0}, usage_edit:{v:1,e:2,n:0}, analytics:{v:0,e:0,n:0}, admin_users:{v:0,e:0,n:0}, admin_settings:{v:0,e:0,n:0} },
+    partner: { home:{v:1,e:0,n:0}, transit_view:{v:1,e:0,n:1}, transit_edit:{v:1,e:3,n:1}, equip_view:{v:1,e:0,n:0}, equip_edit:{v:0,e:0,n:0}, as_view:{v:1,e:0,n:0}, as_edit:{v:1,e:3,n:1}, usage_view:{v:1,e:0,n:0}, usage_edit:{v:1,e:3,n:0}, analytics:{v:0,e:0,n:0}, admin_users:{v:0,e:0,n:0}, admin_settings:{v:0,e:0,n:0} },
+    pro:     { home:{v:1,e:0,n:0}, transit_view:{v:1,e:0,n:0}, transit_edit:{v:0,e:0,n:0}, equip_view:{v:1,e:0,n:0}, equip_edit:{v:0,e:0,n:0}, as_view:{v:1,e:0,n:0}, as_edit:{v:0,e:0,n:0}, usage_view:{v:1,e:0,n:0}, usage_edit:{v:0,e:0,n:0}, analytics:{v:1,e:0,n:0}, admin_users:{v:0,e:0,n:0}, admin_settings:{v:0,e:0,n:0} },
+    as_tech: { home:{v:1,e:0,n:0}, transit_view:{v:0,e:0,n:0}, transit_edit:{v:0,e:0,n:0}, equip_view:{v:1,e:0,n:0}, equip_edit:{v:0,e:0,n:0}, as_view:{v:1,e:0,n:1}, as_edit:{v:1,e:2,n:1}, usage_view:{v:0,e:0,n:0}, usage_edit:{v:0,e:0,n:0}, analytics:{v:0,e:0,n:0}, admin_users:{v:0,e:0,n:0}, admin_settings:{v:0,e:0,n:0} },
+    aj:      { home:{v:1,e:0,n:0}, transit_view:{v:1,e:0,n:1}, transit_edit:{v:1,e:1,n:1}, equip_view:{v:1,e:0,n:0}, equip_edit:{v:1,e:1,n:0}, as_view:{v:1,e:0,n:1}, as_edit:{v:1,e:1,n:1}, usage_view:{v:1,e:0,n:0}, usage_edit:{v:1,e:1,n:0}, analytics:{v:1,e:0,n:0}, admin_users:{v:1,e:0,n:1}, admin_settings:{v:1,e:0,n:0} },
+  };
+  let _permState = {};
+  let _permRole  = 'tech';
+
   async function render() {
+    const user = Auth.getUser();
+    const isAdmin = user?.role === 'admin';
+
     document.getElementById('page-admin').innerHTML = `
+      <style>
+        .peb-s0{background:var(--gray-100);color:var(--gray-500);border:0.5px solid var(--gray-200)}
+        .peb-s1{background:#dbeafe;color:#1e3a8a;border:0.5px solid #93c5fd}
+        .peb-s2{background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7}
+        .peb-s3{background:#fef3c7;color:#92400e;border:0.5px solid #fcd34d}
+        .perm-edit-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;user-select:none;white-space:nowrap;transition:opacity .1s}
+        .perm-edit-badge:hover{opacity:.8}
+        .perm-role-btn{padding:5px 13px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-500)}
+        .perm-role-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
+        .perm-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+        .perm-tbl th{font-size:11px;font-weight:600;color:var(--gray-400);padding:8px 10px;background:var(--gray-50);border-bottom:1px solid var(--gray-100);text-align:center}
+        .perm-tbl th.lft{text-align:left}
+        .perm-tbl td{padding:8px 10px;border-bottom:1px solid var(--gray-100);vertical-align:middle;text-align:center}
+        .perm-tbl td.lft{text-align:left;font-size:13px}
+        .perm-tbl tr:hover td{background:var(--gray-50)}
+        .perm-grp td{font-size:10px;font-weight:700;color:var(--gray-400);background:var(--gray-50);padding:4px 10px;text-align:left;letter-spacing:.06em;text-transform:uppercase}
+        .perm-toggle{position:relative;width:32px;height:18px;display:inline-block}
+        .perm-toggle input{opacity:0;width:0;height:0}
+        .perm-slider{position:absolute;inset:0;background:var(--gray-200);border-radius:18px;cursor:pointer;transition:.2s}
+        .perm-slider:before{content:'';position:absolute;width:12px;height:12px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+        .perm-toggle input:checked+.perm-slider{background:var(--navy)}
+        .perm-toggle input:checked+.perm-slider:before{transform:translateX(14px)}
+        .perm-toggle input:disabled+.perm-slider{opacity:.25;cursor:not-allowed}
+        .perm-legend{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
+        .perm-leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-500)}
+        .perm-dot{width:9px;height:9px;border-radius:50%}
+      </style>
+
       <h2 class="section-title">사용자 관리</h2>
+
+      ${isAdmin ? `
+      <!-- 역할별 권한/알림 설정 (admin 전용) -->
+      <details class="card" style="margin-bottom:20px;padding:0;overflow:hidden" open>
+        <summary style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;list-style:none;user-select:none;background:var(--gray-50);border-bottom:1px solid var(--gray-100)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <h3 style="font-size:15px;font-weight:700;color:var(--navy);margin:0">역할별 권한 / 알림 설정</h3>
+            <span style="font-size:11px;padding:2px 8px;background:#fef3c7;color:#92400e;border-radius:10px;border:0.5px solid #fcd34d;font-weight:600">admin 전용</span>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-save-perms"
+            onclick="event.preventDefault();event.stopPropagation();AdminPage.savePermissions()">저장</button>
+        </summary>
+        <div style="padding:16px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="perm-role-bar">
+            ${_PERM_ROLES.map((r,i) => `
+              <button class="perm-role-btn${i===0?' active':''}"
+                onclick="AdminPage.permSwitchRole(this,'${r}')">${_PERM_ROLE_LABELS[r]}</button>
+            `).join('')}
+          </div>
+          <div class="perm-legend">
+            <span class="perm-leg"><span class="perm-dot" style="background:#9ca3af"></span>편집 없음</span>
+            <span class="perm-leg"><span class="perm-dot" style="background:#3b82f6"></span>전체 수정</span>
+            <span class="perm-leg"><span class="perm-dot" style="background:#10b981"></span>담당 현장만</span>
+            <span class="perm-leg"><span class="perm-dot" style="background:#f59e0b"></span>담당 업체만</span>
+          </div>
+          <div style="overflow:auto;border:1px solid var(--gray-100);border-radius:8px">
+            <table class="perm-tbl">
+              <thead>
+                <tr>
+                  <th class="lft" style="width:35%">메뉴</th>
+                  <th style="width:11%">열람</th>
+                  <th style="width:32%">편집 권한</th>
+                  <th style="width:22%">알림</th>
+                </tr>
+              </thead>
+              <tbody id="perm-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+      ` : ''}
 
       <!-- 관리자 계정 설정 카드 -->
       <div class="card" style="margin-bottom:20px;border-left:4px solid var(--navy)">
@@ -62,6 +167,140 @@ const AdminPage = (() => {
     document.getElementById('admin-search').addEventListener('input', _filterTable);
 
     await loadUsers();
+    if (isAdmin) await _loadPerms();
+  }
+
+  // ── 권한 설정 로드 ────────────────────────────────────────
+  async function _loadPerms() {
+    try {
+      const { data } = await window._sb.from('role_permissions').select('role,menus');
+      _permState = {};
+      _PERM_ROLES.forEach(r => {
+        const row = (data || []).find(d => d.role === r);
+        _permState[r] = row?.menus || JSON.parse(JSON.stringify(_PERM_DEFAULTS[r]));
+      });
+    } catch {
+      _PERM_ROLES.forEach(r => {
+        _permState[r] = JSON.parse(JSON.stringify(_PERM_DEFAULTS[r]));
+      });
+    }
+    _permRole = 'tech';
+    _renderPermTable('tech');
+  }
+
+  function _renderPermTable(role) {
+    const tbody = document.getElementById('perm-tbody');
+    if (!tbody) return;
+    const p = _permState[role] || {};
+    let html = '', lastGroup = '';
+    _PERM_MENUS.forEach(m => {
+      if (m.group !== lastGroup) {
+        html += `<tr class="perm-grp"><td colspan="4">${m.group}</td></tr>`;
+        lastGroup = m.group;
+      }
+      const d   = p[m.key] || { v:0, e:0, n:0 };
+      const es  = _EDIT_STATES[d.e] || _EDIT_STATES[0];
+      const dis = !d.v;
+      html += `<tr>
+        <td class="lft">${m.name}</td>
+        <td>
+          <input type="checkbox" style="width:14px;height:14px;accent-color:var(--navy);cursor:pointer"
+            id="pv_${m.key}" ${d.v ? 'checked' : ''}
+            onchange="AdminPage.permOnView('${m.key}')">
+        </td>
+        <td>
+          ${m.noEdit
+            ? `<span style="font-size:11px;color:var(--gray-300)">—</span>`
+            : `<span id="peb_${m.key}" class="perm-edit-badge ${es.cls}"
+                data-state="${d.e}"
+                onclick="AdminPage.permCycleEdit('${m.key}')">${es.label}</span>`
+          }
+        </td>
+        <td>
+          ${m.notifLabel
+            ? `<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                 <label class="perm-toggle">
+                   <input type="checkbox" id="pn_${m.key}" ${d.n ? 'checked' : ''} ${dis ? 'disabled' : ''}>
+                   <span class="perm-slider"></span>
+                 </label>
+                 <span style="font-size:10px;color:var(--gray-400)">${m.notifLabel}</span>
+               </div>`
+            : `<span style="font-size:11px;color:var(--gray-300)">—</span>`
+          }
+        </td>
+      </tr>`;
+    });
+    tbody.innerHTML = html;
+  }
+
+  function _savePermFromDom(role) {
+    if (!_permState[role]) return;
+    _PERM_MENUS.forEach(m => {
+      const v = document.getElementById('pv_' + m.key)?.checked ? 1 : 0;
+      const ebEl = document.getElementById('peb_' + m.key);
+      const e = ebEl ? parseInt(ebEl.dataset.state || '0') : 0;
+      const n = document.getElementById('pn_' + m.key)?.checked ? 1 : 0;
+      _permState[role][m.key] = { v, e, n };
+    });
+  }
+
+  function permSwitchRole(btn, role) {
+    _savePermFromDom(_permRole);
+    _permRole = role;
+    document.querySelectorAll('.perm-role-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _renderPermTable(role);
+  }
+
+  function permCycleEdit(key) {
+    const badge = document.getElementById('peb_' + key);
+    if (!badge) return;
+    const cur = parseInt(badge.dataset.state || '0');
+    const next = (cur + 1) % 4;
+    badge.dataset.state = next;
+    badge.className = 'perm-edit-badge ' + _EDIT_STATES[next].cls;
+    badge.textContent = _EDIT_STATES[next].label;
+    const vEl = document.getElementById('pv_' + key);
+    if (next > 0 && vEl) vEl.checked = true;
+    _updateNotifDisabled(key, next > 0 || (vEl?.checked));
+  }
+
+  function permOnView(key) {
+    const vEl = document.getElementById('pv_' + key);
+    if (!vEl?.checked) {
+      const badge = document.getElementById('peb_' + key);
+      if (badge) { badge.dataset.state = '0'; badge.className = 'perm-edit-badge peb-s0'; badge.textContent = '편집 없음'; }
+    }
+    _updateNotifDisabled(key, vEl?.checked);
+  }
+
+  function _updateNotifDisabled(key, enabled) {
+    const n = document.getElementById('pn_' + key);
+    if (!n) return;
+    n.disabled = !enabled;
+    if (!enabled) n.checked = false;
+  }
+
+  async function savePermissions() {
+    _savePermFromDom(_permRole);
+    const btn = document.getElementById('btn-save-perms');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+    try {
+      const rows = _PERM_ROLES.map(role => ({
+        role,
+        menus: _permState[role] || _PERM_DEFAULTS[role],
+        updated_at: new Date().toISOString(),
+      }));
+      const { error } = await window._sb.from('role_permissions').upsert(rows, { onConflict: 'role' });
+      if (error) throw error;
+      window._rolePerms = {};
+      rows.forEach(r => { window._rolePerms[r.role] = r.menus; });
+      Toast.success('권한 설정이 저장되었습니다.');
+    } catch (e) {
+      Toast.error('저장 실패: ' + (e.message || '오류가 발생했습니다.'));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+    }
   }
 
   async function loadUsers() {
@@ -269,5 +508,6 @@ const AdminPage = (() => {
     };
   }
 
-  return { render, loadUsers, approveUser, rejectUser, changeRole, openCredentialsModal };
+  return { render, loadUsers, approveUser, rejectUser, changeRole, openCredentialsModal,
+           permSwitchRole, permCycleEdit, permOnView, savePermissions };
 })();

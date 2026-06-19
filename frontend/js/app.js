@@ -46,6 +46,7 @@ const App = (() => {
       const loggedIn = await Auth.init();
       if (!loggedIn) { showPage('login'); return; }
       _buildLayout();
+      _loadRolePerms();
       Notifications.loadNotifications();
       Notifications.subscribeRealtime();
       Storage.init();
@@ -254,9 +255,18 @@ const App = (() => {
     }
   }
 
+  async function _loadRolePerms() {
+    try {
+      const { data } = await window._sb.from('role_permissions').select('role,menus');
+      window._rolePerms = {};
+      (data || []).forEach(r => { window._rolePerms[r.role] = r.menus; });
+    } catch { window._rolePerms = {}; }
+  }
+
   /** 로그인 완료 후 레이아웃 초기화 + 홈 이동 (QR URL 처리 포함) */
   function onLoginSuccess() {
     _buildLayout();
+    _loadRolePerms();
     Notifications.loadNotifications();
     Notifications.subscribeRealtime();
     Storage.init();
