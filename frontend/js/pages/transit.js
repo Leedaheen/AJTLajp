@@ -1116,6 +1116,7 @@ const TransitPage = (() => {
       });
       Modal.close();
       Toast.success('신청이 완료되었습니다. AJ관리자 검토 후 일정이 확정됩니다.');
+      _loadSchedulerData();
 
       // 낙관적 업데이트: 캐시에 즉시 추가 → 신청 탭으로 전환 후 바로 렌더
       if (saved) {
@@ -1284,6 +1285,7 @@ const TransitPage = (() => {
 
         // 백그라운드 서버 동기화
         loadList(true);
+        _loadSchedulerData();
       } catch (e) { btn.disabled = false; btn.textContent = '확정'; console.error('[Schedule]', e); }
     };
   }
@@ -1495,6 +1497,7 @@ const TransitPage = (() => {
       _updateTabStyles();
       _renderFromCache();
       loadList(true);
+      _loadSchedulerData();
     } catch (e) { Toast.error('처리에 실패했습니다.'); console.error('[confirmSchedule]', e); }
   }
 
@@ -1594,6 +1597,7 @@ const TransitPage = (() => {
         }
 
         await loadList();
+        _loadSchedulerData();
       } catch (e) {
         btn.disabled = false; btn.textContent = '완료 처리';
         console.error('[Complete]', e);
@@ -1713,6 +1717,7 @@ const TransitPage = (() => {
         Modal.close();
         Toast.success('배차정보가 저장되었습니다.');
         await loadList();
+        _loadSchedulerData();
       } catch (e) {
         console.error('[dispatch] 저장 실패:', e);
         btn.disabled = false; btn.textContent = '저장';
@@ -1860,6 +1865,7 @@ const TransitPage = (() => {
         Modal.close();
         Toast.success('수정되었습니다.');
         await loadList();
+        _loadSchedulerData();
       } catch (e) {
         btn.disabled = false; btn.textContent = '저장';
         Toast.error('저장 실패: ' + (e.message || '오류가 발생했습니다.'));
@@ -2116,6 +2122,7 @@ const TransitPage = (() => {
         Modal.close();
         Toast.success('취소 처리되었습니다.');
         await loadList();
+        _loadSchedulerData();
       } catch (e) { btn.disabled = false; btn.textContent = '취소 처리'; console.error(e); }
     };
   }
