@@ -31,7 +31,7 @@ async def list_equipment(
 
     role = current_user["role"]
     user_client = current_user.get("client_name", "")
-    if role not in ("aj", "admin") and user_client:
+    if role not in ("aj", "admin", "as_tech") and user_client:
         query = query.eq("client_name", user_client)
 
     if status:  query = query.eq("status", status)

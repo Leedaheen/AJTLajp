@@ -537,7 +537,7 @@ const TransitPage = (() => {
 
       const _listUser = Auth.getUser();
       let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(500);
-      if (['aj','admin'].includes(_listUser?.role)) {
+      if (['aj','admin','as_tech'].includes(_listUser?.role)) {
         const cf = App.getClientFilter?.();
         if (cf) q = q.eq('client_name', cf);
       } else if (_listUser?.client_name) {
