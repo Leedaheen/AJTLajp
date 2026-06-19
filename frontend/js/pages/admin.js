@@ -50,75 +50,16 @@ const AdminPage = (() => {
     const isAdmin = user?.role === 'admin';
 
     document.getElementById('page-admin').innerHTML = `
-      <style>
-        .peb-s0{background:var(--gray-100);color:var(--gray-500);border:0.5px solid var(--gray-200)}
-        .peb-s1{background:#dbeafe;color:#1e3a8a;border:0.5px solid #93c5fd}
-        .peb-s2{background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7}
-        .peb-s3{background:#fef3c7;color:#92400e;border:0.5px solid #fcd34d}
-        .perm-edit-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;user-select:none;white-space:nowrap;transition:opacity .1s}
-        .perm-edit-badge:hover{opacity:.8}
-        .perm-role-btn{padding:5px 13px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-500)}
-        .perm-role-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
-        .perm-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-        .perm-tbl th{font-size:11px;font-weight:600;color:var(--gray-400);padding:8px 10px;background:var(--gray-50);border-bottom:1px solid var(--gray-100);text-align:center}
-        .perm-tbl th.lft{text-align:left}
-        .perm-tbl td{padding:8px 10px;border-bottom:1px solid var(--gray-100);vertical-align:middle;text-align:center}
-        .perm-tbl td.lft{text-align:left;font-size:13px}
-        .perm-tbl tr:hover td{background:var(--gray-50)}
-        .perm-grp td{font-size:10px;font-weight:700;color:var(--gray-400);background:var(--gray-50);padding:4px 10px;text-align:left;letter-spacing:.06em;text-transform:uppercase}
-        .perm-toggle{position:relative;width:32px;height:18px;display:inline-block}
-        .perm-toggle input{opacity:0;width:0;height:0}
-        .perm-slider{position:absolute;inset:0;background:var(--gray-200);border-radius:18px;cursor:pointer;transition:.2s}
-        .perm-slider:before{content:'';position:absolute;width:12px;height:12px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
-        .perm-toggle input:checked+.perm-slider{background:var(--navy)}
-        .perm-toggle input:checked+.perm-slider:before{transform:translateX(14px)}
-        .perm-toggle input:disabled+.perm-slider{opacity:.25;cursor:not-allowed}
-        .perm-legend{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
-        .perm-leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-500)}
-        .perm-dot{width:9px;height:9px;border-radius:50%}
-      </style>
-
       <h2 class="section-title">사용자 관리</h2>
 
       ${isAdmin ? `
-      <!-- 역할별 권한/알림 설정 (admin 전용) -->
-      <details class="card" style="margin-bottom:20px;padding:0;overflow:hidden" open>
-        <summary style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;list-style:none;user-select:none;background:var(--gray-50);border-bottom:1px solid var(--gray-100)">
-          <div style="display:flex;align-items:center;gap:8px">
-            <h3 style="font-size:15px;font-weight:700;color:var(--navy);margin:0">역할별 권한 / 알림 설정</h3>
-            <span style="font-size:11px;padding:2px 8px;background:#fef3c7;color:#92400e;border-radius:10px;border:0.5px solid #fcd34d;font-weight:600">admin 전용</span>
-          </div>
-          <button class="btn btn-primary btn-sm" id="btn-save-perms"
-            onclick="event.preventDefault();event.stopPropagation();AdminPage.savePermissions()">저장</button>
-        </summary>
-        <div style="padding:16px">
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="perm-role-bar">
-            ${_PERM_ROLES.map((r,i) => `
-              <button class="perm-role-btn${i===0?' active':''}"
-                onclick="AdminPage.permSwitchRole(this,'${r}')">${_PERM_ROLE_LABELS[r]}</button>
-            `).join('')}
-          </div>
-          <div class="perm-legend">
-            <span class="perm-leg"><span class="perm-dot" style="background:#9ca3af"></span>편집 없음</span>
-            <span class="perm-leg"><span class="perm-dot" style="background:#3b82f6"></span>전체 수정</span>
-            <span class="perm-leg"><span class="perm-dot" style="background:#10b981"></span>담당 현장만</span>
-            <span class="perm-leg"><span class="perm-dot" style="background:#f59e0b"></span>담당 업체만</span>
-          </div>
-          <div style="overflow:auto;border:1px solid var(--gray-100);border-radius:8px">
-            <table class="perm-tbl">
-              <thead>
-                <tr>
-                  <th class="lft" style="width:35%">메뉴</th>
-                  <th style="width:11%">열람</th>
-                  <th style="width:32%">편집 권한</th>
-                  <th style="width:22%">알림</th>
-                </tr>
-              </thead>
-              <tbody id="perm-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </details>
+      <div style="margin-bottom:16px;display:flex;justify-content:flex-end">
+        <button class="btn btn-outline btn-sm" style="display:flex;align-items:center;gap:6px"
+          onclick="AdminPage.openPermModal()">
+          역할별 권한 / 알림 설정
+          <span style="font-size:10px;padding:1px 6px;background:#fef3c7;color:#92400e;border-radius:8px;border:0.5px solid #fcd34d;font-weight:600">admin</span>
+        </button>
+      </div>
       ` : ''}
 
       <!-- 관리자 계정 설정 카드 -->
@@ -167,11 +108,79 @@ const AdminPage = (() => {
     document.getElementById('admin-search').addEventListener('input', _filterTable);
 
     if (isAdmin) {
-      _renderPermTable(_permRole); // 저장값 로드 전 기본값으로 즉시 렌더
       await Promise.all([loadUsers(), _loadPerms()]);
     } else {
       await loadUsers();
     }
+  }
+
+  // ── 권한 설정 팝업 ────────────────────────────────────────
+  function openPermModal() {
+    Modal.open({
+      title: '역할별 권한 / 알림 설정',
+      body: `
+        <style>
+          .peb-s0{background:var(--gray-100);color:var(--gray-500);border:0.5px solid var(--gray-200)}
+          .peb-s1{background:#dbeafe;color:#1e3a8a;border:0.5px solid #93c5fd}
+          .peb-s2{background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7}
+          .peb-s3{background:#fef3c7;color:#92400e;border:0.5px solid #fcd34d}
+          .perm-edit-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;user-select:none;white-space:nowrap;transition:opacity .1s}
+          .perm-edit-badge:hover{opacity:.8}
+          .perm-role-btn{padding:5px 13px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-500)}
+          .perm-role-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
+          .perm-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+          .perm-tbl th{font-size:11px;font-weight:600;color:var(--gray-400);padding:8px 10px;background:var(--gray-50);border-bottom:1px solid var(--gray-100);text-align:center}
+          .perm-tbl th.lft{text-align:left}
+          .perm-tbl td{padding:8px 10px;border-bottom:1px solid var(--gray-100);vertical-align:middle;text-align:center}
+          .perm-tbl td.lft{text-align:left;font-size:13px}
+          .perm-tbl tr:hover td{background:var(--gray-50)}
+          .perm-grp td{font-size:10px;font-weight:700;color:var(--gray-400);background:var(--gray-50);padding:4px 10px;text-align:left;letter-spacing:.06em;text-transform:uppercase}
+          .perm-toggle{position:relative;width:32px;height:18px;display:inline-block}
+          .perm-toggle input{opacity:0;width:0;height:0}
+          .perm-slider{position:absolute;inset:0;background:var(--gray-200);border-radius:18px;cursor:pointer;transition:.2s}
+          .perm-slider:before{content:'';position:absolute;width:12px;height:12px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+          .perm-toggle input:checked+.perm-slider{background:var(--navy)}
+          .perm-toggle input:checked+.perm-slider:before{transform:translateX(14px)}
+          .perm-toggle input:disabled+.perm-slider{opacity:.25;cursor:not-allowed}
+          .perm-legend{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+          .perm-leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-500)}
+          .perm-dot{width:9px;height:9px;border-radius:50%}
+        </style>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="perm-role-bar">
+          ${_PERM_ROLES.map((r,i) => `
+            <button class="perm-role-btn${i===0?' active':''}"
+              onclick="AdminPage.permSwitchRole(this,'${r}')">${_PERM_ROLE_LABELS[r]}</button>
+          `).join('')}
+        </div>
+        <div class="perm-legend">
+          <span class="perm-leg"><span class="perm-dot" style="background:#9ca3af"></span>편집 없음</span>
+          <span class="perm-leg"><span class="perm-dot" style="background:#3b82f6"></span>전체 수정</span>
+          <span class="perm-leg"><span class="perm-dot" style="background:#10b981"></span>담당 현장만</span>
+          <span class="perm-leg"><span class="perm-dot" style="background:#f59e0b"></span>담당 업체만</span>
+        </div>
+        <div style="overflow:auto;border:1px solid var(--gray-100);border-radius:8px">
+          <table class="perm-tbl">
+            <thead>
+              <tr>
+                <th class="lft" style="width:35%">메뉴</th>
+                <th style="width:11%">열람</th>
+                <th style="width:32%">편집 권한</th>
+                <th style="width:22%">알림</th>
+              </tr>
+            </thead>
+            <tbody id="perm-tbody"></tbody>
+          </table>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-perms" onclick="AdminPage.savePermissions()">저장</button>
+      `,
+    });
+    const box = document.querySelector('.modal-box');
+    if (box) box.style.maxWidth = '640px';
+    _permRole = 'tech';
+    _renderPermTable('tech');
   }
 
   // ── 권한 설정 로드 ────────────────────────────────────────
@@ -300,6 +309,7 @@ const AdminPage = (() => {
       window._rolePerms = {};
       rows.forEach(r => { window._rolePerms[r.role] = r.menus; });
       Toast.success('권한 설정이 저장되었습니다.');
+      Modal.close();
     } catch (e) {
       Toast.error('저장 실패: ' + (e.message || '오류가 발생했습니다.'));
     } finally {
@@ -513,5 +523,5 @@ const AdminPage = (() => {
   }
 
   return { render, loadUsers, approveUser, rejectUser, changeRole, openCredentialsModal,
-           permSwitchRole, permCycleEdit, permOnView, savePermissions };
+           openPermModal, permSwitchRole, permCycleEdit, permOnView, savePermissions };
 })();
