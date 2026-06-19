@@ -277,7 +277,7 @@ const TransitPage = (() => {
             ${typeLabel}완료
           </button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openEditConfirmedForm(${t.id})">수정</button>
-          <button class="btn btn-outline btn-sm" onclick="TransitPage.openQrPrint(${t.id})">QR 보기/인쇄</button>
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openQrPrint(${t.id})">QR 출력</button>
           <button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
         `;
@@ -1637,7 +1637,7 @@ const TransitPage = (() => {
     };
   }
 
-  // ── QR 생성 및 인쇄 (AJ) ──────────────────────────────────
+  // ── QR 출력 (AJ) ──────────────────────────────────────────
   async function openQrPrint(transitId) {
     const t = _transitCache[transitId];
     if (!t) { Toast.error('정보를 불러올 수 없습니다. 목록을 새로고침하세요.'); return; }
@@ -1650,87 +1650,28 @@ const TransitPage = (() => {
       return;
     }
 
-    // 장비 레코드에서 spec/qr_code 조회
+    // 장비 레코드에서 id/spec/qr_code/site_id 조회
     const { data: equipRows } = await _sb.from('equipment')
-      .select('equip_no,spec,qr_code,site_id')
+      .select('id,equip_no,spec,qr_code,site_id')
       .in('equip_no', equipNos);
     const equipMap = {};
     (equipRows || []).forEach(r => { equipMap[r.equip_no] = r; });
 
-    const origin   = window.location.origin;
-    const pathname = window.location.pathname;
     const siteName = t.site_name || t.site_id || '';
 
-    const itemsHtml = equipNos.map((no, idx) => {
-      const eq     = equipMap[no] || {};
-      const qrCode = eq.qr_code || `AJ-${no}`;
-      const qrUrl  = `${origin}${pathname}?qr=${encodeURIComponent(qrCode)}`;
-      const sub    = [eq.spec, siteName].filter(Boolean).join(' · ');
+    const list = equipNos.map((no, idx) => {
+      const eq = equipMap[no] || {};
+      return {
+        id:        eq.id || `t${idx}`,
+        equip_no:  no,
+        qr_code:   eq.qr_code || `AJ-${no}`,
+        spec:      eq.spec || '',
+        site_name: siteName,
+        site_id:   eq.site_id || '',
+      };
+    });
 
-      return `
-        <div class="qr-card">
-          <div class="qr-title">${no}</div>
-          <div id="qr-tr-${idx}" class="qr-img"></div>
-          <div class="qr-sub">${sub}</div>
-          <div class="qr-hint">스캔 시 앱으로 바로 연결</div>
-          <script>window['_qurl_t${idx}']='${qrUrl.replace(/'/g,"\\'")}'; <\/script>
-        </div>
-      `;
-    }).join('');
-
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) { Toast.error('팝업 차단을 해제해주세요.'); return; }
-
-    win.document.write(`
-      <!DOCTYPE html><html><head>
-        <meta charset="UTF-8">
-        <title>QR 인쇄 — ${t.company} (${equipNos.length}대)</title>
-        <style>
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          body { font-family: sans-serif; padding: 20px; background: #fff; }
-          h1 { color: #1B365D; font-size: 18px; margin-bottom: 20px; }
-          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-          @media print {
-            h1 { display: none; }
-            .grid { gap: 10px; }
-          }
-          .qr-card {
-            border: 2px solid #1B365D; border-radius: 12px;
-            padding: 20px 16px; text-align: center;
-            page-break-inside: avoid;
-          }
-          .qr-title { font-size: 16px; font-weight: 700; color: #1B365D; margin-bottom: 12px; }
-          .qr-img   { display: flex; justify-content: center; margin-bottom: 10px; }
-          .qr-sub   { font-size: 12px; color: #555; margin-bottom: 2px; }
-          .qr-hint  { font-size: 11px; color: #999; }
-          .print-btn {
-            margin-bottom: 20px; padding: 10px 28px;
-            background: #1B365D; color: #fff; border: none;
-            border-radius: 8px; font-size: 14px; cursor: pointer;
-          }
-          @media print { .print-btn { display: none; } }
-        </style>
-      </head><body>
-        <button class="print-btn" onclick="window.print()">인쇄</button>
-        <h1>QR 코드 — ${t.company} ${equipNos.length}대</h1>
-        <div class="grid">${itemsHtml}</div>
-        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
-        <script>
-          window.onload = () => {
-            ${equipNos.map((no, i) => `
-              new QRCode(document.getElementById('qr-tr-${i}'), {
-                text: window['_qurl_t${i}'],
-                width: 160, height: 160,
-                colorDark: '#1B365D', colorLight: '#ffffff',
-                correctLevel: QRCode.CorrectLevel.H
-              });
-            `).join('')}
-            setTimeout(() => window.print(), 600);
-          };
-        <\/script>
-      </body></html>
-    `);
-    win.document.close();
+    QrPrint.print(list);
   }
 
   // ── 로그 뷰어 (AJ 전용) ──────────────────────────────────

@@ -578,3 +578,84 @@ const Api = (() => {
 
   return { get, post, patch, del, delete: del, uploadFile };
 })();
+
+
+// ── QR 인쇄 공통 모듈 ────────────────────────────────────────
+// equipment.js / transit.js 양쪽에서 동일하게 사용
+// list 항목: { id, equip_no, qr_code, spec, site_name, site_id }
+const QrPrint = (() => {
+  function print(list) {
+    const origin   = window.location.origin;
+    const pathname = window.location.pathname;
+
+    const pagesHtml = list.map(e => {
+      const qrUrl = `${origin}${pathname}?qr=${encodeURIComponent(e.qr_code)}`;
+      const sub   = [e.spec, e.site_name || e.site_id].filter(Boolean).join(' · ');
+      return `
+        <div class="qr-page">
+          <div class="qr-title">${e.equip_no}</div>
+          <div id="qrimg-${e.id}" class="qr-img"></div>
+          <div class="qr-sub">${sub}</div>
+          <div class="qr-hint">스캔 시 앱으로 바로 연결</div>
+          <script>window['_qurl_${e.id}']='${qrUrl.replace(/'/g,"\\'")}'; <\/script>
+        </div>
+      `;
+    }).join('');
+
+    const win = window.open('', '_blank', 'width=700,height=900');
+    if (!win) { Toast.error('팝업 차단을 해제해주세요.'); return; }
+
+    win.document.write(`
+      <!DOCTYPE html><html><head>
+        <meta charset="UTF-8">
+        <title>QR 출력 — ${list.length}대</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: 'Malgun Gothic', sans-serif; background: #fff; }
+          .print-btn {
+            display: block; margin: 20px auto; padding: 10px 28px;
+            background: #1B365D; color: #fff; border: none;
+            border-radius: 8px; font-size: 14px; cursor: pointer;
+          }
+          @media print { .print-btn { display: none; } }
+          .qr-page {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh; page-break-after: always;
+            text-align: center; padding: 40px;
+          }
+          .qr-page:last-child { page-break-after: auto; }
+          .qr-title { font-size: 30px; font-weight: 700; color: #1B365D; margin-bottom: 24px; }
+          .qr-img   { border: 2px solid #1B365D; border-radius: 12px; padding: 16px;
+                      display: inline-flex; margin-bottom: 24px; }
+          .qr-sub   { font-size: 20px; color: #555; margin-bottom: 8px; }
+          .qr-hint  { font-size: 15px; color: #999; }
+          @media print {
+            @page { size: A4; margin: 0; }
+            body  { margin: 0; }
+          }
+        </style>
+      </head><body>
+        <button class="print-btn" onclick="window.print()">인쇄 (${list.length}대)</button>
+        ${pagesHtml}
+        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+        <script>
+          window.onload = () => {
+            ${list.map(e => `
+              new QRCode(document.getElementById('qrimg-${e.id}'), {
+                text: window['_qurl_${e.id}'],
+                width: 330, height: 330,
+                colorDark: '#1B365D', colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.H
+              });
+            `).join('')}
+            setTimeout(() => window.print(), 600);
+          };
+        <\/script>
+      </body></html>
+    `);
+    win.document.close();
+  }
+
+  return { print };
+})();
