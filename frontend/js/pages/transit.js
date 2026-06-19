@@ -117,7 +117,7 @@ const TransitPage = (() => {
   let _schedData  = [];
   let _schedOpen  = true;
 
-  const _WEEK = ['월','화','수','목','금','토'];
+  const _WEEK = ['일','월','화','수','목','금','토'];
 
   function _specQty(t) {
     if (!t.equip_specs?.length) return '';
@@ -150,9 +150,7 @@ const TransitPage = (() => {
     if (!el) return;
 
     const y = _schedYear, m = _schedMonth;
-    const jsFirstDay = new Date(y, m, 1).getDay(); // 0=일,1=월,...,6=토
-    // 월요일 기준 빈칸 수: 일요일 시작이면 0(일 건너뜀), 월=0, 화=1, ..., 토=5
-    const emptyCount = jsFirstDay === 0 ? 0 : jsFirstDay - 1;
+    const firstDay = new Date(y, m, 1).getDay();
     const daysInMonth = new Date(y, m+1, 0).getDate();
     const today = new Date().toISOString().slice(0,10);
 
@@ -167,19 +165,18 @@ const TransitPage = (() => {
 
     const monthLabel = `${y}년 ${m+1}월`;
 
-    // 달력 그리드 (일요일 제외, 월~토 6열)
+    // 달력 그리드
     let cells = '';
+    let dayNum = 1;
     // 빈 칸
-    for (let i = 0; i < emptyCount; i++) cells += `<div class="sch-cell sch-empty"></div>`;
-    for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
-      const d = new Date(y, m, dayNum);
-      if (d.getDay() === 0) continue; // 일요일 건너뜀
+    for (let i = 0; i < firstDay; i++) cells += `<div class="sch-cell sch-empty"></div>`;
+    while (dayNum <= daysInMonth) {
       const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
       const isToday = dateStr === today;
       const events  = byDate[dateStr] || [];
-      const dow = d.getDay(); // 1=월...6=토
-      const isSat = dow === 6;
-      const dayColor = isSat ? '#3d82c8' : 'inherit';
+      const dotW = (firstDay + dayNum - 1) % 7;
+      const isSun = dotW === 0, isSat = dotW === 6;
+      const dayColor = isSun ? '#E8192C' : isSat ? '#3d82c8' : 'inherit';
 
       const pills = events.slice(0, 3).map(t => {
         const label = [t.site_name, t.company, _specQty(t)].filter(Boolean).join(' · ');
@@ -194,6 +191,7 @@ const TransitPage = (() => {
           <div class="sch-day" style="color:${dayColor}${isToday ? ';background:#1B365D;color:#fff' : ''}">${dayNum}</div>
           ${pills}${more}
         </div>`;
+      dayNum++;
     }
 
     el.innerHTML = `
@@ -212,7 +210,7 @@ const TransitPage = (() => {
         </div>
       </div>
       <div class="sch-grid">
-        ${_WEEK.map((w,i) => `<div class="sch-wday" style="color:${i===5?'#3d82c8':'var(--gray-500)'}">${w}</div>`).join('')}
+        ${_WEEK.map((w,i) => `<div class="sch-wday" style="color:${i===0?'#E8192C':i===6?'#3d82c8':'var(--gray-500)'}">${w}</div>`).join('')}
         ${cells}
       </div>
     `;
@@ -327,7 +325,7 @@ const TransitPage = (() => {
         </div>
         <div id="tr-sched-body" style="display:${_schedOpen?'':'none'}">
           <style>
-            .sch-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--gray-200);border:1px solid var(--gray-200);border-radius:8px;overflow:hidden}
+            .sch-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--gray-200);border:1px solid var(--gray-200);border-radius:8px;overflow:hidden}
             .sch-wday{background:var(--gray-50);text-align:center;font-size:11px;font-weight:700;padding:6px 0;color:var(--gray-500)}
             .sch-cell{background:#fff;min-height:72px;padding:4px;cursor:pointer;transition:background .15s;position:relative;min-width:0;overflow:hidden}
             .sch-cell:hover{background:#f8faff}
