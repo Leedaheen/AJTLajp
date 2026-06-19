@@ -211,6 +211,12 @@ const TransitPage = (() => {
       if (!byDate[d]) byDate[d] = [];
       byDate[d].push(t);
     });
+    // 일자별 확정시간 오름차순 정렬
+    Object.values(byDate).forEach(arr => arr.sort((a, b) => {
+      const ta = a.scheduled_time || '99:99';
+      const tb = b.scheduled_time || '99:99';
+      return ta.localeCompare(tb);
+    }));
 
     const monthLabel = `${y}년 ${m+1}월`;
 
@@ -252,7 +258,8 @@ const TransitPage = (() => {
       const dayColor = isSun ? '#E8192C' : isSat ? '#3d82c8' : 'inherit';
 
       const pills = events.slice(0, 3).map(t => {
-        const label = [t.site_name, t.company, _specQty(t)].filter(Boolean).join(' · ');
+        const time  = t.scheduled_time ? t.scheduled_time.slice(0, 5) : '';
+        const label = [time, t.company, _specQty(t)].filter(Boolean).join(' · ');
         const style = _pillStyle(t.type, t.status);
         return `<div class="sch-pill" style="${style}" onclick="event.stopPropagation();TransitPage.schedShowDetail(${t.id})" title="${label}">${label}</div>`;
       }).join('');
@@ -299,7 +306,7 @@ const TransitPage = (() => {
     const to   = `${y}-${String(m+2).padStart(2,'0')}-01`;
     try {
       const { data } = await _sb.from('transit')
-        .select('id,type,status,site_name,company,equip_specs,scheduled_date,requested_date,created_at,site_id,vehicle_info,driver_info,note,aj_equip')
+        .select('id,type,status,site_name,company,equip_specs,scheduled_date,scheduled_time,requested_date,created_at,site_id,vehicle_info,driver_info,note,aj_equip')
         .neq('status','cancelled')
         .or(`scheduled_date.gte.${from},requested_date.gte.${from}`)
         .or(`scheduled_date.lt.${to},requested_date.lt.${to}`)
