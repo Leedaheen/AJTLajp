@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class UsageLogStartRequest(BaseModel):
     site_id: str
-    site_name: str
+    site_name: Optional[str] = ""
     company: str
     equip: str          # 장비번호
     floor: str          # 사용 층/위치

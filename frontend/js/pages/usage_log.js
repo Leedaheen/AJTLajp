@@ -281,7 +281,6 @@ const UsageLogPage = (() => {
       try {
         await Api.post('/usage-logs/start', {
           site_id:     equip?.site_id || 'P4',
-          site_name:   siteName,
           company,
           equip_no:    equip?.equip_no || '',
           equip_id:    equip?.id || null,

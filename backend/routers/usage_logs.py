@@ -1,11 +1,11 @@
 """
-사용 기록 라우터 — logs 테이블 사용
+사용 기록 라우터 — usage_logs 테이블 사용
 - 가동 시작 (POST)
 - 가동 종료 (PATCH /{id}/end)
 - 목록 조회 (GET) — 날짜/현장/장비 필터
 - 일별 요약 (GET /summary)
 """
-from datetime import datetime, timezone, date as date_type
+from datetime import datetime
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -34,7 +34,7 @@ async def list_logs(
     limit: int = 200,
     current_user: dict = Depends(get_current_user),
 ):
-    query = supabase.table("logs").select("*").order("created_at", desc=True).limit(limit)
+    query = supabase.table("usage_logs").select("*").order("created_at", desc=True).limit(limit)
 
     role = current_user["role"]
     if role == "partner":
@@ -44,7 +44,7 @@ async def list_logs(
 
     if date:    query = query.eq("date", date)
     if site_id: query = query.eq("site_id", site_id)
-    if equip:   query = query.ilike("equip", f"%{equip}%")
+    if equip:   query = query.ilike("equip_no", f"%{equip}%")
     if status:  query = query.eq("status", status)
 
     return (query.execute()).data or []
@@ -60,16 +60,16 @@ async def summary(
     target_date = date or _today()
 
     # 오늘 기록 (완료+가동중 모두 포함)
-    query = supabase.table("logs").select("*").eq("date", target_date)
+    query = supabase.table("usage_logs").select("*").eq("date", target_date)
     if site_id: query = query.eq("site_id", site_id)
     rows = (query.execute()).data or []
 
     done_rows   = [r for r in rows if r.get("status") == "done"]
     total_hours = sum(float(r.get("used_hours") or 0) for r in done_rows)
-    equip_set   = {r["equip"] for r in rows if r.get("equip")}
+    equip_set   = {r["equip_no"] for r in rows if r.get("equip_no")}
     by_equip    = {}
     for r in done_rows:
-        eq = r.get("equip", "-")
+        eq = r.get("equip_no", "-")
         by_equip[eq] = round(by_equip.get(eq, 0) + float(r.get("used_hours") or 0), 2)
 
     # 현장 전체 가동 중 장비 수 (equipment.status = 'in_use')
@@ -97,30 +97,28 @@ async def start_log(body: UsageLogStartRequest, current_user: dict = Depends(get
         raise HTTPException(status_code=403, detail="가동 기록 권한이 없습니다.")
 
     # 같은 장비 진행 중 체크
-    existing = supabase.table("logs")\
-        .select("id").eq("equip", body.equip).eq("status", "using").execute()
+    existing = supabase.table("usage_logs")\
+        .select("id").eq("equip_no", body.equip).eq("status", "using").execute()
     if existing.data:
         raise HTTPException(status_code=409, detail="해당 장비가 이미 가동 중입니다.")
 
-    today    = _today()
-    now_time = _now_time()
+    today     = _today()
+    now_time  = _now_time()
     record_id = f"LOG-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
     data = {
-        "record_id":   record_id,
-        "date":        today,
-        "site_id":     body.site_id,
-        "site_name":   body.site_name,
-        "company":     body.company,
-        "equip":       body.equip,
-        "floor":       body.floor,
-        "recorder":    body.recorder,
-        "status":      "using",
-        "start_time":  now_time,
-        "meter_start": body.meter_start,
-        "used_hours":  0,
+        "record_id":  record_id,
+        "date":       today,
+        "site_id":    body.site_id,
+        "company":    body.company,
+        "equip_no":   body.equip,
+        "floor":      body.floor,
+        "recorder":   body.recorder,
+        "status":     "using",
+        "start_time": now_time,
+        "used_hours": 0,
     }
-    res = supabase.table("logs").insert(data).execute()
+    res = supabase.table("usage_logs").insert(data).execute()
     return res.data[0]
 
 
@@ -131,7 +129,7 @@ async def end_log(
     body: UsageLogEndRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    row = supabase.table("logs").select("*").eq("id", log_id).single().execute()
+    row = supabase.table("usage_logs").select("*").eq("id", log_id).single().execute()
     if not row.data:
         raise HTTPException(status_code=404, detail="기록을 찾을 수 없습니다.")
 
@@ -142,7 +140,7 @@ async def end_log(
     # 사용 시간 계산
     used_hours = 0.0
     try:
-        fmt = "%H:%M"
+        fmt      = "%H:%M"
         start_dt = datetime.strptime(old["start_time"], fmt)
         end_dt   = datetime.strptime(body.end_time, fmt)
         delta    = (end_dt - start_dt).total_seconds() / 3600
@@ -152,11 +150,9 @@ async def end_log(
     except Exception:
         pass
 
-    supabase.table("logs").update({
+    supabase.table("usage_logs").update({
         "status":     "done",
         "end_time":   body.end_time,
-        "meter_end":  body.meter_end,
-        "off_reason": body.off_reason,
         "used_hours": used_hours,
     }).eq("id", log_id).execute()
 
@@ -166,7 +162,7 @@ async def end_log(
 # ─── 단건 조회 ────────────────────────────────────────────────
 @router.get("/{log_id}")
 async def get_log(log_id: int, current_user: dict = Depends(get_current_user)):
-    res = supabase.table("logs").select("*").eq("id", log_id).single().execute()
+    res = supabase.table("usage_logs").select("*").eq("id", log_id).single().execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="기록을 찾을 수 없습니다.")
     return res.data
