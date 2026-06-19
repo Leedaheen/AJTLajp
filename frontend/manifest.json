@@ -1,6 +1,6 @@
 {
-  "name": "AJ 고소작업대 운영시스템",
-  "short_name": "AJ운영",
+  "name": "고소작업대 관리 시스템 - AJ Networks",
+  "short_name": "고소작업대 관리",
   "description": "고소작업대 임대 운영 협업 앱",
   "start_url": "/",
   "display": "standalone",
