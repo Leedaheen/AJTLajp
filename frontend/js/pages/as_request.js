@@ -121,7 +121,11 @@ const AsRequestPage = (() => {
       const siteVal   = document.getElementById('as-site-filter')?.value;
       const floorVal  = document.getElementById('as-floor-filter')?.value;
 
+      const _asUser = Auth.getUser();
       let q = _sb.from('as_requests').select('*').order('requested_at', { ascending: false }).limit(500);
+      if (!['aj','admin','as_tech'].includes(_asUser?.role) && _asUser?.client_name) {
+        q = q.eq('client_name', _asUser.client_name);
+      }
       if (_currentTab !== 'all') q = q.eq('status', _currentTab);
       if (siteVal)   q = q.eq('site_id', siteVal);
       if (searchVal) {

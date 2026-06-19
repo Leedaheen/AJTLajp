@@ -47,6 +47,10 @@ async def list_as_requests(
     query = supabase.table("as_requests").select("*").order("created_at", desc=True).limit(limit)
 
     role = current_user["role"]
+    user_client = current_user.get("client_name", "")
+    # as_tech: 모든 현장 AS 열람 가능, aj/admin: 전체
+    if role not in ("aj", "admin", "as_tech") and user_client:
+        query = query.eq("client_name", user_client)
     if role == "partner":
         query = query.eq("site_id", current_user["site_id"])
     elif role == "tech":
@@ -95,6 +99,7 @@ async def create_as_request(body: AsRequestCreateRequest, current_user: dict = D
         "reporter_phone":body.reporter_phone,
         "status":        "requested",
         "created_by":    current_user["sub"],
+        "client_name":   current_user.get("client_name", ""),
     }
     res = supabase.table("as_requests").insert(data).execute()
     req = res.data[0]

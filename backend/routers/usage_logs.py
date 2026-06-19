@@ -37,6 +37,9 @@ async def list_logs(
     query = supabase.table("usage_logs").select("*").order("created_at", desc=True).limit(limit)
 
     role = current_user["role"]
+    user_client = current_user.get("client_name", "")
+    if role not in ("aj", "admin") and user_client:
+        query = query.eq("client_name", user_client)
     if role == "partner":
         query = query.eq("site_id", current_user["site_id"])
     elif role == "tech":
@@ -107,16 +110,17 @@ async def start_log(body: UsageLogStartRequest, current_user: dict = Depends(get
     record_id = f"LOG-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
 
     data = {
-        "record_id":  record_id,
-        "date":       today,
-        "site_id":    body.site_id,
-        "company":    body.company,
-        "equip_no":   body.equip,
-        "floor":      body.floor,
-        "recorder":   body.recorder,
-        "status":     "using",
-        "start_time": now_time,
-        "used_hours": 0,
+        "record_id":   record_id,
+        "date":        today,
+        "site_id":     body.site_id,
+        "company":     body.company,
+        "equip_no":    body.equip,
+        "floor":       body.floor,
+        "recorder":    body.recorder,
+        "client_name": current_user.get("client_name", ""),
+        "status":      "using",
+        "start_time":  now_time,
+        "used_hours":  0,
     }
     res = supabase.table("usage_logs").insert(data).execute()
     return res.data[0]

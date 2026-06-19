@@ -293,6 +293,7 @@ async def complete_transit(
                 "site_id":    old["site_id"],
                 "site_name":  old["site_name"],
                 "company":    old["company"],
+                "client_name": old.get("client_name", ""),
                 "status":     "in_use",
                 "qr_code":    f"AJ-{uuid.uuid4().hex[:8].upper()}",
                 "in_date":    today,

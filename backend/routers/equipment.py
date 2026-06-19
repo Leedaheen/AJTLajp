@@ -29,6 +29,11 @@ async def list_equipment(
     order_col = "out_date" if status == "returned" else "in_date"
     query = supabase.table("equipment").select("*").order(order_col, desc=True, nullsfirst=False).limit(limit)
 
+    role = current_user["role"]
+    user_client = current_user.get("client_name", "")
+    if role not in ("aj", "admin") and user_client:
+        query = query.eq("client_name", user_client)
+
     if status:  query = query.eq("status", status)
     if site_id: query = query.eq("site_id", site_id)
     if spec:    query = query.eq("spec", spec)

@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS equipment (
   site_id     text,
   site_name   text,
   company     text,
+  client_name text DEFAULT '',   -- 소속 발주처
   project     text,
   status      text DEFAULT 'stock' CHECK (status IN ('stock','in_use','transit','returned')),
   qr_code     text UNIQUE,
@@ -113,7 +114,8 @@ CREATE TABLE IF NOT EXISTS as_requests (
   held_at          timestamptz,
   resolved_at      timestamptz,
   cancelled_at     timestamptz,
-  elapsed_min      integer
+  elapsed_min      integer,
+  client_name      text DEFAULT ''   -- 소속 발주처
 );
 
 -- ⑤ 장비 사용 기록 테이블
@@ -134,6 +136,7 @@ CREATE TABLE IF NOT EXISTS usage_logs (
   used_hours   numeric DEFAULT 0,
   status       text DEFAULT 'using' CHECK (status IN ('using','done')),
   date         text,
+  client_name  text DEFAULT '',   -- 소속 발주처
   created_at   timestamptz DEFAULT now()
 );
 
