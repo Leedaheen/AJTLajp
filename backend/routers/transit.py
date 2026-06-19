@@ -148,6 +148,9 @@ async def schedule_transit(
         update["note"] = body.note
     if new_status == "confirmed":
         update["partner_confirmed_at"] = now_str
+        update["confirmed_by_name"] = _me_name(current_user)
+    elif new_status == "scheduled":
+        update["scheduled_by_name"] = _me_name(current_user)
 
     supabase.table("transit").update(update).eq("id", transit_id).execute()
 
@@ -175,8 +178,9 @@ async def partner_confirm_transit(
         raise HTTPException(status_code=400, detail="협력사 확인 대기 상태가 아닙니다.")
     now_str = _now_str()
     supabase.table("transit").update({
-        "status":                "partner_confirmed",
-        "partner_confirmed_at":  now_str,
+        "status":                    "partner_confirmed",
+        "partner_confirmed_at":      now_str,
+        "partner_confirmed_by_name": _me_name(current_user),
     }).eq("id", transit_id).execute()
     return {"ok": True}
 
@@ -268,8 +272,9 @@ async def complete_transit(
     today = now.strftime("%Y-%m-%d")
 
     update = {
-        "status":       "completed",
-        "completed_at": now.isoformat(),
+        "status":             "completed",
+        "completed_at":       now.isoformat(),
+        "completed_by_name":  _me_name(current_user),
     }
 
     if old["type"] == "in":

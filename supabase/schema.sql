@@ -712,6 +712,12 @@ CREATE POLICY "support_delete_aj"
 ALTER TABLE equipment ADD COLUMN IF NOT EXISTS change_log jsonb DEFAULT '[]';
 ALTER TABLE equipment ADD COLUMN IF NOT EXISTS floor text;
 
+-- transit 단계별 담당자 이름 컬럼 추가
+ALTER TABLE transit ADD COLUMN IF NOT EXISTS scheduled_by_name text;
+ALTER TABLE transit ADD COLUMN IF NOT EXISTS partner_confirmed_by_name text;
+ALTER TABLE transit ADD COLUMN IF NOT EXISTS confirmed_by_name text;
+ALTER TABLE transit ADD COLUMN IF NOT EXISTS completed_by_name text;
+
 -- transit status 제약에 partner_confirmed 추가
 ALTER TABLE transit DROP CONSTRAINT IF EXISTS transit_status_check;
 ALTER TABLE transit ADD CONSTRAINT transit_status_check

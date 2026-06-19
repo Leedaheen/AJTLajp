@@ -341,6 +341,24 @@ const TransitPage = (() => {
           </div>
         ` : ''}
 
+        ${(() => {
+          const steps = [];
+          if (t.scheduled_by_name)
+            steps.push(`<span>일정 입력 : <strong>${t.scheduled_by_name}</strong></span>`);
+          if (t.partner_confirmed_by_name)
+            steps.push(`<span>일정확정 요청 : <strong>${t.partner_confirmed_by_name}</strong></span>`);
+          if (t.confirmed_by_name)
+            steps.push(`<span>확정 : <strong>${t.confirmed_by_name}</strong></span>`);
+          if (t.completed_by_name)
+            steps.push(`<span>${t.type === 'in' ? '반입' : '반출'}완료 확인 : <strong>${t.completed_by_name}</strong></span>`);
+          if (!steps.length) return '';
+          return `
+            <div style="margin-top:10px;padding:7px 10px;background:var(--gray-50);border-radius:6px;
+              display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;font-size:11px;color:var(--gray-500)">
+              ${steps.join('<span style="color:var(--gray-300)">›</span>')}
+            </div>`;
+        })()}
+
         ${btns ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${btns}</div>` : ''}
 
         ${(t.change_log && t.change_log.length) ? `
