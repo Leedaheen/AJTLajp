@@ -8,13 +8,9 @@
 // ── 공통 유틸 ────────────────────────────────────────────────
 const _PALETTE = ['#1B365D','#E8192C','#3d82c8','#f59e0b','#10b981','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316'];
 
-function _makeSiteSel(onchange) {
-  return `<select id="an-site" class="form-input form-select" style="width:120px" onchange="${onchange}">
-    <option value="">전체 현장</option>
-    <option value="P4">P4 복합동</option>
-    <option value="P5">P5 복합동</option>
-  </select>`;
-}
+// datalabels 플러그인 전역 등록 (CDN 로드 후 사용 가능)
+if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+
 function _makeDaysSel(onchange) {
   return `<select id="an-days" class="form-input form-select" style="width:110px" onchange="${onchange}">
     <option value="7">최근 7일</option>
@@ -22,11 +18,20 @@ function _makeDaysSel(onchange) {
     <option value="90">최근 90일</option>
   </select>`;
 }
+// AS/Usage 페이지용 하드코딩 현장 셀렉터 (빠른 렌더)
+function _makeSiteSelStatic(onchange) {
+  return `<select id="an-site" class="form-input form-select" style="width:120px" onchange="${onchange}">
+    <option value="">전체 현장</option>
+    <option value="P4">P4 복합동</option>
+    <option value="P5">P5 복합동</option>
+  </select>`;
+}
 
 function _anVals() {
   return {
-    days: Number(document.getElementById('an-days')?.value || 30),
-    site: document.getElementById('an-site')?.value || '',
+    days:    Number(document.getElementById('an-days')?.value    || 30),
+    site:    document.getElementById('an-site')?.value           || '',
+    project: document.getElementById('an-project')?.value        || '',
   };
 }
 function _sinceDate(days) {
@@ -52,6 +57,37 @@ function _emptyChart(canvasId, msg = '데이터 없음') {
     `<div style="text-align:center;color:var(--gray-400);font-size:13px;padding:20px 0">${msg}</div>`);
 }
 
+// 공통 datalabels 옵션
+const _DL_BAR = {
+  datalabels: {
+    anchor: 'end', align: 'end',
+    formatter: v => v > 0 ? v + '대' : '',
+    font: { size: 11, weight: '600' },
+    color: '#374151',
+  },
+};
+const _DL_BAR_H = {
+  datalabels: {
+    anchor: 'end', align: 'end',
+    formatter: v => v > 0 ? v + '대' : '',
+    font: { size: 11, weight: '600' },
+    color: '#374151',
+    clip: false,
+  },
+};
+const _DL_DONUT = (total) => ({
+  datalabels: {
+    formatter: (v, ctx) => {
+      if (v === 0) return '';
+      const pct = Math.round(v / total * 100);
+      return `${v}대\n(${pct}%)`;
+    },
+    font: { size: 11, weight: '600' },
+    color: '#fff',
+    textAlign: 'center',
+  },
+});
+
 
 // ════════════════════════════════════════════════════════════
 // 1. 장비 사용내역 분석
@@ -59,7 +95,7 @@ function _emptyChart(canvasId, msg = '데이터 없음') {
 const AnalyticsEquipmentPage = (() => {
   let _charts = {};
 
-  function render() {
+  async function render() {
     const user = Auth.getUser();
     if (!['aj','admin'].includes(user.role)) {
       document.getElementById('page-analytics-equipment').innerHTML =
@@ -67,31 +103,46 @@ const AnalyticsEquipmentPage = (() => {
       return;
     }
 
+    // 현장·프로젝트 동적 로드
+    const [{ data: sites = [] }, { data: projs = [] }] = await Promise.all([
+      window._sb.from('sites').select('code,name').eq('active', true).order('name'),
+      window._sb.from('projects').select('code,name').eq('active', true).order('name'),
+    ]);
+    const siteOpts = sites.map(s => `<option value="${s.code}">${s.name}</option>`).join('');
+    const projOpts = projs.map(p => `<option value="${p.code}">${p.name}</option>`).join('');
+
     document.getElementById('page-analytics-equipment').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <h2 class="section-title" style="margin:0">장비 사용내역 분석</h2>
-        <div style="display:flex;gap:8px">${_makeSiteSel('AnalyticsEquipmentPage.reload()')}</div>
+        <div style="display:flex;gap:8px">
+          <select id="an-site" class="form-input form-select" style="width:130px" onchange="AnalyticsEquipmentPage.reload()">
+            <option value="">전체 현장</option>${siteOpts}
+          </select>
+          <select id="an-project" class="form-input form-select" style="width:140px" onchange="AnalyticsEquipmentPage.reload()">
+            <option value="">전체 프로젝트</option>${projOpts}
+          </select>
+        </div>
       </div>
       <div id="an-eq-summary"></div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div class="card">
           <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">상태별 장비 현황</div>
-          <canvas id="chart-eq-status" height="220"></canvas>
+          <canvas id="chart-eq-status" height="240"></canvas>
         </div>
         <div class="card">
           <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">제원별 보유 현황</div>
-          <canvas id="chart-eq-spec" height="220"></canvas>
+          <canvas id="chart-eq-spec" height="240"></canvas>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div class="card">
           <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">현장별 배치 현황</div>
-          <canvas id="chart-eq-site" height="200"></canvas>
+          <canvas id="chart-eq-site" height="220"></canvas>
         </div>
         <div class="card">
           <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">업체별 보유 장비 수 (상위 10)</div>
-          <canvas id="chart-eq-company" height="200"></canvas>
+          <canvas id="chart-eq-company" height="220"></canvas>
         </div>
       </div>
       <div class="card">
@@ -105,10 +156,11 @@ const AnalyticsEquipmentPage = (() => {
   function reload() { _destroyCharts(_charts); _charts = {}; _loadData(); }
 
   async function _loadData() {
-    const { site } = _anVals();
+    const { site, project } = _anVals();
 
     let q = window._sb.from('equipment').select('*');
-    if (site) q = q.eq('site_id', site);
+    if (site)    q = q.eq('site_id', site);
+    if (project) q = q.eq('project', project);
     const { data: rows = [] } = await q;
 
     if (!rows.length) {
@@ -120,63 +172,78 @@ const AnalyticsEquipmentPage = (() => {
     const STATUS_LABEL = { stock:'재고', in_use:'사용중', transit:'이동중', returned:'반출완료' };
     const STATUS_STYLE = { stock:'background:#d1fae5;color:#065f46', in_use:'background:#dbeafe;color:#1e40af', returned:'background:#f3f4f6;color:#374151', transit:'background:#fef3c7;color:#92400e' };
 
-    // 집계
     const byStatus = {}, bySpec = {}, bySite = {}, byCompany = {};
     rows.forEach(r => {
-      const s = r.status || '?';
-      byStatus[s] = (byStatus[s] || 0) + 1;
-      const sp = r.spec || '미입력';
-      bySpec[sp] = (bySpec[sp] || 0) + 1;
-      const si = r.site_id || '미지정';
-      bySite[si] = (bySite[si] || 0) + 1;
-      const co = r.company || '미입력';
-      byCompany[co] = (byCompany[co] || 0) + 1;
+      byStatus[r.status || '?']        = (byStatus[r.status || '?']        || 0) + 1;
+      bySpec[r.spec    || '미입력']    = (bySpec[r.spec    || '미입력']    || 0) + 1;
+      bySite[r.site_id || '미지정']   = (bySite[r.site_id || '미지정']   || 0) + 1;
+      byCompany[r.company || '미입력'] = (byCompany[r.company || '미입력'] || 0) + 1;
     });
+    const total = rows.length;
 
     document.getElementById('an-eq-summary').innerHTML = _summaryCards([
-      { label: '전체 장비',   value: rows.length,            unit: '대', color: '#1B365D' },
+      { label: '전체 장비',   value: total,                  unit: '대', color: '#1B365D' },
       { label: '현재 사용중', value: byStatus.in_use  || 0,  unit: '대', color: '#3d82c8' },
       { label: '재고',        value: byStatus.stock   || 0,  unit: '대', color: '#10b981' },
       { label: '반출완료',    value: byStatus.returned || 0, unit: '대', color: '#94a3b8' },
     ]);
 
-    // 상태별 도넛
-    const stKeys = Object.keys(byStatus);
-    if (stKeys.length) {
+    // 상태별 도넛 (값·% 표시)
+    const stSorted = Object.entries(byStatus).sort((a, b) => b[1] - a[1]);
+    if (stSorted.length) {
       _charts.status = new Chart(document.getElementById('chart-eq-status'), {
         type: 'doughnut',
-        data: { labels: stKeys.map(k => STATUS_LABEL[k] || k), datasets: [{ data: stKeys.map(k => byStatus[k]), backgroundColor: _PALETTE }] },
-        options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } },
+        data: { labels: stSorted.map(([k]) => STATUS_LABEL[k] || k), datasets: [{ data: stSorted.map(([, v]) => v), backgroundColor: _PALETTE }] },
+        options: {
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 11 } } },
+            ..._DL_DONUT(total),
+          },
+        },
       });
     } else _emptyChart('chart-eq-status');
 
-    // 제원별 바
+    // 제원별 바 (값 표시)
     const spSorted = Object.entries(bySpec).sort((a, b) => b[1] - a[1]);
     if (spSorted.length) {
       _charts.spec = new Chart(document.getElementById('chart-eq-spec'), {
         type: 'bar',
         data: { labels: spSorted.map(([k]) => k), datasets: [{ data: spSorted.map(([, v]) => v), backgroundColor: _PALETTE, borderRadius: 4 }] },
-        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+        options: {
+          layout: { padding: { top: 20 } },
+          plugins: { legend: { display: false }, ..._DL_BAR },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+        },
       });
     } else _emptyChart('chart-eq-spec');
 
-    // 현장별 도넛
-    const siKeys = Object.keys(bySite);
-    if (siKeys.length) {
+    // 현장별 도넛 (값·% 표시)
+    const siSorted = Object.entries(bySite).sort((a, b) => b[1] - a[1]);
+    if (siSorted.length) {
       _charts.site = new Chart(document.getElementById('chart-eq-site'), {
         type: 'doughnut',
-        data: { labels: siKeys, datasets: [{ data: siKeys.map(k => bySite[k]), backgroundColor: _PALETTE }] },
-        options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } },
+        data: { labels: siSorted.map(([k]) => k), datasets: [{ data: siSorted.map(([, v]) => v), backgroundColor: _PALETTE }] },
+        options: {
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 11 } } },
+            ..._DL_DONUT(total),
+          },
+        },
       });
     } else _emptyChart('chart-eq-site');
 
-    // 업체별 수평 바 (상위 10)
+    // 업체별 수평 바 (값 표시, 상위 10)
     const coSorted = Object.entries(byCompany).sort((a, b) => b[1] - a[1]).slice(0, 10);
     if (coSorted.length) {
       _charts.company = new Chart(document.getElementById('chart-eq-company'), {
         type: 'bar',
         data: { labels: coSorted.map(([k]) => k), datasets: [{ data: coSorted.map(([, v]) => v), backgroundColor: '#3d82c8', borderRadius: 4 }] },
-        options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+        options: {
+          indexAxis: 'y',
+          layout: { padding: { right: 32 } },
+          plugins: { legend: { display: false }, ..._DL_BAR_H },
+          scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } },
+        },
       });
     } else _emptyChart('chart-eq-company');
 
@@ -213,7 +280,7 @@ const AnalyticsAsPage = (() => {
     document.getElementById('page-analytics-as').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <h2 class="section-title" style="margin:0">AS 요청 분석</h2>
-        <div style="display:flex;gap:8px">${_makeDaysSel('AnalyticsAsPage.reload()')}${_makeSiteSel('AnalyticsAsPage.reload()')}</div>
+        <div style="display:flex;gap:8px">${_makeDaysSel('AnalyticsAsPage.reload()')}${_makeSiteSelStatic('AnalyticsAsPage.reload()')}</div>
       </div>
       <div id="an-as-summary"></div>
 
@@ -275,12 +342,13 @@ const AnalyticsAsPage = (() => {
       { label: '미처리',        value: pending,        unit: '건', color: '#E8192C' },
     ]);
 
+    const faultTotal = rows.length;
     const fKeys = Object.entries(byFault).sort((a, b) => b[1] - a[1]);
     if (fKeys.length) {
       _charts.fault = new Chart(document.getElementById('chart-as-fault'), {
         type: 'doughnut',
         data: { labels: fKeys.map(([k]) => k), datasets: [{ data: fKeys.map(([, v]) => v), backgroundColor: _PALETTE }] },
-        options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } },
+        options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } }, ..._DL_DONUT(faultTotal) } },
       });
     } else _emptyChart('chart-as-fault');
 
@@ -289,7 +357,11 @@ const AnalyticsAsPage = (() => {
       _charts.status = new Chart(document.getElementById('chart-as-status'), {
         type: 'bar',
         data: { labels: stKeys.map(([k]) => STATUS_LABEL[k] || k), datasets: [{ data: stKeys.map(([, v]) => v), backgroundColor: _PALETTE, borderRadius: 4 }] },
-        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+        options: {
+          layout: { padding: { top: 20 } },
+          plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', formatter: v => v > 0 ? v + '건' : '', font: { size: 11, weight: '600' }, color: '#374151' } },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+        },
       });
     } else _emptyChart('chart-as-status');
 
@@ -299,7 +371,13 @@ const AnalyticsAsPage = (() => {
         type: 'line',
         data: { labels: dates, datasets: [{ label: 'AS 접수', data: dates.map(d => byDate[d]),
           borderColor: '#E8192C', backgroundColor: 'rgba(232,25,44,.08)', tension: .3, fill: true, pointRadius: 3 }] },
-        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { ticks: { maxTicksLimit: 12, font: { size: 10 } } } } },
+        options: {
+          plugins: {
+            legend: { display: false },
+            datalabels: { anchor: 'end', align: 'top', formatter: v => v > 0 ? v + '건' : '', font: { size: 10, weight: '600' }, color: '#E8192C' },
+          },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { ticks: { maxTicksLimit: 12, font: { size: 10 } } } },
+        },
       });
     } else _emptyChart('chart-as-trend');
 
@@ -308,7 +386,11 @@ const AnalyticsAsPage = (() => {
       _charts.tech = new Chart(document.getElementById('chart-as-tech'), {
         type: 'bar',
         data: { labels: techSorted.map(([k]) => k), datasets: [{ data: techSorted.map(([, v]) => v), backgroundColor: '#1B365D', borderRadius: 4 }] },
-        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+        options: {
+          layout: { padding: { top: 20 } },
+          plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', formatter: v => v > 0 ? v + '건' : '', font: { size: 11, weight: '600' }, color: '#374151' } },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+        },
       });
     } else _emptyChart('chart-as-tech');
   }
@@ -334,7 +416,7 @@ const AnalyticsUsagePage = (() => {
     document.getElementById('page-analytics-usage').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <h2 class="section-title" style="margin:0">가동률 분석</h2>
-        <div style="display:flex;gap:8px">${_makeDaysSel('AnalyticsUsagePage.reload()')}${_makeSiteSel('AnalyticsUsagePage.reload()')}</div>
+        <div style="display:flex;gap:8px">${_makeDaysSel('AnalyticsUsagePage.reload()')}${_makeSiteSelStatic('AnalyticsUsagePage.reload()')}</div>
       </div>
       <div id="an-us-summary"></div>
 
@@ -472,7 +554,11 @@ const AnalyticsUsagePage = (() => {
           datasets: [{ data: specSorted.map(([, v]) => Math.round(v * 10) / 10), backgroundColor: _PALETTE, borderRadius: 4 }],
         },
         options: {
-          plugins: { legend: { display: false } },
+          layout: { padding: { top: 20 } },
+          plugins: {
+            legend: { display: false },
+            datalabels: { anchor: 'end', align: 'end', formatter: v => v > 0 ? v + 'h' : '', font: { size: 11, weight: '600' }, color: '#374151' },
+          },
           scales: { y: { beginAtZero: true, title: { display: true, text: 'h', font: { size: 11 } } } },
         },
       });
@@ -511,6 +597,7 @@ const AnalyticsUsagePage = (() => {
         },
         options: {
           indexAxis: 'y',
+          layout: { padding: { right: 40 } },
           plugins: {
             legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } },
             tooltip: {
@@ -525,6 +612,12 @@ const AnalyticsUsagePage = (() => {
                     : `보유: ${total}대`;
                 },
               },
+            },
+            datalabels: {
+              anchor: 'end', align: 'end', clip: false,
+              formatter: v => v > 0 ? v + '대' : '',
+              font: { size: 10, weight: '600' },
+              color: '#374151',
             },
           },
           scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } },
