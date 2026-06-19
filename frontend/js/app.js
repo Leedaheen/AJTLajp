@@ -30,11 +30,11 @@ const App = (() => {
     { type: 'item',    page: 'analytics-as',        label: 'AS 요청 분석',   abbr: 'AS',   bg: '#fef3c7', sub: true },
     { type: 'item',    page: 'analytics-usage',     label: '가동률 분석',    abbr: '가동', bg: '#d1fae5', sub: true },
     { type: 'divider' },
-    { type: 'item',    page: 'dispatch',            label: '배차 관리',      abbr: '배차', bg: '#fff7ed' },
-    { type: 'divider' },
     { type: 'item',    page: 'admin',               label: '사용자 관리',    abbr: '관리', bg: '#fce7f3' },
     { type: 'item',    page: 'admin-settings',      label: '관리자설정',     abbr: '설정', bg: '#e0f2fe' },
     { type: 'item',    page: 'support',             label: '고객지원 게시판', abbr: '지원', bg: '#f0fdf4' },
+    { type: 'divider', label: 'AJ 전용' },
+    { type: 'item',    page: 'dispatch',            label: '배차 관리',      abbr: '배차', bg: '#fff7ed' },
   ];
 
   async function init() {
@@ -252,8 +252,9 @@ const App = (() => {
 
     const cleaned = items.filter((it, i) => {
       if (it.type !== 'section' && it.type !== 'divider') return true;
-      const next = items[i + 1];
-      return next && next.type === 'item';
+      // 뒤에 item이 하나라도 있어야 구분선/섹션 표시
+      const rest = items.slice(i + 1);
+      return rest.some(r => r.type === 'item');
     });
 
     document.getElementById('sheet-items').innerHTML = cleaned.map(it => {
@@ -261,6 +262,13 @@ const App = (() => {
         return `<div class="sheet-section">${it.label}</div>`;
       }
       if (it.type === 'divider') {
+        if (it.label) {
+          return `<div style="display:flex;align-items:center;gap:8px;margin:8px 20px 4px">
+            <hr style="flex:1;border:none;border-top:1px solid var(--gray-200)">
+            <span style="font-size:11px;font-weight:600;color:var(--gray-400);white-space:nowrap;letter-spacing:.04em">${it.label}</span>
+            <hr style="flex:1;border:none;border-top:1px solid var(--gray-200)">
+          </div>`;
+        }
         return `<hr style="margin:6px 20px;border:none;border-top:1px solid var(--gray-100)">`;
       }
       return `
