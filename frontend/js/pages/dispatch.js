@@ -337,6 +337,7 @@ const DispatchPage = (() => {
     if (!t) return;
     const disp = t.dispatch?.[0] || {};
     if (!disp.id) { Toast.error('먼저 배차 요청을 완료해주세요.'); return; }
+    const myCenter = Auth.getUser()?.center_name || '';
 
     const driverChips = _drivers.slice(0, 6).map(d =>
       `<div onclick="DispatchPage._fillDriver('${d.plate}','${d.name}','${d.phone}')"
@@ -374,7 +375,7 @@ const DispatchPage = (() => {
           </div>
           <div>
             <label class="form-label">센터</label>
-            <input id="cmp-center" class="form-input" value="${disp.center||''}" placeholder="안성센터">
+            <input id="cmp-center" class="form-input" value="${disp.center||myCenter}" placeholder="안성센터">
           </div>
         </div>
       `,

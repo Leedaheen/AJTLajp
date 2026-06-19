@@ -347,11 +347,11 @@ const Api = (() => {
         : { status: 'rejected', reject_reason: body.reject_reason };
       ({ data, error } = await _sb.from('app_users').update(updateBody).eq('id', id).select().single());
     } else if (base.match(/^users\/.+\/role$/)) {
-      const id = base.split('/')[1];
-      ({ data, error } = await _sb.from('app_users')
-        .update({ role: body.role, site_id: body.site_id })
-        .eq('id', id)
-      );
+      const id  = base.split('/')[1];
+      const upd = { role: body.role, site_id: body.site_id };
+      if (body.client_name !== undefined) upd.client_name = body.client_name;
+      if (body.center_name !== undefined) upd.center_name = body.center_name;
+      ({ data, error } = await _sb.from('app_users').update(upd).eq('id', id));
     } else if (base === 'users/me/notif-prefs') {
       const uid = Auth.getUser()?.id;
       ({ data, error } = await _sb.from('app_users').update({ notif_prefs: body }).eq('id', uid));

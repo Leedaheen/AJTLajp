@@ -4,7 +4,8 @@
  */
 const AdminPage = (() => {
   const ROLE_LABELS = {
-    tech: '기술인', partner: '협력사 담당자', aj: 'AJ관리자', as_tech: 'AS기사', pro: '프로',
+    tech: '기술인', partner: '협력사 담당자', aj: 'AJ관리자',
+    as_tech: 'AS기사', pro: '프로', aj_center: 'AJ센터',
   };
   const STATUS_LABELS = {
     pending: '<span class="badge badge-pending">승인 대기</span>',
@@ -339,9 +340,9 @@ const AdminPage = (() => {
       <tr data-name="${u.name}" data-email="${u.email}">
         <td><strong>${u.name}</strong></td>
         <td class="text-sm text-muted">${u.email}</td>
-        <td>${ROLE_LABELS[u.role] || u.role}</td>
+        <td>${ROLE_LABELS[u.role] || u.role}${u.center_name ? ` <span style="font-size:10px;background:#dbeafe;color:#1e40af;border-radius:8px;padding:1px 6px;margin-left:3px">${u.center_name}</span>` : ''}</td>
         <td>${u.site_id || '-'}</td>
-        <td class="text-sm">${u.client_name || '-'}</td>
+        <td class="text-sm">${u.client_name || u.center_name || '-'}</td>
         <td>${u.phone || '-'}</td>
         <td>${STATUS_LABELS[u.status] || u.status}</td>
         <td class="text-sm text-muted">${new Date(u.created_at).toLocaleDateString('ko-KR')}</td>
@@ -440,11 +441,12 @@ const AdminPage = (() => {
     ].join('');
 
     const ROLE_DEFS = [
-      { value: 'tech',    label: '기술인',       desc: '현장 작업자, QR 스캔·사용기록' },
-      { value: 'partner', label: '협력사 담당자', desc: '반입/반출 신청, 일정 확인' },
-      { value: 'aj',      label: 'AJ관리자',     desc: '전체 관리, 사용자 승인' },
-      { value: 'as_tech', label: 'AS기사',       desc: 'AS 요청 처리' },
-      { value: 'pro',     label: '프로',         desc: '프로 권한' },
+      { value: 'tech',      label: '기술인',       desc: '현장 작업자, QR 스캔·사용기록' },
+      { value: 'partner',   label: '협력사 담당자', desc: '반입/반출 신청, 일정 확인' },
+      { value: 'aj',        label: 'AJ관리자',     desc: '전체 관리, 사용자 승인' },
+      { value: 'as_tech',   label: 'AS기사',       desc: 'AS 요청 처리' },
+      { value: 'aj_center', label: 'AJ센터',       desc: '배차 정보 입력·완료 처리' },
+      { value: 'pro',       label: '프로',         desc: '프로 권한' },
     ];
     const currentRoles = new Set((currentRole || '').split(',').map(r => r.trim()).filter(Boolean));
 
@@ -482,20 +484,49 @@ const AdminPage = (() => {
           <label class="form-label">소속 (발주처)</label>
           <select id="sel-new-client" class="form-input form-select">${clientOpts}</select>
         </div>
+        <div class="form-group" id="grp-center-admin" style="display:none">
+          <label class="form-label">담당 센터</label>
+          <select id="sel-new-center" class="form-input form-select">
+            <option value="">선택</option>
+            <option value="안성센터" ${currentClientName==='안성센터'?'selected':''}>안성센터</option>
+            <option value="천안센터" ${currentClientName==='천안센터'?'selected':''}>천안센터</option>
+            <option value="청주센터" ${currentClientName==='청주센터'?'selected':''}>청주센터</option>
+            <option value="기타" ${currentClientName==='기타'?'selected':''}>기타</option>
+          </select>
+        </div>
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
         <button class="btn btn-primary btn-sm" id="btn-confirm-role">변경</button>
       `,
     });
+
+    // 역할 선택 시 센터 드롭다운 표시 토글
+    document.querySelectorAll('input[name="role-chk"]').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const checked = [...document.querySelectorAll('input[name="role-chk"]:checked')].map(el => el.value);
+        const grp = document.getElementById('grp-center-admin');
+        if (grp) grp.style.display = checked.includes('aj_center') ? '' : 'none';
+      });
+    });
+    // 초기 상태 반영
+    if (currentRole === 'aj_center') {
+      const grp = document.getElementById('grp-center-admin');
+      if (grp) grp.style.display = '';
+    }
+
     document.getElementById('btn-confirm-role').onclick = async () => {
       const checked = [...document.querySelectorAll('input[name="role-chk"]:checked')].map(el => el.value);
       if (!checked.length) { Toast.error('역할을 하나 이상 선택해주세요.'); return; }
-      const role       = checked[0]; // DB 단일값 호환 — 첫 번째 선택값 우선 저장
+      const role       = checked[0];
       const siteId     = document.getElementById('sel-new-site').value;
-      const clientName = document.getElementById('sel-new-client').value;
+      const clientName = role === 'aj_center'
+        ? (document.getElementById('sel-new-center')?.value || '')
+        : document.getElementById('sel-new-client').value;
+      const centerName = role === 'aj_center'
+        ? (document.getElementById('sel-new-center')?.value || null) : null;
       try {
-        await Api.patch(`/users/${userId}/role`, { role, site_id: siteId, client_name: clientName });
+        await Api.patch(`/users/${userId}/role`, { role, site_id: siteId, client_name: clientName, center_name: centerName });
         Modal.close();
         Toast.success('역할이 변경되었습니다.');
         loadUsers();

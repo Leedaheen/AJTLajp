@@ -11,13 +11,14 @@ const App = (() => {
     partner: ['home', 'transit', 'equipment', 'as-request', 'usage-log', 'support'],
     pro:     ['home', 'transit', 'equipment', 'as-request', 'usage-log',
                'analytics-equipment', 'analytics-as', 'analytics-usage', 'support'],
-    aj:      ['home', 'transit', 'equipment', 'as-request', 'usage-log',
-               'analytics-equipment', 'analytics-as', 'analytics-usage',
-               'admin', 'admin-settings', 'dispatch', 'support'],
-    as_tech: ['home', 'as-request', 'support'],
-    admin:   ['home', 'transit', 'equipment', 'as-request', 'usage-log',
-               'analytics-equipment', 'analytics-as', 'analytics-usage',
-               'admin', 'admin-settings', 'dispatch', 'support'],
+    aj:        ['home', 'transit', 'equipment', 'as-request', 'usage-log',
+                 'analytics-equipment', 'analytics-as', 'analytics-usage',
+                 'admin', 'admin-settings', 'dispatch', 'support'],
+    as_tech:   ['home', 'as-request', 'support'],
+    aj_center: ['home', 'dispatch', 'support'],
+    admin:     ['home', 'transit', 'equipment', 'as-request', 'usage-log',
+                 'analytics-equipment', 'analytics-as', 'analytics-usage',
+                 'admin', 'admin-settings', 'dispatch', 'support'],
   };
 
   // 더보기 시트 항목 정의
@@ -164,6 +165,10 @@ const App = (() => {
           }).join('');
         }
       } catch {}
+    } else if (user.role === 'aj_center' && user.center_name) {
+      // AJ센터: 센터명 배지
+      const badge = document.getElementById('header-client-badge');
+      if (badge) { badge.textContent = user.center_name; badge.style.display = ''; }
     } else if (user.client_name) {
       // 비AJ: 정적 배지
       const badge = document.getElementById('header-client-badge');
@@ -321,7 +326,9 @@ const App = (() => {
       showPage('home');
       setTimeout(() => QrScanner.handleQrCode(qr), 400);
     } else {
-      showPage('home');
+      // AJ센터는 로그인 후 바로 배차관리 페이지로 이동
+      const user = Auth.getUser();
+      showPage(user?.role === 'aj_center' ? 'dispatch' : 'home');
     }
   }
 

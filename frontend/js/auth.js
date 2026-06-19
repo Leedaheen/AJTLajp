@@ -130,6 +130,7 @@ const Auth = (() => {
             <option value="pro">프로 (열람 전용)</option>
             <option value="aj">AJ관리자</option>
             <option value="as_tech">AS기사 (고장 수리 담당자)</option>
+            <option value="aj_center">AJ센터 (배차 담당)</option>
           </select>
         </div>
         <div id="grp-client" class="form-group" style="display:none">
@@ -137,6 +138,16 @@ const Auth = (() => {
           <select id="sel-client" class="form-input form-select">
             <option value="">-- 소속 선택 --</option>
             ${clientOpts}
+          </select>
+        </div>
+        <div id="grp-center" class="form-group" style="display:none">
+          <label class="form-label">담당 센터 <span style="color:var(--red)">*</span></label>
+          <select id="sel-center" class="form-input form-select">
+            <option value="">-- 센터 선택 --</option>
+            <option value="안성센터">안성센터</option>
+            <option value="천안센터">천안센터</option>
+            <option value="청주센터">청주센터</option>
+            <option value="기타">기타</option>
           </select>
         </div>
         <div class="form-group">
@@ -163,18 +174,22 @@ const Auth = (() => {
     });
 
     document.getElementById('sel-role').addEventListener('change', e => {
-      const role    = e.target.value;
-      const optAll  = document.getElementById('opt-all');
-      const selSite = document.getElementById('sel-site');
+      const role      = e.target.value;
+      const optAll    = document.getElementById('opt-all');
+      const selSite   = document.getElementById('sel-site');
       const grpClient = document.getElementById('grp-client');
+      const grpCenter = document.getElementById('grp-center');
 
       // 소속 선택: 협력사·기술인·프로에게만 표시
       grpClient.style.display = ['tech','partner','pro'].includes(role) ? '' : 'none';
 
-      // 현장 ALL: AJ관리자만
-      optAll.style.display = role === 'aj' ? '' : 'none';
-      if (role === 'aj') selSite.value = 'ALL';
-      else if (selSite.value === 'ALL') selSite.value = 'P4';
+      // 센터 선택: AJ센터만
+      grpCenter.style.display = role === 'aj_center' ? '' : 'none';
+
+      // 현장 ALL: AJ관리자·AJ센터
+      optAll.style.display = ['aj','aj_center'].includes(role) ? '' : 'none';
+      if (['aj','aj_center'].includes(role)) selSite.value = 'ALL';
+      else if (selSite.value === 'ALL') selSite.value = sites[0]?.name || '';
     });
 
     document.getElementById('btn-role-confirm').onclick = () => _submitProfile(session);
@@ -187,11 +202,16 @@ const Auth = (() => {
     const company = document.getElementById('inp-company').value.trim();
     const client  = ['tech','partner','pro'].includes(role)
       ? (document.getElementById('sel-client')?.value || '') : '';
+    const center  = role === 'aj_center'
+      ? (document.getElementById('sel-center')?.value || '') : '';
 
     if (!role)    { Toast.error('역할을 선택해주세요.'); return; }
     if (!company) { Toast.error('업체명을 입력해주세요.'); return; }
     if (['tech','partner','pro'].includes(role) && !client) {
       Toast.error('소속을 선택해주세요.'); return;
+    }
+    if (role === 'aj_center' && !center) {
+      Toast.error('담당 센터를 선택해주세요.'); return;
     }
 
     const btn = document.getElementById('btn-role-confirm');
@@ -200,7 +220,7 @@ const Auth = (() => {
 
     localStorage.setItem('saved_company', company);
 
-    const needApproval = ['partner', 'as_tech', 'pro'].includes(role);
+    const needApproval = ['partner', 'as_tech', 'pro', 'aj_center'].includes(role);
     const { data, error } = await _sb.from('app_users').insert({
       id:          session.user.id,
       google_id:   session.user.user_metadata?.provider_id || session.user.id,
@@ -211,6 +231,7 @@ const Auth = (() => {
       site_id:     siteId,
       company,
       client_name: client || '',
+      center_name: center || null,
       status:      needApproval ? 'pending' : 'active',
     }).select().single();
 
