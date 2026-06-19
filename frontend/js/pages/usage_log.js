@@ -14,6 +14,15 @@ const UsageLogPage = (() => {
     const canStart = ['tech','partner','aj'].includes(user.role);
     const today = new Date().toISOString().slice(0, 10);
 
+    // 현장/프로젝트 선택 옵션 로드
+    const [{ data: sites = [] }, { data: projects = [] }] = await Promise.all([
+      window._sb.from('sites').select('code,name').eq('active', true).order('name'),
+      window._sb.from('projects').select('code,name').eq('active', true).order('name'),
+    ]);
+
+    const siteOptions = sites.map(s => `<option value="${s.code}">${s.name}</option>`).join('');
+    const projOptions = projects.map(p => `<option value="${p.code}">${p.name}</option>`).join('');
+
     document.getElementById('page-usage-log').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
         <h2 class="section-title" style="margin:0">장비 가동 내역</h2>
@@ -46,10 +55,13 @@ const UsageLogPage = (() => {
         <input id="filter-date" type="date" class="form-input" value="${today}" style="width:160px">
         <select id="filter-site" class="form-input form-select" style="width:130px">
           <option value="">전체 현장</option>
-          <option value="P4">P4 복합동</option>
-          <option value="P5">P5 복합동</option>
+          ${siteOptions}
         </select>
-        <input id="filter-equip" type="text" class="form-input" placeholder="장비번호 검색" style="width:160px">
+        <select id="filter-project" class="form-input form-select" style="width:140px">
+          <option value="">전체 프로젝트</option>
+          ${projOptions}
+        </select>
+        <input id="filter-equip" type="text" class="form-input" placeholder="장비번호 검색" style="width:150px">
         <button class="btn btn-primary btn-sm" onclick="UsageLogPage.loadList()">검색</button>
       </div>
 
@@ -83,7 +95,9 @@ const UsageLogPage = (() => {
       </div>
     `;
 
-    document.getElementById('filter-date').addEventListener('change', loadList);
+    document.getElementById('filter-date').addEventListener('change', () => { loadSummary(); loadList(); });
+    document.getElementById('filter-site').addEventListener('change', () => { loadSummary(); loadList(); });
+    document.getElementById('filter-project').addEventListener('change', () => { loadSummary(); loadList(); });
     document.getElementById('filter-equip').addEventListener('keydown', e => {
       if (e.key === 'Enter') loadList();
     });
@@ -94,17 +108,19 @@ const UsageLogPage = (() => {
 
   // ── 요약 ─────────────────────────────────────────────────
   async function loadSummary() {
-    const date   = document.getElementById('filter-date')?.value || new Date().toISOString().slice(0,10);
-    const siteId = document.getElementById('filter-site')?.value || '';
+    const date      = document.getElementById('filter-date')?.value || new Date().toISOString().slice(0,10);
+    const siteId    = document.getElementById('filter-site')?.value || '';
+    const projectId = document.getElementById('filter-project')?.value || '';
     const params = new URLSearchParams({ date });
-    if (siteId) params.set('site_id', siteId);
+    if (siteId)    params.set('site_id', siteId);
+    if (projectId) params.set('project', projectId);
 
     try {
       const s = await Api.get(`/usage-logs/summary?${params}`);
       document.getElementById('usage-summary').innerHTML = `
         <div class="card" style="text-align:center;padding:16px">
-          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">총 가동 대수 / 총 사용 대수</div>
-          <div style="font-size:24px;font-weight:700;color:var(--navy)">${s.equip_count}<span style="font-size:13px;margin-left:2px">대</span><span style="font-size:16px;color:var(--gray-300);margin:0 6px">/</span>${s.total_in_use}<span style="font-size:13px;margin-left:2px">대</span></div>
+          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">총 사용 대수</div>
+          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.total_in_use ?? 0}<span style="font-size:14px;margin-left:2px">대</span></div>
         </div>
         <div class="card" style="text-align:center;padding:16px">
           <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">일일 기록 건수</div>
@@ -112,7 +128,7 @@ const UsageLogPage = (() => {
         </div>
         <div class="card" style="text-align:center;padding:16px">
           <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">전체 가동률</div>
-          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.utilization}<span style="font-size:14px;margin-left:2px">%</span></div>
+          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.utilization ?? 0}<span style="font-size:14px;margin-left:2px">%</span></div>
         </div>
       `;
     } catch {
@@ -122,13 +138,21 @@ const UsageLogPage = (() => {
 
   // ── 목록 ─────────────────────────────────────────────────
   async function loadList() {
-    const date   = document.getElementById('filter-date')?.value || '';
-    const siteId = document.getElementById('filter-site')?.value || '';
-    const equip  = document.getElementById('filter-equip')?.value.trim() || '';
+    const date      = document.getElementById('filter-date')?.value || '';
+    const siteId    = document.getElementById('filter-site')?.value || '';
+    const projectId = document.getElementById('filter-project')?.value || '';
+    const equip     = document.getElementById('filter-equip')?.value.trim() || '';
 
     const tbody = document.getElementById('log-tbody');
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="11" class="text-center"><span class="spinner" style="display:block;margin:16px auto"></span></td></tr>';
+
+    // 프로젝트 필터 시 해당 프로젝트 장비번호 목록을 먼저 조회
+    let projectEquipNos = null;
+    if (projectId) {
+      const { data: eqs = [] } = await window._sb.from('equipment').select('equip_no').eq('project', projectId);
+      projectEquipNos = eqs.map(e => e.equip_no).filter(Boolean);
+    }
 
     const params = new URLSearchParams({ limit: 200 });
     if (date)   params.set('date', date);
@@ -136,7 +160,11 @@ const UsageLogPage = (() => {
     if (equip)  params.set('equip', equip);
 
     try {
-      const list = await Api.get(`/usage-logs?${params}`);
+      let list = await Api.get(`/usage-logs?${params}`);
+      // 프로젝트 필터 클라이언트 적용
+      if (projectEquipNos !== null) {
+        list = list.filter(r => projectEquipNos.includes(r.equip_no));
+      }
       const user = Auth.getUser();
       const canStart = ['tech','partner','aj'].includes(user.role);
 

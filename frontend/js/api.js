@@ -88,17 +88,34 @@ const Api = (() => {
       if (params.limit)    q = q.limit(Number(params.limit));
       ({ data, error } = await q);
     } else if (base === 'usage-logs/summary') {
-      const date   = params.date || new Date().toISOString().slice(0, 10);
-      const siteId = params.site_id || '';
+      const date      = params.date || new Date().toISOString().slice(0, 10);
+      const siteId    = params.site_id || '';
+      const projectId = params.project || '';
+
+      // 전체 in_use 장비 목록 (현장/프로젝트 필터 적용)
+      let eqQ = _sb.from('equipment').select('equip_no').eq('status', 'in_use');
+      if (siteId)    eqQ = eqQ.eq('site_id', siteId);
+      if (projectId) eqQ = eqQ.eq('project', projectId);
+      const { data: inUseList = [] } = await eqQ;
+      const total_in_use = inUseList.length;
+      const inUseNos = inUseList.map(e => e.equip_no).filter(Boolean);
+
+      // 오늘 usage_logs
       let q = _sb.from('usage_logs').select('used_hours,equip_no,site_id').eq('date', date);
       if (siteId) q = q.eq('site_id', siteId);
+      if (projectId && inUseNos.length > 0) q = q.in('equip_no', inUseNos);
       const { data: rows = [] } = await q;
+
       const totalHours = rows.reduce((s, r) => s + Number(r.used_hours || 0), 0);
-      const equipSet = new Set(rows.map(r => r.equip_no).filter(Boolean));
+      const equipSet   = new Set(rows.map(r => r.equip_no).filter(Boolean));
+      const utilization = total_in_use > 0 ? Math.round(equipSet.size / total_in_use * 1000) / 10 : 0;
+
       return {
         total_hours:  Math.round(totalHours * 10) / 10,
         equip_count:  equipSet.size,
         record_count: rows.length,
+        total_in_use,
+        utilization,
       };
     } else if (base === 'usage-logs') {
       ({ data, error } = await _applyFilters(
