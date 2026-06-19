@@ -253,19 +253,23 @@ const UsageLogPage = (() => {
   // ── 가동 시작 폼 (QR 스캔 후 호출) ──────────────────────
   // equip: equipment 오브젝트 (qr-scanner에서 전달)
   function openStartForm(equip) {
-    const siteName = equip?.site_name || (equip?.site_id === 'P4' ? 'P4 복합동' : equip?.site_id === 'P5' ? 'P5 복합동' : '');
+    const siteName  = equip?.site_name || (equip?.site_id === 'P4' ? 'P4 복합동' : equip?.site_id === 'P5' ? 'P5 복합동' : '');
+    const floor     = equip?.floor || '';
+    const company   = equip?.company || Auth.getUser()?.company || '';
+    const roStyle   = 'background:var(--gray-50,#f9fafb);color:var(--gray-500);cursor:default';
+
     Modal.open({
       title: '가동 시작',
       body: `
         <!-- QR 스캔으로 식별된 장비 정보 -->
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px">
           <div style="font-weight:700;color:var(--navy);font-size:15px">${equip?.equip_no || '-'}</div>
-          <div style="color:var(--gray-500);margin-top:2px">${equip?.spec || ''} · ${siteName}</div>
+          <div style="color:var(--gray-500);margin-top:2px">${equip?.spec || ''}${equip?.spec && siteName ? ' · ' : ''}${siteName}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">층/위치 <span style="color:var(--red)">*</span></label>
-            <input id="sl-floor" class="form-input" placeholder="예: 5층 A구역" value="${_load('floor')}">
+            <label class="form-label">층/위치</label>
+            <input id="sl-floor" class="form-input" value="${floor}" readonly style="${roStyle}">
           </div>
           <div class="form-group">
             <label class="form-label">팀명</label>
@@ -274,14 +278,12 @@ const UsageLogPage = (() => {
         </div>
         <div class="form-group">
           <label class="form-label">기록자 <span style="color:var(--red)">*</span></label>
-          <input id="sl-recorder" class="form-input" readonly
-            style="background:var(--gray-100);color:var(--gray-500);cursor:default"
-            value="${Auth.getUser()?.name || _load('recorder') || ''}">
+          <input id="sl-recorder" class="form-input" readonly style="${roStyle}"
+            value="${Auth.getUser()?.name || ''}">
         </div>
         <div class="form-group">
-          <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
-          <input id="sl-company" class="form-input" placeholder="업체명"
-            value="${equip?.company || _load('company') || localStorage.getItem('saved_company') || ''}">
+          <label class="form-label">업체명</label>
+          <input id="sl-company" class="form-input" value="${company}" readonly style="${roStyle}">
         </div>
         <div style="font-size:12px;color:var(--gray-400);margin-top:4px">
           시작 시각은 지금 시각으로 자동 기록됩니다.
@@ -294,19 +296,16 @@ const UsageLogPage = (() => {
     });
 
     document.getElementById('btn-do-start').onclick = async () => {
-      const floor    = document.getElementById('sl-floor').value.trim();
-      const recorder = document.getElementById('sl-recorder').value.trim();
-      const company  = document.getElementById('sl-company').value.trim();
-      const team     = document.getElementById('sl-team').value.trim();
+      const floorVal   = document.getElementById('sl-floor').value.trim();
+      const recorder   = document.getElementById('sl-recorder').value.trim();
+      const companyVal = document.getElementById('sl-company').value.trim();
+      const team       = document.getElementById('sl-team').value.trim();
 
-      if (!floor || !recorder || !company) {
-        Toast.error('필수 항목을 모두 입력해주세요.'); return;
+      if (!recorder) {
+        Toast.error('기록자 정보가 없습니다. 다시 로그인해주세요.'); return;
       }
 
-      _saveField('floor',    floor);
-      _saveField('recorder', recorder);
-      _saveField('company',  company);
-      _saveField('team',     team);
+      _saveField('team', team);
 
       const btn = document.getElementById('btn-do-start');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
@@ -314,11 +313,11 @@ const UsageLogPage = (() => {
       try {
         await Api.post('/usage-logs/start', {
           site_id:     equip?.site_id || 'P4',
-          company,
+          company:     companyVal,
           equip_no:    equip?.equip_no || '',
           equip_id:    equip?.id || null,
           team_name:   team,
-          floor,
+          floor:       floorVal,
           recorder,
           recorder_id: Auth.getUser()?.id,
           start_time:  new Date().toISOString(),
