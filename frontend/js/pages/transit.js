@@ -1650,63 +1650,77 @@ const TransitPage = (() => {
       return;
     }
 
-    // 장비 레코드에서 시리얼번호 조회
+    // 장비 레코드에서 spec/qr_code 조회
     const { data: equipRows } = await _sb.from('equipment')
-      .select('equip_no,serial_no,in_date')
+      .select('equip_no,spec,qr_code,site_id')
       .in('equip_no', equipNos);
     const equipMap = {};
     (equipRows || []).forEach(r => { equipMap[r.equip_no] = r; });
 
     const origin   = window.location.origin;
     const pathname = window.location.pathname;
-    const inDate   = t.scheduled_date || t.completed_at?.slice(0, 10) || new Date().toISOString().slice(0, 10);
-    const siteLine = [t.site_name, t.company].filter(Boolean).join(' · ');
+    const siteName = t.site_name || t.site_id || '';
 
-    const pages = equipNos.map((no, idx) => {
-      const qrCode   = `AJ-${no}`;
-      const qrUrl    = `${origin}${pathname}?qr=${encodeURIComponent(qrCode)}`;
-      const serialNo = equipMap[no]?.serial_no || '';
-      const recordIn = equipMap[no]?.in_date || inDate;
+    const itemsHtml = equipNos.map((no, idx) => {
+      const eq     = equipMap[no] || {};
+      const qrCode = eq.qr_code || `AJ-${no}`;
+      const qrUrl  = `${origin}${pathname}?qr=${encodeURIComponent(qrCode)}`;
+      const sub    = [eq.spec, siteName].filter(Boolean).join(' · ');
 
       return `
-        <div style="page-break-after:always;display:flex;flex-direction:column;align-items:center;
-                    justify-content:center;height:100vh;font-family:'Malgun Gothic',sans-serif;padding:40px">
-          <div style="font-size:14px;color:#666;margin-bottom:16px">AJ렌탈 고소작업대</div>
-          <div id="qr-transit-${idx}" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;display:inline-block;margin-bottom:24px"></div>
-          <div style="font-size:22px;font-weight:700;color:#1B365D;margin-bottom:8px">${no}</div>
-          ${siteLine   ? `<div style="font-size:15px;font-weight:700;color:#1B365D;margin-bottom:4px">${siteLine}</div>` : ''}
-          ${serialNo   ? `<div style="font-size:15px;font-weight:700;color:#1B365D;margin-bottom:4px;font-family:monospace">${serialNo}</div>` : ''}
-          <div style="font-size:15px;font-weight:700;color:#1B365D">반입일: ${recordIn}</div>
-          <script>window['_qurl_t${idx}']='${qrUrl.replace(/\\/g, '\\\\').replace(/'/g,"\\'")}'; <\/script>
+        <div class="qr-card">
+          <div class="qr-title">${no}</div>
+          <div id="qr-tr-${idx}" class="qr-img"></div>
+          <div class="qr-sub">${sub}</div>
+          <div class="qr-hint">스캔 시 앱으로 바로 연결</div>
+          <script>window['_qurl_t${idx}']='${qrUrl.replace(/'/g,"\\'")}'; <\/script>
         </div>
       `;
     }).join('');
 
-    const win = window.open('', '_blank', 'width=800,height=900');
+    const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) { Toast.error('팝업 차단을 해제해주세요.'); return; }
+
     win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
+      <!DOCTYPE html><html><head>
         <meta charset="UTF-8">
-        <title>QR코드 — ${t.company}</title>
+        <title>QR 인쇄 — ${t.company} (${equipNos.length}대)</title>
         <style>
-          * { margin:0; padding:0; box-sizing:border-box; }
-          body { background:#fff; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: sans-serif; padding: 20px; background: #fff; }
+          h1 { color: #1B365D; font-size: 18px; margin-bottom: 20px; }
+          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
           @media print {
-            @page { size: A4; margin: 0; }
-            body { margin: 0; }
+            h1 { display: none; }
+            .grid { gap: 10px; }
           }
+          .qr-card {
+            border: 2px solid #1B365D; border-radius: 12px;
+            padding: 20px 16px; text-align: center;
+            page-break-inside: avoid;
+          }
+          .qr-title { font-size: 16px; font-weight: 700; color: #1B365D; margin-bottom: 12px; }
+          .qr-img   { display: flex; justify-content: center; margin-bottom: 10px; }
+          .qr-sub   { font-size: 12px; color: #555; margin-bottom: 2px; }
+          .qr-hint  { font-size: 11px; color: #999; }
+          .print-btn {
+            margin-bottom: 20px; padding: 10px 28px;
+            background: #1B365D; color: #fff; border: none;
+            border-radius: 8px; font-size: 14px; cursor: pointer;
+          }
+          @media print { .print-btn { display: none; } }
         </style>
-      </head>
-      <body>${pages}
+      </head><body>
+        <button class="print-btn" onclick="window.print()">인쇄</button>
+        <h1>QR 코드 — ${t.company} ${equipNos.length}대</h1>
+        <div class="grid">${itemsHtml}</div>
         <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
         <script>
           window.onload = () => {
             ${equipNos.map((no, i) => `
-              new QRCode(document.getElementById('qr-transit-${i}'), {
+              new QRCode(document.getElementById('qr-tr-${i}'), {
                 text: window['_qurl_t${i}'],
-                width: 280, height: 280,
+                width: 160, height: 160,
                 colorDark: '#1B365D', colorLight: '#ffffff',
                 correctLevel: QRCode.CorrectLevel.H
               });
@@ -1714,8 +1728,7 @@ const TransitPage = (() => {
             setTimeout(() => window.print(), 600);
           };
         <\/script>
-      </body>
-      </html>
+      </body></html>
     `);
     win.document.close();
   }
