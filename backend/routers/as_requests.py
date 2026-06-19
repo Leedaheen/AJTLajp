@@ -150,10 +150,15 @@ async def start_as(
 ):
     if current_user["role"] not in ("as_tech", "aj"):
         raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    old = _get_or_404(req_id)
     supabase.table("as_requests").update({
         "status":        "in_progress",
         "in_progress_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", req_id).execute()
+    _notify_requester(old, "as_request",
+        f"[AS 처리 시작] {old['company']} · {old['fault_type']}",
+        f"{old['site_name']} / {old['location']}",
+        ref_id=str(req_id))
     return {"ok": True}
 
 
@@ -205,10 +210,15 @@ async def material_as(
 ):
     if current_user["role"] not in ("as_tech", "aj", "admin"):
         raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    old = _get_or_404(req_id)
     supabase.table("as_requests").update({
         "status":      "material_pending",
         "material_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", req_id).execute()
+    _notify_requester(old, "as_request",
+        f"[AS 자재 수급 중] {old['company']} · {old['fault_type']}",
+        f"{old['site_name']} / {old['location']}",
+        ref_id=str(req_id))
     return {"ok": True}
 
 
@@ -221,11 +231,16 @@ async def hold_as(
 ):
     if current_user["role"] not in ("as_tech", "aj", "admin"):
         raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    old = _get_or_404(req_id)
     supabase.table("as_requests").update({
         "status":      "held",
         "hold_reason": body.hold_reason,
         "held_at":     datetime.now(timezone.utc).isoformat(),
     }).eq("id", req_id).execute()
+    _notify_requester(old, "as_request",
+        f"[AS 보류] {old['company']} · {old['fault_type']}",
+        body.hold_reason[:60] if body.hold_reason else f"{old['site_name']} / {old['location']}",
+        ref_id=str(req_id))
     return {"ok": True}
 
 
@@ -237,10 +252,15 @@ async def resume_as(
 ):
     if current_user["role"] not in ("as_tech", "aj", "admin"):
         raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    old = _get_or_404(req_id)
     supabase.table("as_requests").update({
         "status":        "in_progress",
         "in_progress_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", req_id).execute()
+    _notify_requester(old, "as_request",
+        f"[AS 처리 재개] {old['company']} · {old['fault_type']}",
+        f"{old['site_name']} / {old['location']}",
+        ref_id=str(req_id))
     return {"ok": True}
 
 
@@ -273,6 +293,15 @@ def _save_notif(target_id, type_, title, body, ref_id=None):
         "target_id": target_id, "type": type_,
         "title": title, "body": body, "ref_id": ref_id,
     }).execute()
+
+def _notify_requester(old, type_, title, body, ref_id=None):
+    if not old.get("created_by"): return
+    creator = supabase.table("app_users").select("id,push_sub,notif_prefs").eq("id", old["created_by"]).single().execute()
+    if creator.data:
+        _save_notif(creator.data["id"], type_, title, body, ref_id)
+        if creator.data.get("push_sub") and (creator.data.get("notif_prefs") or {}).get("as_request", True):
+            try: send_push(creator.data["push_sub"], title, body)
+            except: pass
 
 def _notify_aj(type_, title, body, ref_id=None):
     ajs = supabase.table("app_users").select("id,push_sub,notif_prefs").eq("role","aj").eq("status","active").execute()

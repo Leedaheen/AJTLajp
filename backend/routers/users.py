@@ -144,12 +144,20 @@ async def list_users(
 async def approve_user(
     user_id: str,
     body: ApproveUserRequest,
-    current_user: dict = Depends(require_role("aj")),
+    current_user: dict = Depends(get_current_user),
 ):
     """사용자를 승인하거나 거절합니다."""
+    if current_user["role"] not in ("aj", "admin", "pro"):
+        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+
     target = supabase.table("app_users").select("*").eq("id", user_id).single().execute()
     if not target.data:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    # pro는 자신의 담당 현장 사용자만 승인 가능
+    if current_user["role"] == "pro":
+        if target.data.get("site_id") != current_user.get("site_id"):
+            raise HTTPException(status_code=403, detail="담당 현장의 사용자만 승인할 수 있습니다.")
 
     user = target.data
     now = datetime.now(timezone.utc).isoformat()
