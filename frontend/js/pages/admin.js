@@ -439,18 +439,40 @@ const AdminPage = (() => {
       ...clients.map(c => `<option value="${c.name}" ${currentClientName===c.name?'selected':''}>${c.name}</option>`),
     ].join('');
 
+    const ROLE_DEFS = [
+      { value: 'tech',    label: '기술인',       desc: '현장 작업자, QR 스캔·사용기록' },
+      { value: 'partner', label: '협력사 담당자', desc: '반입/반출 신청, 일정 확인' },
+      { value: 'aj',      label: 'AJ관리자',     desc: '전체 관리, 사용자 승인' },
+      { value: 'as_tech', label: 'AS기사',       desc: 'AS 요청 처리' },
+      { value: 'pro',     label: '프로',         desc: '프로 권한' },
+    ];
+    const currentRoles = new Set((currentRole || '').split(',').map(r => r.trim()).filter(Boolean));
+
+    function _roleCards(selected) {
+      return ROLE_DEFS.map(r => {
+        const on = selected.has(r.value);
+        return `<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;
+          border:${on ? '2px solid #1B365D' : '1px solid var(--gray-200)'};
+          background:${on ? '#eff6ff' : '#fff'};cursor:pointer;margin-bottom:6px">
+          <input type="checkbox" name="role-chk" value="${r.value}" ${on ? 'checked' : ''}
+            style="margin-top:2px;accent-color:#1B365D;width:15px;height:15px;flex-shrink:0"
+            onchange="AdminPage._onRoleChkChange(this)">
+          <div>
+            <div style="font-size:13px;font-weight:${on?'600':'400'};color:${on?'#1B365D':'var(--gray-700)'}">
+              ${r.label}
+            </div>
+            <div style="font-size:11px;color:var(--gray-400);margin-top:1px">${r.desc}</div>
+          </div>
+        </label>`;
+      }).join('');
+    }
+
     Modal.open({
       title: `${name}님 역할 변경`,
       body: `
         <div class="form-group">
-          <label class="form-label">역할</label>
-          <select id="sel-new-role" class="form-input form-select">
-            <option value="tech"    ${currentRole==='tech'   ?'selected':''}>기술인</option>
-            <option value="partner" ${currentRole==='partner'?'selected':''}>협력사 담당자</option>
-            <option value="pro"     ${currentRole==='pro'    ?'selected':''}>프로</option>
-            <option value="aj"      ${currentRole==='aj'     ?'selected':''}>AJ관리자</option>
-            <option value="as_tech" ${currentRole==='as_tech'?'selected':''}>AS기사</option>
-          </select>
+          <label class="form-label">역할 <span style="font-size:11px;color:var(--gray-400)">(복수 선택 가능)</span></label>
+          <div id="role-card-wrap">${_roleCards(currentRoles)}</div>
         </div>
         <div class="form-group">
           <label class="form-label">현장</label>
@@ -467,9 +489,11 @@ const AdminPage = (() => {
       `,
     });
     document.getElementById('btn-confirm-role').onclick = async () => {
-      const role        = document.getElementById('sel-new-role').value;
-      const siteId      = document.getElementById('sel-new-site').value;
-      const clientName  = document.getElementById('sel-new-client').value;
+      const checked = [...document.querySelectorAll('input[name="role-chk"]:checked')].map(el => el.value);
+      if (!checked.length) { Toast.error('역할을 하나 이상 선택해주세요.'); return; }
+      const role       = checked[0]; // DB 단일값 호환 — 첫 번째 선택값 우선 저장
+      const siteId     = document.getElementById('sel-new-site').value;
+      const clientName = document.getElementById('sel-new-client').value;
       try {
         await Api.patch(`/users/${userId}/role`, { role, site_id: siteId, client_name: clientName });
         Modal.close();
@@ -477,6 +501,17 @@ const AdminPage = (() => {
         loadUsers();
       } catch (e) { /* api.js에서 처리 */ }
     };
+  }
+
+  function _onRoleChkChange(el) {
+    // 레이블 스타일 실시간 업데이트
+    const label = el.closest('label');
+    if (!label) return;
+    const on = el.checked;
+    label.style.border    = on ? '2px solid #1B365D' : '1px solid var(--gray-200)';
+    label.style.background = on ? '#eff6ff' : '#fff';
+    const nameEl = label.querySelector('div > div:first-child');
+    if (nameEl) { nameEl.style.fontWeight = on ? '600' : '400'; nameEl.style.color = on ? '#1B365D' : 'var(--gray-700)'; }
   }
 
   // ── 관리자 계정 ID/PW 변경 ──────────────────────────────────
@@ -542,6 +577,6 @@ const AdminPage = (() => {
     };
   }
 
-  return { render, loadUsers, approveUser, rejectUser, changeRole, openCredentialsModal,
-           openPermModal, permSwitchRole, permCycleEdit, permOnView, savePermissions };
+  return { render, loadUsers, approveUser, rejectUser, changeRole, _onRoleChkChange,
+           openCredentialsModal, openPermModal, permSwitchRole, permCycleEdit, permOnView, savePermissions };
 })();

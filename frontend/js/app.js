@@ -150,13 +150,15 @@ const App = (() => {
         const drop = document.getElementById('header-client-drop');
         if (drop && data) {
           const opts = [{ name: '전체' }, ...data];
-          drop.innerHTML = opts.map(c => `
-            <div onclick="App.selectClientFilter('${c.name === '전체' ? '' : c.name}')"
-              style="padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap;
-              ${(c.name === '전체' && !_clientFilter) || (_clientFilter === c.name) ? 'background:#eff6ff;color:var(--navy);font-weight:600' : ''}"
-              onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='${(c.name === '전체' && !_clientFilter) || (_clientFilter === c.name) ? '#eff6ff' : ''}'">
+          drop.innerHTML = opts.map(c => {
+            const isActive = (c.name === '전체' && !_clientFilter) || (_clientFilter === c.name);
+            return `<div onclick="App.selectClientFilter('${c.name === '전체' ? '' : c.name}')"
+              style="padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap;color:#1B365D;
+              ${isActive ? 'background:#eff6ff;font-weight:600' : 'color:#374151'}"
+              onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='${isActive ? '#eff6ff' : ''}'">
               ${c.name}
-            </div>`).join('');
+            </div>`;
+          }).join('');
         }
       } catch {}
     } else if (user.client_name) {
@@ -186,9 +188,13 @@ const App = (() => {
     const label = document.getElementById('header-client-label');
     if (label) label.textContent = name || '전체 소속';
     document.getElementById('header-client-drop').style.display = 'none';
-    // 현재 페이지 데이터 새로고침
-    const active = document.querySelector('.page:not(.hidden)');
-    if (active?.id === 'page-transit') TransitPage.loadList(true);
+    // 현재 활성 페이지 데이터 새로고침
+    const active = document.querySelector('.page:not([style*="display: none"]):not([style*="display:none"])');
+    const id = active?.id;
+    if (id === 'page-transit')     TransitPage.loadList(true);
+    else if (id === 'page-as-request') AsRequestPage.loadList();
+    else if (id === 'page-equipment')  EquipmentPage?.loadList?.();
+    else if (id === 'page-usage-log')  UsageLogPage?.loadList?.();
   }
 
   function _setSidebarAccess(user) {
