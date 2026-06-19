@@ -133,13 +133,13 @@ const TransitPage = (() => {
 
   // 이벤트 필 스타일
   function _pillStyle(type, status) {
-    if (status === 'cancelled') return 'background:#f3f4f6;color:#6b7280';
+    if (status === 'cancelled') return 'color:#9ca3af';
     if (type === 'in') {
-      if (status === 'completed') return 'background:#0f2744;color:#bfdbfe';
+      if (status === 'completed') return 'color:#6b9fd4';
       if (status === 'confirmed') return 'background:#1B365D;color:#fff';
       return 'background:#dbeafe;color:#1e3a8a';
     } else {
-      if (status === 'completed') return 'background:#7f1d1d;color:#fee2e2';
+      if (status === 'completed') return 'color:#e06c75';
       if (status === 'confirmed') return 'background:#dc2626;color:#fff';
       return 'background:#ffe4e6;color:#9f1239';
     }
@@ -1055,6 +1055,7 @@ const TransitPage = (() => {
     if (!reporter || !phone) { Toast.error('필수 항목을 모두 입력해주세요.'); return; }
     if (!project) { Toast.error('프로젝트를 선택해주세요.'); return; }
     if (!date) { Toast.error(`희망 ${type === 'in' ? '반입' : '반출'} 날짜를 선택해주세요.`); return; }
+    if (date < new Date().toISOString().slice(0, 10)) { Toast.error('희망 날짜는 오늘 이후로 선택해주세요.'); return; }
 
     let equip_specs = [], equip_nos = '';
 
