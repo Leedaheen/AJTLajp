@@ -738,7 +738,7 @@ const TransitPage = (() => {
       Api.get('/projects').catch(() => [{code:'Ph1'},{code:'Ph2'},{code:'Ph3'},{code:'Ph4'}]),
       Api.get('/floors').catch(() => defaultFloors.map(n => ({name:n}))),
       isAjAdmin
-        ? window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name').catch(() => ({ data: [] }))
+        ? window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name').then(r => r).catch(() => ({ data: [] }))
         : Promise.resolve({ data: [] }),
     ]);
     const clients = clientsRes?.data || [];
