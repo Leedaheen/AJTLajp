@@ -256,14 +256,17 @@ const TransitPage = (() => {
       const isSun = dotW === 0, isSat = dotW === 6;
       const dayColor = isSun ? '#E8192C' : isSat ? '#3d82c8' : 'inherit';
 
-      const pills = events.slice(0, 3).map(t => {
+      // 셀 높이에 따라 표시 가능한 pill 수 동적 계산
+      // 날짜 숫자(22px) + 셀 패딩(8px) 제외, pill 1개당 약 20px
+      const maxPills = Math.max(1, Math.floor((_schedCellH - 30) / 20));
+      const pills = events.slice(0, maxPills).map(t => {
         const time  = t.scheduled_time ? t.scheduled_time.slice(0, 5) : '';
         const label = [time, t.company, _specQty(t)].filter(Boolean).join(' · ');
         const style = _pillStyle(t.type, t.status);
         return `<div class="sch-pill" style="${style}" onclick="event.stopPropagation();TransitPage.schedShowDetail(${t.id})" title="${label}">${label}</div>`;
       }).join('');
-      const more = events.length > 3
-        ? `<div class="sch-more">+${events.length - 3}건</div>` : '';
+      const more = events.length > maxPills
+        ? `<div class="sch-more">+${events.length - maxPills}건</div>` : '';
 
       cells += `
         <div class="sch-cell${isToday ? ' sch-today' : ''}" onclick="TransitPage.schedJumpToDate('${dateStr}')">
@@ -400,10 +403,14 @@ const TransitPage = (() => {
 
   function _onResizeBarMouseDown(e) {
     e.preventDefault();
-    const startY  = e.clientY;
-    const startH  = _schedCellH;
+    const startY = e.clientY;
+    const startH = _schedCellH;
     function onMove(ev) { _applySchedCellH(startH + ev.clientY - startY); }
-    function onUp()     { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+    function onUp()     {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      _renderScheduler();
+    }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }
@@ -412,7 +419,11 @@ const TransitPage = (() => {
     const startY = e.touches[0].clientY;
     const startH = _schedCellH;
     function onMove(ev) { _applySchedCellH(startH + ev.touches[0].clientY - startY); }
-    function onEnd()    { document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); }
+    function onEnd()    {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      _renderScheduler();
+    }
     document.addEventListener('touchmove', onMove, { passive: true });
     document.addEventListener('touchend', onEnd);
   }
