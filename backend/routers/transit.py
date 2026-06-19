@@ -124,10 +124,9 @@ async def schedule_transit(
     }
     change_log = (old.get("change_log") or []) + [log_entry]
 
-    # 확정 상태에서 AJ가 일정을 수정하면 → 신청 단계(requested)로 되돌림
-    # 그 외: body.status가 명시된 경우 사용, 없으면 scheduled(협력사 확인 요청)
+    # 확정 상태에서 AJ가 일정을 수정해도 confirmed 유지
     if old.get("status") == "confirmed":
-        new_status = "requested"
+        new_status = "confirmed"
     elif body.status in ("scheduled", "confirmed"):
         new_status = body.status
     else:
