@@ -303,8 +303,6 @@ const Api = (() => {
           end_time:   endFull.toISOString(),
           used_hours: usedHours,
           status:     'done',
-          ...(body.meter_end  ? { meter_end:  body.meter_end }  : {}),
-          ...(body.off_reason ? { off_reason: body.off_reason } : {}),
         })
         .eq('id', id).select().single()
       );
