@@ -256,6 +256,7 @@ const TransitPage = (() => {
     const typeColor = t.type === 'in' ? '#1B365D' : '#E8192C';
     const STATUS_LABEL = { requested:'신청 접수', scheduled:'협력사확인중', partner_confirmed:'협력사확인완료', confirmed:'일정확정', completed:'완료', cancelled:'취소' };
     const specLine = _specQty(t);
+    const actionBtns = _buildActionBtns(t);
     Modal.open({
       title: `${typeLabel} 상세`,
       body: `
@@ -277,7 +278,12 @@ const TransitPage = (() => {
           </div>
         </div>
       `,
-      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>`,
+      footer: `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>
+          ${actionBtns}
+        </div>
+      `,
     });
   }
 
@@ -456,17 +462,14 @@ const TransitPage = (() => {
     }
   }
 
-  function _renderCard(t) {
+  function _buildActionBtns(t) {
     const user      = Auth.getUser();
     const isAj      = ['aj', 'admin'].includes(user.role);
     const isPartner = user.role === 'partner';
-    const st        = STATUS_MAP[t.status] || { label: t.status, cls: '' };
-    const specs     = (t.equip_specs || []).map(s => `${s.spec}×${s.qty}`).join(', ');
     const typeLabel = t.type === 'in' ? '반입' : '반출';
     const specsAttr = encodeURIComponent(JSON.stringify(t.equip_specs || []));
     const safeCompany = (t.company || '').replace(/'/g, "\\'");
 
-    // 버튼 표시 로직
     let btns = '';
     if (isAj) {
       if (t.status === 'requested') {
@@ -520,6 +523,18 @@ const TransitPage = (() => {
         btns = `<button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>`;
       }
     }
+    return btns;
+  }
+
+  function _renderCard(t) {
+    const user      = Auth.getUser();
+    const isAj      = ['aj', 'admin'].includes(user.role);
+    const isPartner = user.role === 'partner';
+    const st        = STATUS_MAP[t.status] || { label: t.status, cls: '' };
+    const specs     = (t.equip_specs || []).map(s => `${s.spec}×${s.qty}`).join(', ');
+    const typeLabel = t.type === 'in' ? '반입' : '반출';
+
+    const btns = _buildActionBtns(t);
 
     return `
       <div class="card" id="transit-card-${t.id}" style="margin-bottom:12px">
