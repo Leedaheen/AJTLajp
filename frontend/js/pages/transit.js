@@ -116,6 +116,8 @@ const TransitPage = (() => {
   let _schedMonth = new Date().getMonth(); // 0-based
   let _schedData  = [];
   let _schedOpen  = true;
+  let _schedFilterSites     = new Set(); // 선택된 현장명 (빈 Set = 전체)
+  let _schedFilterCompanies = new Set(); // 선택된 발주처 (빈 Set = 전체)
 
   const _WEEK = ['일','월','화','수','목','금','토'];
 
@@ -145,6 +147,42 @@ const TransitPage = (() => {
     }
   }
 
+  // 필터 드롭다운 토글
+  function schedToggleFilterDropdown(key, e) {
+    e.stopPropagation();
+    const drop = document.getElementById(`sch-drop-${key}`);
+    if (!drop) return;
+    const isOpen = drop.style.display !== 'none';
+    // 다른 드롭다운 닫기
+    ['site','company'].forEach(k => {
+      const d = document.getElementById(`sch-drop-${k}`);
+      if (d) d.style.display = 'none';
+    });
+    drop.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) {
+      setTimeout(() => document.addEventListener('click', _closeSchedDropdowns, { once: true }), 0);
+    }
+  }
+
+  function _closeSchedDropdowns() {
+    ['site','company'].forEach(k => {
+      const d = document.getElementById(`sch-drop-${k}`);
+      if (d) d.style.display = 'none';
+    });
+  }
+
+  function schedToggleFilterItem(key, value) {
+    const set = key === 'site' ? _schedFilterSites : _schedFilterCompanies;
+    if (set.has(value)) set.delete(value); else set.add(value);
+    _renderScheduler();
+  }
+
+  function schedClearFilter(key) {
+    if (key === 'site') _schedFilterSites.clear();
+    else _schedFilterCompanies.clear();
+    _renderScheduler();
+  }
+
   function _renderScheduler() {
     const el = document.getElementById('tr-scheduler');
     if (!el) return;
@@ -154,9 +192,20 @@ const TransitPage = (() => {
     const daysInMonth = new Date(y, m+1, 0).getDate();
     const today = new Date().toISOString().slice(0,10);
 
+    // 전체 데이터에서 고유값 수집 (필터 옵션용)
+    const allSites     = [...new Set(_schedData.map(t => t.site_name).filter(Boolean))].sort();
+    const allCompanies = [...new Set(_schedData.map(t => t.company).filter(Boolean))].sort();
+
+    // 필터 적용
+    const filtered = _schedData.filter(t => {
+      if (_schedFilterSites.size > 0 && !_schedFilterSites.has(t.site_name)) return false;
+      if (_schedFilterCompanies.size > 0 && !_schedFilterCompanies.has(t.company)) return false;
+      return true;
+    });
+
     // 이 달 이벤트 그룹핑
     const byDate = {};
-    _schedData.forEach(t => {
+    filtered.forEach(t => {
       const d = _eventDate(t);
       if (!d || !d.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)) return;
       if (!byDate[d]) byDate[d] = [];
@@ -165,10 +214,34 @@ const TransitPage = (() => {
 
     const monthLabel = `${y}년 ${m+1}월`;
 
+    // 필터 드롭다운 HTML 생성
+    function _filterDropdown(key, label, allItems, selectedSet) {
+      const hasFilter = selectedSet.size > 0;
+      const btnLabel  = hasFilter ? `${label} (${selectedSet.size})` : label;
+      const items = allItems.map(v => {
+        const checked = selectedSet.has(v);
+        return `<label class="sch-flt-item">
+          <input type="checkbox" ${checked ? 'checked' : ''}
+            onchange="event.stopPropagation();TransitPage.schedToggleFilterItem('${key}','${v.replace(/'/g,"\\'")}')">
+          <span>${v}</span>
+        </label>`;
+      }).join('');
+      const clearBtn = hasFilter
+        ? `<button class="sch-flt-clear" onclick="event.stopPropagation();TransitPage.schedClearFilter('${key}')">초기화</button>` : '';
+      return `
+        <div class="sch-flt-wrap" style="position:relative">
+          <button class="sch-flt-btn${hasFilter ? ' sch-flt-btn-active' : ''}"
+            onclick="TransitPage.schedToggleFilterDropdown('${key}',event)">${btnLabel} &#9662;</button>
+          <div id="sch-drop-${key}" class="sch-flt-drop" style="display:none">
+            <div class="sch-flt-list">${items || '<span style="color:var(--gray-400);font-size:12px">항목 없음</span>'}</div>
+            ${clearBtn}
+          </div>
+        </div>`;
+    }
+
     // 달력 그리드
     let cells = '';
     let dayNum = 1;
-    // 빈 칸
     for (let i = 0; i < firstDay; i++) cells += `<div class="sch-cell sch-empty"></div>`;
     while (dayNum <= daysInMonth) {
       const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
@@ -195,8 +268,8 @@ const TransitPage = (() => {
     }
 
     el.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <button class="sch-nav" onclick="TransitPage.schedPrev()">&#8249;</button>
           <span style="font-size:15px;font-weight:700;color:var(--navy)">${monthLabel}</span>
           <button class="sch-nav" onclick="TransitPage.schedNext()">&#8250;</button>
@@ -208,6 +281,10 @@ const TransitPage = (() => {
             <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ffe4e6;margin-left:6px"></span>반출
           </span>
         </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        ${_filterDropdown('site',    '현장명', allSites,     _schedFilterSites)}
+        ${_filterDropdown('company', '발주처', allCompanies, _schedFilterCompanies)}
       </div>
       <div class="sch-grid">
         ${_WEEK.map((w,i) => `<div class="sch-wday" style="color:${i===0?'#E8192C':i===6?'#3d82c8':'var(--gray-500)'}">${w}</div>`).join('')}
@@ -337,6 +414,17 @@ const TransitPage = (() => {
             .sch-more{font-size:10px;color:var(--gray-400);padding-left:2px}
             .sch-nav{background:none;border:1px solid var(--gray-200);border-radius:6px;cursor:pointer;font-size:18px;line-height:1;padding:2px 8px;color:var(--navy)}
             .sch-nav:hover{background:var(--gray-50)}
+            .sch-flt-wrap{position:relative}
+            .sch-flt-btn{background:#fff;border:1px solid var(--gray-200);border-radius:6px;cursor:pointer;font-size:12px;padding:4px 10px;color:var(--gray-600);white-space:nowrap}
+            .sch-flt-btn:hover{background:var(--gray-50)}
+            .sch-flt-btn-active{border-color:var(--navy);color:var(--navy);font-weight:600;background:#eff6ff}
+            .sch-flt-drop{position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:160px;padding:8px 0}
+            .sch-flt-list{max-height:220px;overflow-y:auto;padding:0 4px}
+            .sch-flt-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;color:var(--gray-700);white-space:nowrap}
+            .sch-flt-item:hover{background:var(--gray-50)}
+            .sch-flt-item input{accent-color:var(--navy);cursor:pointer;width:14px;height:14px;flex-shrink:0}
+            .sch-flt-clear{display:block;width:calc(100% - 16px);margin:6px 8px 2px;padding:4px 0;border:none;background:none;color:#E8192C;font-size:12px;cursor:pointer;text-align:left;border-top:1px solid var(--gray-100);padding-top:6px}
+            .sch-flt-clear:hover{text-decoration:underline}
             @media(max-width:600px){
               .sch-cell{min-height:52px}
               .sch-pill{font-size:9px;padding:1px 3px}
@@ -2484,5 +2572,6 @@ ${pages.join('')}
     openDocumentForm, openLogViewer, _applyTrLogFilter,
     applySearch, clearSearch,
     schedPrev, schedNext, schedToday, schedShowDetail, schedJumpToDate, toggleScheduler,
+    schedToggleFilterDropdown, schedToggleFilterItem, schedClearFilter,
   };
 })();
