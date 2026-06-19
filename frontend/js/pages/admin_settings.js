@@ -20,12 +20,12 @@ const AdminSettingsPage = (() => {
 
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;align-items:start">
 
-        <!-- 소속 관리 (최우선) -->
+        <!-- 발주처 관리 (최우선) -->
         <details class="card" style="padding:0" open>
           <summary style="${_ACCORD_SUMMARY}">
-            <h3 style="${_ACCORD_TITLE}">소속 관리</h3>
+            <h3 style="${_ACCORD_TITLE}">발주처 관리</h3>
             <button class="btn btn-primary btn-sm"
-              onclick="event.stopPropagation();AdminSettingsPage.openAddClient()">+ 소속 추가</button>
+              onclick="event.stopPropagation();AdminSettingsPage.openAddClient()">+ 발주처 추가</button>
           </summary>
           <div id="clients-list" style="padding:8px 0">
             <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
@@ -102,14 +102,14 @@ const AdminSettingsPage = (() => {
   }
 
   // ─────────────────────────────────────────────────────────
-  // 소속 관리
+  // 발주처 관리
   // ─────────────────────────────────────────────────────────
   async function _loadClients() {
     const el = document.getElementById('clients-list');
     if (!el) return;
     try {
       const { data: list = [] } = await window._sb.from('clients').select('id,name,active,sort_order').order('sort_order').order('name');
-      if (!list.length) { el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">소속 없음</div>'; return; }
+      if (!list.length) { el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">발주처 없음</div>'; return; }
       el.innerHTML = list.map(c => `
         <div style="display:flex;justify-content:space-between;align-items:center;
                     padding:10px 12px;border-bottom:1px solid var(--gray-100)">
@@ -131,10 +131,10 @@ const AdminSettingsPage = (() => {
 
   function openAddClient() {
     Modal.open({
-      title: '소속 추가',
+      title: '발주처 추가',
       body: `
         <div class="form-group">
-          <label class="form-label">소속명 <span style="color:var(--red)">*</span></label>
+          <label class="form-label">발주처명 <span style="color:var(--red)">*</span></label>
           <input id="client-name" class="form-input" placeholder="예: E&A">
         </div>
       `,
@@ -143,22 +143,22 @@ const AdminSettingsPage = (() => {
     });
     document.getElementById('btn-add-client').onclick = async () => {
       const name = document.getElementById('client-name').value.trim();
-      if (!name) { Toast.error('소속명을 입력해주세요.'); return; }
+      if (!name) { Toast.error('발주처명을 입력해주세요.'); return; }
       const btn = document.getElementById('btn-add-client');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
         const { error } = await window._sb.from('clients').insert({ name, active: true });
         if (error) throw error;
-        Modal.close(); Toast.success('소속가 추가되었습니다.'); _loadClients();
+        Modal.close(); Toast.success('발주처가 추가되었습니다.'); _loadClients();
       } catch { btn.disabled = false; btn.textContent = '추가'; Toast.error('추가 실패'); }
     };
   }
 
   function openEditClient(id, name, active) {
     Modal.open({
-      title: `소속 수정 — ${name}`,
+      title: `발주처 수정 — ${name}`,
       body: `
-        <div class="form-group"><label class="form-label">소속명</label>
+        <div class="form-group"><label class="form-label">발주처명</label>
           <input id="client-name-edit" class="form-input" value="${name}"></div>
         <div class="form-group"><label class="form-label">상태</label>
           <select id="client-active-edit" class="form-input form-select">
@@ -184,7 +184,7 @@ const AdminSettingsPage = (() => {
   }
 
   async function deleteClient(id, name) {
-    if (!confirm(`소속 "${name}"을 삭제하시겠습니까?`)) return;
+    if (!confirm(`발주처 "${name}"을 삭제하시겠습니까?`)) return;
     try {
       const { error } = await window._sb.from('clients').delete().eq('id', id);
       if (error) throw error;

@@ -789,14 +789,16 @@ const TransitPage = (() => {
               ${sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
-          ${isAjAdmin ? `
           <div class="form-group">
-            <label class="form-label">소속 <span style="color:var(--red)">*</span></label>
+            <label class="form-label">소속</label>
+            ${isAjAdmin ? `
             <select id="tr-client" class="form-input form-select">
               <option value="">-- 소속 선택 --</option>
               ${clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
-            </select>
-          </div>` : `<input type="hidden" id="tr-client" value="${user?.client_name || ''}">`}
+            </select>` : `
+            <input id="tr-client" class="form-input" value="${user?.client_name || ''}" readonly
+              style="background:var(--gray-100);color:var(--gray-500);cursor:default">`}
+          </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
