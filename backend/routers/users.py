@@ -211,6 +211,8 @@ async def update_role(
     update_data = {"role": body.role}
     if body.site_id:
         update_data["site_id"] = body.site_id
+    if body.company is not None:
+        update_data["company"] = body.company
 
     supabase.table("app_users").update(update_data).eq("id", user_id).execute()
     return {"ok": True}

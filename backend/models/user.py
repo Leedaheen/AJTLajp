@@ -21,6 +21,7 @@ class UpdateRoleRequest(BaseModel):
     """역할 변경 요청 (AJ관리자만)"""
     role: str
     site_id: Optional[str] = None
+    company: Optional[str] = None
 
 
 class UpdateNotifPrefsRequest(BaseModel):
