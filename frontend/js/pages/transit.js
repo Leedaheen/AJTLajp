@@ -1533,6 +1533,12 @@ const TransitPage = (() => {
                     border-radius:8px;font-size:13px;font-weight:600;color:#854d0e">
           ⚠ 장비번호를 정확히 확인해주세요.
         </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">완료 일자 <span style="color:var(--red)">*</span></label>
+          <input id="complete-date" type="date" class="form-input"
+            value="${new Date().toISOString().slice(0,10)}"
+            max="${new Date().toISOString().slice(0,10)}">
+        </div>
         ${equipNos.length ? `
           <div style="background:var(--gray-100);border-radius:8px;padding:4px 0">
             ${equipNos.map((no, i) => {
@@ -1561,9 +1567,12 @@ const TransitPage = (() => {
 
     document.getElementById('btn-do-complete').onclick = async () => {
       const btn = document.getElementById('btn-do-complete');
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
 
-      // Modal 닫히기 전에 직접입력 값 먼저 읽기
+      // Modal 닫히기 전에 값 먼저 읽기
+      const completeDate = document.getElementById('complete-date')?.value;
+      if (!completeDate) { Toast.error('완료 일자를 선택해주세요.'); return; }
+      if (completeDate > new Date().toISOString().slice(0, 10)) { Toast.error('완료 일자는 오늘 이전이어야 합니다.'); return; }
+
       let finalNos = equipNos;
       if (!finalNos.length) {
         const nosEl = document.getElementById('complete-equip-nos');
@@ -1572,15 +1581,17 @@ const TransitPage = (() => {
         }
       }
 
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
       try {
         if (isIn) {
-          await _doCompleteIn(transitId, t, finalNos, specs);
+          await _doCompleteIn(transitId, t, finalNos, specs, completeDate);
         } else {
-          await _doCompleteOut(transitId, t, finalNos);
+          await _doCompleteOut(transitId, t, finalNos, completeDate);
         }
 
         // 클립보드 메시지 생성
-        const today = new Date().toISOString().slice(0, 10);
+        const today = completeDate;
         const siteProject = [t.site_name, t.project, t.floor || t.manager_location].filter(Boolean).join(' · ');
         const equipLines = finalNos.map((no, i) => {
           const spec = isIn ? specPool[i] : equipSpecMap[no];
@@ -1607,10 +1618,10 @@ const TransitPage = (() => {
   }
 
   // 반입 완료 처리 — transit 상태 변경 + 장비 레코드 생성/갱신
-  async function _doCompleteIn(transitId, t, equipNos, specs) {
-    await Api.patch(`/transit/${transitId}/complete`, {});
+  async function _doCompleteIn(transitId, t, equipNos, specs, completeDate) {
+    await Api.patch(`/transit/${transitId}/complete`, { completed_at: completeDate });
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = completeDate || new Date().toISOString().slice(0, 10);
     const specPool = [];
     specs.forEach(s => { for (let i = 0; i < (s.qty || 1); i++) specPool.push(s.spec); });
 
@@ -1650,10 +1661,10 @@ const TransitPage = (() => {
   }
 
   // 반출 완료 처리 — transit 상태 변경 + 장비 반출완료 처리
-  async function _doCompleteOut(transitId, t, equipNos) {
-    await Api.patch(`/transit/${transitId}/complete`, {});
+  async function _doCompleteOut(transitId, t, equipNos, completeDate) {
+    await Api.patch(`/transit/${transitId}/complete`, { completed_at: completeDate });
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = completeDate || new Date().toISOString().slice(0, 10);
     for (const equip_no of equipNos) {
       try {
         // qr_code 기준 UPDATE — SELECT RLS 우회, UPDATE 정책(aj 전체) 적용

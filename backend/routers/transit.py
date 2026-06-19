@@ -267,11 +267,11 @@ async def complete_transit(
 ):
     old = _get_or_404(transit_id)
     now = datetime.now(timezone.utc)
-    today = now.strftime("%Y-%m-%d")
+    today = body.completed_at or now.strftime("%Y-%m-%d")
 
     update = {
         "status":             "completed",
-        "completed_at":       now.isoformat(),
+        "completed_at":       today,
         "completed_by_name":  _me_name(current_user),
     }
 

@@ -30,7 +30,8 @@ class TransitCreateRequest(BaseModel):
 
 class TransitCompleteRequest(BaseModel):
     """AJ관리자: 완료 처리 — 반입 시 장비번호 입력"""
-    equip_nos: Optional[str] = ""      # 쉼표 구분 장비번호 (반입 시 필수)
+    equip_nos:    Optional[str] = ""   # 쉼표 구분 장비번호 (반입 시 필수)
+    completed_at: Optional[str] = None # 완료 일자 (YYYY-MM-DD), 없으면 오늘
 
 
 class TransitScheduleRequest(BaseModel):
