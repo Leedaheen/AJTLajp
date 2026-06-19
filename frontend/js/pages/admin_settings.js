@@ -399,79 +399,92 @@ const AdminSettingsPage = (() => {
     } catch { el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">불러오기 실패</div>'; }
   }
 
+  function _siteCheckboxes(sites, selectedIds) {
+    const sel = new Set((selectedIds || '').split(',').map(s => s.trim()).filter(Boolean));
+    return `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0">
+        ${sites.map(s => `
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;
+            padding:4px 10px;border-radius:6px;border:1px solid var(--gray-200);user-select:none"
+            onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''">
+            <input type="checkbox" name="co-site-chk" value="${s.name}" ${sel.has(s.name)?'checked':''}
+              style="accent-color:var(--navy)">
+            ${s.name}
+          </label>`).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--gray-400);margin-top:6px">선택 안 하면 전체 현장 공통으로 등록됩니다.</div>
+    `;
+  }
+
+  function _getCheckedSites() {
+    return [...document.querySelectorAll('input[name="co-site-chk"]:checked')]
+      .map(el => el.value).join(',') || null;
+  }
+
   function openAddCompany() {
-    Modal.open({
-      title: '업체 추가',
-      body: `
-        <div class="form-group">
-          <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
-          <input id="co-name" class="form-input" placeholder="예: ㈜신보">
-        </div>
-        <div class="form-group">
-          <label class="form-label">현장</label>
-          <select id="co-site" class="form-input form-select"><option value="">전체 공통</option></select>
-          <div style="font-size:11px;color:var(--gray-400);margin-top:4px">특정 현장에만 속한 업체라면 선택하세요.</div>
-        </div>
-      `,
-      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
-               <button class="btn btn-primary btn-sm" id="btn-add-co">추가</button>`,
-    });
     Api.get('/sites').then(sites => {
-      const sel = document.getElementById('co-site');
-      if (!sel) return;
-      sites.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; sel.appendChild(o); });
+      Modal.open({
+        title: '업체 추가',
+        body: `
+          <div class="form-group">
+            <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
+            <input id="co-name" class="form-input" placeholder="예: ㈜신보">
+          </div>
+          <div class="form-group">
+            <label class="form-label">현장 (중복 선택 가능)</label>
+            ${_siteCheckboxes(sites, '')}
+          </div>
+        `,
+        footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+                 <button class="btn btn-primary btn-sm" id="btn-add-co">추가</button>`,
+      });
+      document.getElementById('btn-add-co').onclick = async () => {
+        const name    = document.getElementById('co-name').value.trim();
+        const site_id = _getCheckedSites();
+        if (!name) { Toast.error('업체명을 입력해주세요.'); return; }
+        const btn = document.getElementById('btn-add-co');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+        try {
+          await Api.post('/companies', { name, site_id, active: true });
+          Modal.close(); Toast.success('업체가 추가되었습니다.'); _loadCompanies();
+        } catch { btn.disabled = false; btn.textContent = '추가'; }
+      };
     }).catch(() => {});
-    document.getElementById('btn-add-co').onclick = async () => {
-      const name = document.getElementById('co-name').value.trim();
-      const site_id = document.getElementById('co-site').value || null;
-      if (!name) { Toast.error('업체명을 입력해주세요.'); return; }
-      const btn = document.getElementById('btn-add-co');
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-      try {
-        await Api.post('/companies', { name, site_id, active: true });
-        Modal.close(); Toast.success('업체가 추가되었습니다.'); _loadCompanies();
-      } catch { btn.disabled = false; btn.textContent = '추가'; }
-    };
   }
 
   function openEditCompany(id, name, siteId, active) {
-    Modal.open({
-      title: `업체 수정 — ${name}`,
-      body: `
-        <div class="form-group"><label class="form-label">업체명</label>
-          <input id="co-name-edit" class="form-input" value="${name}"></div>
-        <div class="form-group"><label class="form-label">현장</label>
-          <select id="co-site-edit" class="form-input form-select"><option value="">전체 공통</option></select></div>
-        <div class="form-group"><label class="form-label">상태</label>
-          <select id="co-active-edit" class="form-input form-select">
-            <option value="true" ${active?'selected':''}>활성</option>
-            <option value="false" ${!active?'selected':''}>비활성</option>
-          </select></div>
-      `,
-      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
-               <button class="btn btn-primary btn-sm" id="btn-edit-co">저장</button>`,
-    });
     Api.get('/sites').then(sites => {
-      const sel = document.getElementById('co-site-edit');
-      if (!sel) return;
-      sites.forEach(s => {
-        const o = document.createElement('option'); o.value = s.name; o.textContent = s.name;
-        if (s.name === siteId) o.selected = true;
-        sel.appendChild(o);
+      Modal.open({
+        title: `업체 수정 — ${name}`,
+        body: `
+          <div class="form-group"><label class="form-label">업체명</label>
+            <input id="co-name-edit" class="form-input" value="${name}"></div>
+          <div class="form-group">
+            <label class="form-label">현장 (중복 선택 가능)</label>
+            ${_siteCheckboxes(sites, siteId || '')}
+          </div>
+          <div class="form-group"><label class="form-label">상태</label>
+            <select id="co-active-edit" class="form-input form-select">
+              <option value="true" ${active?'selected':''}>활성</option>
+              <option value="false" ${!active?'selected':''}>비활성</option>
+            </select></div>
+        `,
+        footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+                 <button class="btn btn-primary btn-sm" id="btn-edit-co">저장</button>`,
       });
+      document.getElementById('btn-edit-co').onclick = async () => {
+        const btn = document.getElementById('btn-edit-co');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+        try {
+          await Api.patch(`/companies/${id}`, {
+            name:    document.getElementById('co-name-edit').value.trim(),
+            site_id: _getCheckedSites(),
+            active:  document.getElementById('co-active-edit').value === 'true',
+          });
+          Modal.close(); Toast.success('업체 정보가 수정되었습니다.'); _loadCompanies();
+        } catch { btn.disabled = false; btn.textContent = '저장'; }
+      };
     }).catch(() => {});
-    document.getElementById('btn-edit-co').onclick = async () => {
-      const btn = document.getElementById('btn-edit-co');
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-      try {
-        await Api.patch(`/companies/${id}`, {
-          name:    document.getElementById('co-name-edit').value.trim(),
-          site_id: document.getElementById('co-site-edit').value || null,
-          active:  document.getElementById('co-active-edit').value === 'true',
-        });
-        Modal.close(); Toast.success('업체 정보가 수정되었습니다.'); _loadCompanies();
-      } catch { btn.disabled = false; btn.textContent = '저장'; }
-    };
   }
 
   async function deleteCompany(id, name) {

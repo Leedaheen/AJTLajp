@@ -146,7 +146,7 @@ const Api = (() => {
       ({ data, error } = await _sb.from('projects').select('*').order('id'));
     } else if (base === 'companies') {
       let q = _sb.from('companies').select('*').eq('active', true).order('name');
-      if (params.site_id) q = q.or(`site_id.eq.${params.site_id},site_id.is.null`);
+      if (params.site_id) q = q.or(`site_id.ilike.%${params.site_id}%,site_id.is.null,site_id.eq.`);
       ({ data, error } = await q);
     } else if (base === 'companies/all') {
       ({ data, error } = await _sb.from('companies').select('*').order('name'));
