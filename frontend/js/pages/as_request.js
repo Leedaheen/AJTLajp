@@ -157,6 +157,7 @@ const AsRequestPage = (() => {
       }
       container.innerHTML = list.map(_renderCard).join('');
       _loadTabCounts();
+      list.forEach(r => Comments.render('as', r.id));
     } catch (e) {
       if (gen !== _loadGen) return;
       console.error('[as-request] loadList 오류:', e);
@@ -258,6 +259,8 @@ const AsRequestPage = (() => {
         ` : ''}
 
         ${btns.length ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${btns.join('')}</div>` : ''}
+
+        <div id="comments-as-${r.id}"></div>
       </div>`;
   }
 

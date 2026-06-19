@@ -520,6 +520,7 @@ const TransitPage = (() => {
       return;
     }
     c.innerHTML = list.map(_renderCard).join('');
+    list.forEach(t => Comments.render('transit', t.id));
   }
 
   // ── 목록 ────────────────────────────────────────────────
@@ -571,7 +572,10 @@ const TransitPage = (() => {
       _transitCache = {};
       list.forEach(t => { _transitCache[t.id] = t; });
       if (!list.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; }
-      else { c.innerHTML = list.map(_renderCard).join(''); }
+      else {
+        c.innerHTML = list.map(_renderCard).join('');
+        list.forEach(t => Comments.render('transit', t.id));
+      }
       _loadTabCounts();
     } catch (e) {
       if (gen !== _loadGen) return;
@@ -724,6 +728,8 @@ const TransitPage = (() => {
             </div>
           </details>
         ` : ''}
+
+        <div id="comments-transit-${t.id}"></div>
       </div>
     `;
   }

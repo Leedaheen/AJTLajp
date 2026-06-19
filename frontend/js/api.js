@@ -144,6 +144,14 @@ const Api = (() => {
       ({ data, error } = await _sb.from('sites').select('*').order('id'));
     } else if (base === 'projects/all') {
       ({ data, error } = await _sb.from('projects').select('*').order('id'));
+    } else if (base.match(/^comments\//)) {
+      const parts = base.split('/');
+      const refType = parts[1];
+      const refId   = Number(parts[2]);
+      ({ data, error } = await _sb.from('comments').select('*')
+        .eq('ref_type', refType).eq('ref_id', refId)
+        .order('created_at', { ascending: true })
+      );
     } else if (base === 'companies') {
       let q = _sb.from('companies').select('*').eq('active', true).order('name');
       if (params.site_id) q = q.or(`site_id.ilike.%${params.site_id}%,site_id.is.null,site_id.eq.`);
@@ -196,6 +204,8 @@ const Api = (() => {
       ({ data, error } = await _sb.from('app_users')
         .update({ push_sub: body }).eq('id', uid).select().single()
       );
+    } else if (base === 'comments') {
+      ({ data, error } = await _sb.from('comments').insert(body).select().single());
     } else if (base === 'notifications') {
       ({ data, error } = await _sb.from('notifications').insert(body).select().single());
     } else if (base === 'sites') {
