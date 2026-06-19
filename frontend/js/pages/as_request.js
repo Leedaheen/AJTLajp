@@ -43,7 +43,10 @@ const AsRequestPage = (() => {
     document.getElementById('page-as-request').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
         <h2 class="section-title" style="margin:0">AS 요청 관리</h2>
-        ${canManualRequest ? `<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openNewForm()">+ AS 신청</button>` : ''}
+        <div style="display:flex;gap:8px">
+          ${['aj','admin'].includes(user.role) ? `<button class="btn btn-outline btn-sm" onclick="AsRequestPage.openLogViewer()">로그 확인</button>` : ''}
+          ${canManualRequest ? `<button class="btn btn-primary btn-sm" onclick="AsRequestPage.openNewForm()">+ AS 신청</button>` : ''}
+        </div>
       </div>
 
       <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;flex-wrap:wrap">
@@ -433,27 +436,46 @@ const AsRequestPage = (() => {
   }
 
   // ── 보류 ─────────────────────────────────────────────────
+  const _HOLD_PRESETS = ['신청인 연락 부재중', '신청 위치에 장비 없음', '기타 (직접 입력)'];
+
+  function _onHoldPresetChange() {
+    const sel = document.getElementById('hold-preset');
+    const customWrap = document.getElementById('hold-custom-wrap');
+    if (!sel || !customWrap) return;
+    customWrap.style.display = sel.value === '기타 (직접 입력)' ? '' : 'none';
+  }
+
   function openHoldForm(reqId) {
     Modal.open({
       title: 'AS 보류 처리',
       body: `
-        <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px">
-          장비가 위치에 없거나 신청자와 연락이 되지 않는 경우 보류할 수 있습니다.
-        </div>
         <div class="form-group">
           <label class="form-label">보류 사유 <span style="color:var(--red)">*</span></label>
-          <textarea id="hold-reason" class="form-input" rows="3"
-            placeholder="보류 사유를 입력해주세요 (예: 장비 위치 변경됨, 신청자 연락 불가)"></textarea>
+          <select id="hold-preset" class="form-input form-select"
+            onchange="AsRequestPage._onHoldPresetChange()">
+            <option value="">-- 사유 선택 --</option>
+            ${_HOLD_PRESETS.map(p => `<option value="${p}">${p}</option>`).join('')}
+          </select>
+        </div>
+        <div id="hold-custom-wrap" style="display:none" class="form-group">
+          <label class="form-label">직접 입력 <span style="color:var(--red)">*</span></label>
+          <textarea id="hold-custom" class="form-input" rows="2"
+            placeholder="보류 사유를 직접 입력해주세요"></textarea>
         </div>
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
-        <button class="btn btn-outline btn-sm" id="btn-do-hold" style="border-color:var(--gray-400);color:var(--gray-600)">보류 처리</button>
+        <button class="btn btn-outline btn-sm" id="btn-do-hold"
+          style="border-color:var(--gray-400);color:var(--gray-600)">보류 처리</button>
       `,
     });
     document.getElementById('btn-do-hold').onclick = async () => {
-      const reason = document.getElementById('hold-reason').value.trim();
-      if (!reason) { Toast.error('보류 사유를 입력해주세요.'); return; }
+      const preset = document.getElementById('hold-preset').value;
+      if (!preset) { Toast.error('보류 사유를 선택해주세요.'); return; }
+      const reason = preset === '기타 (직접 입력)'
+        ? (document.getElementById('hold-custom').value.trim())
+        : preset;
+      if (!reason) { Toast.error('직접 입력 사유를 입력해주세요.'); return; }
       const btn = document.getElementById('btn-do-hold');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
@@ -543,6 +565,147 @@ const AsRequestPage = (() => {
         await loadList();
       } catch (e) { btn.disabled = false; btn.textContent = '취소 처리'; console.error(e); }
     };
+  }
+
+  // ── AS 로그 뷰어 (AJ 전용) ───────────────────────────────
+  let _asLogEntries = [];
+
+  function _renderAsLog(filter = {}) {
+    const { q = '', date = '', status = '' } = filter;
+    const ql = q.toLowerCase();
+    const filtered = _asLogEntries.filter(e => {
+      if (ql && ![e.company, e.equip_no, e.fault_type, e.who, e.action].some(v => (v || '').toLowerCase().includes(ql))) return false;
+      if (date && !(e.at || '').startsWith(date)) return false;
+      if (status && e.status !== status) return false;
+      return true;
+    });
+
+    const listEl = document.getElementById('as-log-list');
+    if (!listEl) return;
+
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="empty-state" style="padding:24px 0"><div>검색 결과가 없습니다</div></div>';
+      return;
+    }
+
+    const groups = {};
+    filtered.forEach(e => {
+      const day = (e.at || '').slice(0, 10) || '날짜 없음';
+      if (!groups[day]) groups[day] = [];
+      groups[day].push(e);
+    });
+
+    listEl.innerHTML = Object.entries(groups).map(([day, items]) => `
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:var(--gray-400);letter-spacing:0.05em;
+                    padding:4px 0;border-bottom:1px solid var(--gray-200);margin-bottom:10px">${day}</div>
+        ${items.map(e => {
+          const time = e.at ? new Date(e.at).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }) : '';
+          return `
+            <div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+              <div style="min-width:38px;text-align:right;font-size:11px;color:var(--gray-400);padding-top:2px">${time}</div>
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span style="${e.badgeStyle};font-size:10px;padding:2px 7px;border-radius:4px;display:inline-block">${e.action}</span>
+                  <span style="font-size:12px;font-weight:600;color:var(--navy)">${e.equip_no || '-'}</span>
+                  <span style="font-size:11px;color:var(--gray-400)">${e.company || ''}</span>
+                  ${e.who ? `<span style="font-size:11px;color:var(--gray-400)">· ${e.who}</span>` : ''}
+                </div>
+                <div style="font-size:12px;color:var(--gray-600);margin-top:3px">${e.detail || ''}</div>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+    `).join('');
+  }
+
+  function _applyAsLogFilter() {
+    _renderAsLog({
+      q:      document.getElementById('as-log-q')?.value      || '',
+      date:   document.getElementById('as-log-date')?.value   || '',
+      status: document.getElementById('as-log-status')?.value || '',
+    });
+  }
+
+  async function openLogViewer() {
+    _asLogEntries = [];
+    Modal.open({
+      title: 'AS 처리 로그',
+      body: `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input id="as-log-q" type="text" class="form-input" style="flex:1;min-width:130px"
+            placeholder="장비번호, 업체명, 고장유형 검색"
+            oninput="AsRequestPage._applyAsLogFilter()">
+          <input id="as-log-date" type="date" class="form-input" style="width:130px"
+            onchange="AsRequestPage._applyAsLogFilter()">
+          <select id="as-log-status" class="form-input form-select" style="width:100px"
+            onchange="AsRequestPage._applyAsLogFilter()">
+            <option value="">전체</option>
+            <option value="requested">접수</option>
+            <option value="held">보류</option>
+            <option value="material_pending">자재수급</option>
+            <option value="completed">완료</option>
+            <option value="cancelled">취소</option>
+          </select>
+        </div>
+        <div id="as-log-list" style="max-height:60vh;overflow-y:auto;padding-right:4px">
+          <div style="text-align:center;padding:32px"><span class="spinner"></span></div>
+        </div>
+      `,
+      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>`,
+    });
+    const box = document.querySelector('.modal-box');
+    if (box) box.style.maxWidth = '680px';
+
+    try {
+      const list = await Api.get('/as-requests?limit=200');
+      const STATUS_BADGE = {
+        requested:        'background:#dbeafe;color:#1e40af',
+        material_pending: 'background:#ffedd5;color:#9a3412',
+        held:             'background:#f1f5f9;color:#475569',
+        completed:        'background:#d1fae5;color:#065f46',
+        cancelled:        'background:#fee2e2;color:#991b1b',
+      };
+      const STATUS_LABEL = {
+        requested:'접수 대기', material_pending:'자재수급', held:'보류', completed:'처리완료', cancelled:'취소'
+      };
+
+      const entries = [];
+      list.forEach(r => {
+        const base = { company: r.company, equip_no: r.equip_no, fault_type: r.fault_type, status: r.status };
+
+        entries.push({ ...base, at: r.requested_at, who: r.reporter_name, action: '접수',
+          badgeStyle: STATUS_BADGE.requested,
+          detail: `${r.fault_type} · ${r.location || '-'}` });
+
+        if (r.material_at)
+          entries.push({ ...base, at: r.material_at, who: r.tech_name, action: '자재수급',
+            badgeStyle: STATUS_BADGE.material_pending,
+            detail: `${r.fault_type} · ${r.location || '-'}` });
+
+        if (r.held_at)
+          entries.push({ ...base, at: r.held_at, who: r.tech_name, action: '보류',
+            badgeStyle: STATUS_BADGE.held,
+            detail: r.hold_reason || '-' });
+
+        if (r.resolved_at)
+          entries.push({ ...base, at: r.resolved_at, who: r.tech_name, action: '처리완료',
+            badgeStyle: STATUS_BADGE.completed,
+            detail: r.resolve_note || '-' });
+
+        if (r.cancelled_at)
+          entries.push({ ...base, at: r.cancelled_at, who: r.tech_name, action: '취소',
+            badgeStyle: STATUS_BADGE.cancelled,
+            detail: r.cancel_reason || '-' });
+      });
+
+      entries.sort((a, b) => (b.at || '') > (a.at || '') ? 1 : -1);
+      _asLogEntries = entries;
+      _renderAsLog();
+    } catch {
+      const el = document.getElementById('as-log-list');
+      if (el) el.innerHTML = '<div class="empty-state"><div>로그를 불러오지 못했습니다</div></div>';
+    }
   }
 
   // ── QR 스캔 경유 AS 신청 ─────────────────────────────────
@@ -711,6 +874,7 @@ const AsRequestPage = (() => {
     render, switchTab, loadList,
     openNewForm, openNewFormWithEquip,
     _onAsSiteChange, _onAsCompanyChange, _onAsEquipChange,
-    setMaterial, openHoldForm, openResolveForm, openCancelForm,
+    setMaterial, openHoldForm, _onHoldPresetChange, openResolveForm, openCancelForm,
+    openLogViewer, _applyAsLogFilter,
   };
 })();

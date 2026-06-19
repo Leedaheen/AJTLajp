@@ -1721,13 +1721,101 @@ const TransitPage = (() => {
   }
 
   // ── 로그 뷰어 (AJ 전용) ──────────────────────────────────
+  let _trLogEntries = [];
+
+  function _renderTrLog(filter = {}) {
+    const { q = '', date = '', type = '' } = filter;
+    const ql = q.toLowerCase();
+    const filtered = _trLogEntries.filter(e => {
+      if (ql && ![
+        e.transit?.company, e.who, e.action, e.detail,
+        e.transit?.site_name, e.transit?.aj_equip,
+      ].some(v => (v || '').toLowerCase().includes(ql))) return false;
+      if (date && !(e.at || '').startsWith(date)) return false;
+      if (type && e.typeLabel !== (type === 'in' ? '반입' : '반출')) return false;
+      return true;
+    });
+
+    const listEl = document.getElementById('tr-log-list');
+    if (!listEl) return;
+
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="empty-state" style="padding:24px 0"><div>검색 결과가 없습니다</div></div>';
+      return;
+    }
+
+    const groups = {};
+    filtered.forEach(e => {
+      const day = (e.at || '').slice(0, 10) || '날짜 없음';
+      if (!groups[day]) groups[day] = [];
+      groups[day].push(e);
+    });
+
+    listEl.innerHTML = Object.entries(groups).map(([day, items]) => `
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:var(--gray-400);
+                    letter-spacing:0.05em;padding:4px 0;
+                    border-bottom:1px solid var(--gray-200);margin-bottom:10px">
+          ${day}
+        </div>
+        ${items.map(e => {
+          const time = e.at ? new Date(e.at).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }) : '';
+          const badgeAttr = e.badgeStyle
+            ? `style="${e.badgeStyle};font-size:10px;padding:2px 7px;border-radius:4px;display:inline-block"`
+            : `class="badge ${e.badge}" style="font-size:10px;padding:2px 7px"`;
+          return `
+            <div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;
+                         border-bottom:1px solid var(--gray-100)">
+              <div style="min-width:38px;text-align:right;font-size:11px;
+                          color:var(--gray-400);padding-top:2px">${time}</div>
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span ${badgeAttr}>${e.badgeText}</span>
+                  <span style="font-size:12px;font-weight:600;color:var(--navy)">${e.transit.company}</span>
+                  <span style="font-size:11px;color:var(--gray-400)">${e.transit.site_name}</span>
+                  ${e.who ? `<span style="font-size:11px;color:var(--gray-400)">· ${e.who}</span>` : ''}
+                </div>
+                <div style="font-size:12px;color:var(--gray-600);margin-top:3px">${e.detail}</div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `).join('');
+  }
+
+  function _applyTrLogFilter() {
+    _renderTrLog({
+      q:    document.getElementById('tr-log-q')?.value    || '',
+      date: document.getElementById('tr-log-date')?.value || '',
+      type: document.getElementById('tr-log-type')?.value || '',
+    });
+  }
+
   async function openLogViewer() {
+    _trLogEntries = [];
     Modal.open({
       title: '반입/반출 변경 로그',
-      body: '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>',
+      body: `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input id="tr-log-q" type="text" class="form-input" style="flex:1;min-width:130px"
+            placeholder="업체명, 담당자, 내용 검색"
+            oninput="TransitPage._applyTrLogFilter()">
+          <input id="tr-log-date" type="date" class="form-input" style="width:130px"
+            onchange="TransitPage._applyTrLogFilter()">
+          <select id="tr-log-type" class="form-input form-select" style="width:90px"
+            onchange="TransitPage._applyTrLogFilter()">
+            <option value="">전체</option>
+            <option value="in">반입</option>
+            <option value="out">반출</option>
+          </select>
+        </div>
+        <div id="tr-log-list" style="max-height:60vh;overflow-y:auto;padding-right:4px">
+          <div style="text-align:center;padding:32px"><span class="spinner"></span></div>
+        </div>
+      `,
       footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>`,
     });
-    // 모달 박스 너비 확장
     const box = document.querySelector('.modal-box');
     if (box) box.style.maxWidth = '680px';
 
@@ -1804,63 +1892,13 @@ const TransitPage = (() => {
         }
       });
 
-      // 최신순 정렬
+      // 최신순 정렬 후 모듈 변수에 저장
       entries.sort((a, b) => (b.at || '') > (a.at || '') ? 1 : -1);
-
-      const body = document.querySelector('.modal-body');
-      if (!body) return;
-
-      if (!entries.length) {
-        body.innerHTML = '<div class="empty-state"><div>변경 이력이 없습니다</div></div>';
-        return;
-      }
-
-      // 날짜별 그룹핑
-      const groups = {};
-      entries.forEach(e => {
-        const day = (e.at || '').slice(0, 10) || '날짜 없음';
-        if (!groups[day]) groups[day] = [];
-        groups[day].push(e);
-      });
-
-      body.innerHTML = `
-        <div style="max-height:65vh;overflow-y:auto;padding-right:4px">
-          ${Object.entries(groups).map(([day, items]) => `
-            <div style="margin-bottom:20px">
-              <div style="font-size:11px;font-weight:700;color:var(--gray-400);
-                          letter-spacing:0.05em;padding:4px 0;
-                          border-bottom:1px solid var(--gray-200);margin-bottom:10px">
-                ${day}
-              </div>
-              ${items.map(e => {
-                const time = e.at ? new Date(e.at).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }) : '';
-                const badgeAttr = e.badgeStyle
-                  ? `style="${e.badgeStyle};font-size:10px;padding:2px 7px;border-radius:4px;display:inline-block"`
-                  : `class="badge ${e.badge}" style="font-size:10px;padding:2px 7px"`;
-                return `
-                  <div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;
-                               border-bottom:1px solid var(--gray-100)">
-                    <div style="min-width:38px;text-align:right;font-size:11px;
-                                color:var(--gray-400);padding-top:2px">${time}</div>
-                    <div style="flex:1">
-                      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                        <span ${badgeAttr}>${e.badgeText}</span>
-                        <span style="font-size:12px;font-weight:600;color:var(--navy)">${e.transit.company}</span>
-                        <span style="font-size:11px;color:var(--gray-400)">${e.transit.site_name}</span>
-                        ${e.who ? `<span style="font-size:11px;color:var(--gray-400)">· ${e.who}</span>` : ''}
-                      </div>
-                      <div style="font-size:12px;color:var(--gray-600);margin-top:3px">${e.detail}</div>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          `).join('')}
-        </div>
-      `;
+      _trLogEntries = entries;
+      _renderTrLog();
     } catch {
-      const body = document.querySelector('.modal-body');
-      if (body) body.innerHTML = '<div class="empty-state"><div>로그를 불러오지 못했습니다</div></div>';
+      const el = document.getElementById('tr-log-list');
+      if (el) el.innerHTML = '<div class="empty-state"><div>로그를 불러오지 못했습니다</div></div>';
     }
   }
 
@@ -2236,7 +2274,7 @@ ${pages.join('')}
     openScheduleForm, confirmSchedule, openEquipInfoForm,
     openCompleteForm, openCancelForm,
     openDispatchForm, openEditConfirmedForm, openQrPrint,
-    openDocumentForm, openLogViewer,
+    openDocumentForm, openLogViewer, _applyTrLogFilter,
     applySearch, clearSearch,
   };
 })();
