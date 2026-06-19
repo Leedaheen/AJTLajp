@@ -58,24 +58,35 @@ async def summary(
     current_user: dict = Depends(get_current_user),
 ):
     target_date = date or _today()
-    query = supabase.table("logs").select("*").eq("date", target_date).eq("status", "done")
-    if site_id: query = query.eq("site_id", site_id)
 
+    # 오늘 기록 (완료+가동중 모두 포함)
+    query = supabase.table("logs").select("*").eq("date", target_date)
+    if site_id: query = query.eq("site_id", site_id)
     rows = (query.execute()).data or []
 
-    total_hours = sum(float(r.get("used_hours") or 0) for r in rows)
+    done_rows   = [r for r in rows if r.get("status") == "done"]
+    total_hours = sum(float(r.get("used_hours") or 0) for r in done_rows)
     equip_set   = {r["equip"] for r in rows if r.get("equip")}
     by_equip    = {}
-    for r in rows:
+    for r in done_rows:
         eq = r.get("equip", "-")
         by_equip[eq] = round(by_equip.get(eq, 0) + float(r.get("used_hours") or 0), 2)
 
+    # 현장 전체 가동 중 장비 수 (equipment.status = 'in_use')
+    eq_query = supabase.table("equipment").select("id", count="exact").eq("status", "in_use")
+    if site_id: eq_query = eq_query.eq("site_id", site_id)
+    total_in_use = eq_query.execute().count or 0
+
+    utilization = round(len(equip_set) / total_in_use * 100, 1) if total_in_use > 0 else 0
+
     return {
-        "date":        target_date,
-        "total_hours": round(total_hours, 2),
-        "equip_count": len(equip_set),
-        "record_count":len(rows),
-        "by_equip":    by_equip,
+        "date":          target_date,
+        "total_hours":   round(total_hours, 2),
+        "equip_count":   len(equip_set),
+        "record_count":  len(rows),
+        "total_in_use":  total_in_use,
+        "utilization":   utilization,
+        "by_equip":      by_equip,
     }
 
 

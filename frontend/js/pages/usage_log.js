@@ -16,7 +16,7 @@ const UsageLogPage = (() => {
 
     document.getElementById('page-usage-log').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
-        <h2 class="section-title" style="margin:0">장비 사용 기록</h2>
+        <h2 class="section-title" style="margin:0">장비 가동 내역</h2>
         ${canStart ? `
           <button class="btn btn-primary btn-sm" onclick="QrScanner.scanAndAct()" style="display:flex;align-items:center;gap:6px">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -103,16 +103,16 @@ const UsageLogPage = (() => {
       const s = await Api.get(`/usage-logs/summary?${params}`);
       document.getElementById('usage-summary').innerHTML = `
         <div class="card" style="text-align:center;padding:16px">
-          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">총 가동시간</div>
-          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.total_hours}<span style="font-size:14px;margin-left:2px">h</span></div>
+          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">총 가동 대수 / 총 사용 대수</div>
+          <div style="font-size:24px;font-weight:700;color:var(--navy)">${s.equip_count}<span style="font-size:13px;margin-left:2px">대</span><span style="font-size:16px;color:var(--gray-300);margin:0 6px">/</span>${s.total_in_use}<span style="font-size:13px;margin-left:2px">대</span></div>
         </div>
         <div class="card" style="text-align:center;padding:16px">
-          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">가동 장비 수</div>
-          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.equip_count}<span style="font-size:14px;margin-left:2px">대</span></div>
-        </div>
-        <div class="card" style="text-align:center;padding:16px">
-          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">기록 건수</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">일일 기록 건수</div>
           <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.record_count}<span style="font-size:14px;margin-left:2px">건</span></div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px">
+          <div style="font-size:12px;color:var(--gray-400);margin-bottom:4px">전체 가동률</div>
+          <div style="font-size:28px;font-weight:700;color:var(--navy)">${s.utilization}<span style="font-size:14px;margin-left:2px">%</span></div>
         </div>
       `;
     } catch {
