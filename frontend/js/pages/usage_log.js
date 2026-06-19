@@ -346,17 +346,18 @@ const UsageLogPage = (() => {
       title: `가동 종료 — ${equipNo}`,
       body: `
         <div class="form-group">
-          <label class="form-label">종료 시각 <span style="color:var(--red)">*</span></label>
-          <input id="el-end-time" type="time" class="form-input" value="${nowTime}">
+          <label class="form-label">종료 시각</label>
+          <input id="el-end-time" type="time" class="form-input" value="${nowTime}" readonly
+            style="background:var(--gray-50,#f9fafb);color:var(--gray-400);cursor:default">
         </div>
         <div class="form-group">
           <label class="form-label">종료 사유</label>
           <select id="el-off-reason" class="form-input form-select">
-            <option value="">정상 종료</option>
-            <option value="작업 완료">작업 완료</option>
+            <option value="정상 종료">정상 종료</option>
             <option value="점심 휴식">점심 휴식</option>
+            <option value="중간 휴식">중간 휴식</option>
             <option value="퇴근">퇴근</option>
-            <option value="장비 고장">장비 고장</option>
+            <option value="AS 대기">AS 대기</option>
             <option value="기타">기타</option>
           </select>
         </div>
