@@ -2076,7 +2076,7 @@ const TransitPage = (() => {
                   <span style="font-size:11px;color:var(--gray-400)">${e.transit.site_name}</span>
                   ${e.who ? `<span style="font-size:11px;color:var(--gray-400)">· ${e.who}</span>` : ''}
                 </div>
-                <div style="font-size:12px;color:var(--gray-600);margin-top:3px">${e.detail}</div>
+                <div style="font-size:12px;color:var(--gray-600);margin-top:3px">${e.detailHtml ?? e.detail ?? ''}</div>
               </div>
             </div>
           `;
@@ -2124,9 +2124,39 @@ const TransitPage = (() => {
       const list = await Api.get('/transit?limit=100');
       const entries = [];
 
+      // before/after 복합 문자열을 필드별로 파싱해 변경 전→후 HTML 생성
+      function _diffHtml(before, after) {
+        // "필드: 값 / 필드: 값" 형태 분리 시도
+        const bParts = (before || '').split(' / ');
+        const aParts = (after  || '').split(' / ');
+        // 필드 수가 같으면 per-field diff
+        if (bParts.length > 1 && bParts.length === aParts.length) {
+          return bParts.map((bp, i) => {
+            const ap = aParts[i] || '';
+            // "레이블: 값" 분리
+            const bColon = bp.indexOf(': '), aColon = ap.indexOf(': ');
+            const label = bColon >= 0 ? bp.slice(0, bColon) : '';
+            const bVal  = bColon >= 0 ? bp.slice(bColon + 2) : bp;
+            const aVal  = aColon >= 0 ? ap.slice(aColon + 2) : ap;
+            if (bVal === aVal) return '';
+            return `<span style="color:var(--gray-500)">${label ? label + ': ' : ''}</span>`
+              + `<span style="color:#dc2626;text-decoration:line-through">${bVal}</span>`
+              + ` → <span style="color:#065f46;font-weight:600">${aVal}</span>`;
+          }).filter(Boolean).join('<br>');
+        }
+        // 단일 필드
+        const bColon = (before || '').indexOf(': ');
+        const aColon = (after  || '').indexOf(': ');
+        const label = bColon >= 0 ? before.slice(0, bColon) : '';
+        const bVal  = bColon >= 0 ? before.slice(bColon + 2) : (before || '');
+        const aVal  = aColon >= 0 ? after.slice(aColon + 2)  : (after  || '');
+        return `<span style="color:var(--gray-500)">${label ? label + ': ' : ''}</span>`
+          + `<span style="color:#dc2626;text-decoration:line-through">${bVal}</span>`
+          + ` → <span style="color:#065f46;font-weight:600">${aVal}</span>`;
+      }
+
       list.forEach(t => {
         const typeLabel = t.type === 'in' ? '반입' : '반출';
-        const st = STATUS_MAP[t.status] || { label: t.status };
 
         // 신청 생성 로그
         entries.push({
@@ -2140,41 +2170,43 @@ const TransitPage = (() => {
           badgeText: `${typeLabel} 신청`,
         });
 
-        // change_log 항목들
+        // change_log 항목들 — 필드별 변경 전→후 표시
         (t.change_log || []).forEach(c => {
           entries.push({
-            at:       c.when,
-            transit:  t,
+            at:        c.when,
+            transit:   t,
             typeLabel,
-            action:   c.after || c.before,
-            detail:   `${c.before} → ${c.after}`,
-            who:      c.who,
-            badge:    'badge-active',
+            action:    c.after || c.before,
+            detailHtml: _diffHtml(c.before, c.after),
+            who:       c.who,
+            badge:     'badge-active',
             badgeText: `${typeLabel} 변경`,
           });
         });
 
-        // 상태별 타임스탬프 로그
+        // 협력사 확인/확정 로그
         if (t.partner_confirmed_at) {
           entries.push({
             at:       t.partner_confirmed_at,
             transit:  t,
             typeLabel,
             action:   '협력사 일정 확인완료',
-            detail:   `확정일 ${t.scheduled_date}`,
-            who:      t.reporter_name || '',
+            detail:   `확정일 ${t.scheduled_date || '-'}`,
+            who:      t.partner_confirmed_by_name || t.confirmed_by_name || '',
             badge:    '',
             badgeStyle: 'background:#1B365D;color:#fff',
             badgeText:  `${typeLabel} 확정`,
           });
         }
+        // 완료 로그 — 완료 처리자 표시
         if (t.completed_at) {
           entries.push({
-            at:       t.completed_at,
+            at:       t.completed_at + 'T00:00:00Z',
             transit:  t,
             typeLabel,
             action:   `${typeLabel} 완료 처리`,
             detail:   `확정일 ${t.scheduled_date || '-'} · 장비 ${t.aj_equip || '-'}`,
+            who:      t.completed_by_name || '',
             badge:    '',
             badgeStyle: 'background:#065f46;color:#fff',
             badgeText:  `${typeLabel} 완료`,
@@ -2182,7 +2214,7 @@ const TransitPage = (() => {
         }
         if (t.status === 'cancelled' && t.cancelled_reason) {
           entries.push({
-            at:       t.created_at, // cancelled_at 없으므로 대체
+            at:       t.created_at,
             transit:  t,
             typeLabel,
             action:   '취소',
