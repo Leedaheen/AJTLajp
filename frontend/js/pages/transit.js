@@ -4,27 +4,30 @@
 const TransitPage = (() => {
   const SPEC_OPTIONS = ['6M','8M','10M','12M','14M','16M','16M굴절','18M','20M굴절'];
   const STATUS_MAP = {
-    requested:  { label:'신청 접수'    },
-    scheduled:  { label:'협력사 확인중' },
-    confirmed:  { label:'일정 확정'    },
-    completed:  { label:'완료'         },
-    cancelled:  { label:'취소'         },
+    requested:          { label:'신청 접수'       },
+    scheduled:          { label:'협력사 확인중'   },
+    partner_confirmed:  { label:'협력사 확인완료' },
+    confirmed:          { label:'일정 확정'       },
+    completed:          { label:'완료'            },
+    cancelled:          { label:'취소'            },
   };
 
   // 반입=파란계열, 반출=빨간계열, 단계별로 진해짐
   function _typeBadge(type, status) {
     if (status === 'cancelled') return 'background:#f3f4f6;color:#6b7280';
     const inMap = {
-      requested: 'background:#eff6ff;color:#1e40af',
-      scheduled:  'background:#bfdbfe;color:#1e3a8a',
-      confirmed:  'background:#1B365D;color:#fff',
-      completed:  'background:#0f2744;color:#e0f2fe',
+      requested:         'background:#eff6ff;color:#1e40af',
+      scheduled:         'background:#bfdbfe;color:#1e3a8a',
+      partner_confirmed: 'background:#dbeafe;color:#1e40af',
+      confirmed:         'background:#1B365D;color:#fff',
+      completed:         'background:#0f2744;color:#e0f2fe',
     };
     const outMap = {
-      requested: 'background:#fff1f2;color:#9f1239',
-      scheduled:  'background:#fecdd3;color:#881337',
-      confirmed:  'background:#dc2626;color:#fff',
-      completed:  'background:#7f1d1d;color:#fee2e2',
+      requested:         'background:#fff1f2;color:#9f1239',
+      scheduled:         'background:#fecdd3;color:#881337',
+      partner_confirmed: 'background:#ffe4e6;color:#9f1239',
+      confirmed:         'background:#dc2626;color:#fff',
+      completed:         'background:#7f1d1d;color:#fee2e2',
     };
     const m = type === 'in' ? inMap : outMap;
     return m[status] || 'background:#e5e7eb;color:#374151';
@@ -89,7 +92,14 @@ const TransitPage = (() => {
       if (!data) return;
       const counts = {};
       data.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
-      ['requested', 'scheduled', 'confirmed'].forEach(s => {
+      // 신청 탭 배지: requested + partner_confirmed 합산
+      const requestedBadge = document.getElementById('tr-badge-requested');
+      if (requestedBadge) {
+        const n = (counts['requested'] || 0) + (counts['partner_confirmed'] || 0);
+        requestedBadge.textContent = n;
+        requestedBadge.style.display = n ? 'inline-block' : 'none';
+      }
+      ['scheduled', 'confirmed'].forEach(s => {
         const badge = document.getElementById(`tr-badge-${s}`);
         if (!badge) return;
         const n = counts[s] || 0;
@@ -168,7 +178,9 @@ const TransitPage = (() => {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const list = _currentTab === 'all'
       ? all
-      : all.filter(t => t.status === _currentTab);
+      : _currentTab === 'requested'
+        ? all.filter(t => t.status === 'requested' || t.status === 'partner_confirmed')
+        : all.filter(t => t.status === _currentTab);
     if (!list.length) {
       c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>';
       return;
@@ -190,7 +202,10 @@ const TransitPage = (() => {
       const searchDate  = (document.getElementById('tr-search-date')?.value  || '').trim();
 
       let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(500);
-      if (_currentTab !== 'all') {
+      if (_currentTab === 'requested') {
+        // 신청 탭: 신청접수 + 협력사확인완료 모두 표시
+        q = q.in('status', ['requested', 'partner_confirmed']);
+      } else if (_currentTab !== 'all') {
         q = q.eq('status', _currentTab);
       }
       if (searchEquip) {
@@ -240,6 +255,12 @@ const TransitPage = (() => {
           <button class="btn btn-primary btn-sm" onclick="TransitPage.openScheduleForm(${t.id})">일정 확정</button>
           <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
         `;
+      } else if (t.status === 'partner_confirmed') {
+        btns = `
+          <button class="btn btn-primary btn-sm" onclick="TransitPage.openScheduleForm(${t.id})">최종 일정확정</button>
+          <button class="btn btn-outline btn-sm" onclick="TransitPage.openScheduleForm(${t.id})">일정 수정</button>
+          <button class="btn btn-danger btn-sm" onclick="TransitPage.openCancelForm(${t.id},'${safeCompany}')">취소</button>
+        `;
       } else if (t.status === 'scheduled') {
         btns = `
           <span style="font-size:12px;color:var(--gray-400);padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px">
@@ -269,6 +290,12 @@ const TransitPage = (() => {
           <button class="btn btn-primary btn-sm" onclick="TransitPage.confirmSchedule(${t.id})">
             일정 확인완료
           </button>
+        `;
+      } else if (t.status === 'partner_confirmed') {
+        btns = `
+          <span style="font-size:12px;color:var(--gray-400);padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px">
+            AJ관리자 최종 확정 대기중
+          </span>
         `;
       } else if (t.status === 'confirmed') {
         btns = `<button class="btn btn-outline btn-sm" onclick="TransitPage.openDocumentForm(${t.id})">서류확인</button>`;
@@ -925,7 +952,10 @@ const TransitPage = (() => {
       if (!equipNos) { Toast.error('장비번호를 입력해주세요.'); return; }
 
       const dateChanged = date !== t.requested_date;
-      const newStatus   = dateChanged ? 'scheduled' : 'confirmed';
+      // partner_confirmed 상태에서 AJ가 확정하면 무조건 confirmed
+      const newStatus = t.status === 'partner_confirmed'
+        ? 'confirmed'
+        : (dateChanged ? 'scheduled' : 'confirmed');
 
       const btn = document.getElementById('btn-confirm-schedule');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
@@ -983,9 +1013,9 @@ const TransitPage = (() => {
         }
 
         Modal.close();
-        Toast.success(dateChanged
-          ? '일정이 저장되었습니다. 협력사 확인 후 최종 확정됩니다.'
-          : '일정이 확정되었습니다.');
+        Toast.success(newStatus === 'confirmed'
+          ? '일정이 최종 확정되었습니다.'
+          : '일정이 저장되었습니다. 협력사 확인 후 최종 확정됩니다.');
 
         // 낙관적 업데이트: 캐시에서 상태 즉시 변경 → 해당 탭으로 전환
         if (_transitCache[transitId]) {
@@ -998,7 +1028,8 @@ const TransitPage = (() => {
             driver_info:    document.getElementById('sc-driver')?.value.trim()  || _transitCache[transitId].driver_info,
           };
         }
-        _currentTab = newStatus;
+        // confirmed → 확정 탭, scheduled → 협력사확인 탭
+        _currentTab = newStatus === 'confirmed' ? 'confirmed' : 'scheduled';
         _updateTabStyles();
         _renderFromCache();
 
@@ -1203,16 +1234,16 @@ const TransitPage = (() => {
 
   // ── 협력사 일정 확인완료 ──────────────────────────────────
   async function confirmSchedule(transitId) {
-    if (!confirm('일정을 확인하고 승인하시겠습니까?')) return;
+    if (!confirm('일정을 확인하고 승인하시겠습니까?\nAJ관리자가 최종 확정 후 완전히 확정됩니다.')) return;
     try {
       await Api.patch(`/transit/${transitId}/partner-confirm`, {});
-      Toast.success('일정 확인 완료. 확정 상태로 변경되었습니다.');
+      Toast.success('일정 확인 완료. AJ관리자가 최종 확정합니다.');
 
-      // 낙관적 업데이트: scheduled → confirmed, 확정 탭으로 즉시 이동
+      // 낙관적 업데이트: scheduled → partner_confirmed, 협력사확인 탭에서 사라짐
       if (_transitCache[transitId]) {
-        _transitCache[transitId] = { ..._transitCache[transitId], status: 'confirmed' };
+        _transitCache[transitId] = { ..._transitCache[transitId], status: 'partner_confirmed' };
       }
-      _currentTab = 'confirmed';
+      _currentTab = 'scheduled';
       _updateTabStyles();
       _renderFromCache();
       loadList(true);
