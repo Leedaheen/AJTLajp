@@ -50,13 +50,17 @@ const AsRequestPage = (() => {
       </div>
 
       <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;flex-wrap:wrap">
-        ${_TABS.map(([v, l]) => `
+        ${_TABS.map(([v, l]) => {
+          const hasBadge = ['requested','material_pending','held'].includes(v);
+          return `
           <button id="as-tab-${v}" onclick="AsRequestPage.switchTab('${v}')"
             style="padding:8px 14px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;
             color:${_currentTab===v?'var(--navy)':'var(--gray-400)'};
-            border-bottom:${_currentTab===v?'2px solid var(--navy)':'2px solid transparent'};margin-bottom:-2px">
-            ${l}
-          </button>`).join('')}
+            border-bottom:${_currentTab===v?'2px solid var(--navy)':'2px solid transparent'};margin-bottom:-2px;
+            display:flex;align-items:center;gap:5px">
+            ${l}${hasBadge ? `<span id="as-badge-${v}" style="display:none;background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;font-weight:700;min-width:18px;text-align:center"></span>` : ''}
+          </button>`;
+        }).join('')}
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
@@ -86,6 +90,23 @@ const AsRequestPage = (() => {
     _currentTab = tab;
     _updateTabStyles();
     loadList();
+  }
+
+  // ── 탭 배지 카운트 ───────────────────────────────────────
+  async function _loadTabCounts() {
+    try {
+      const { data } = await _sb.from('as_requests').select('status');
+      if (!data) return;
+      const counts = {};
+      data.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+      ['requested', 'material_pending', 'held'].forEach(s => {
+        const badge = document.getElementById(`as-badge-${s}`);
+        if (!badge) return;
+        const n = counts[s] || 0;
+        badge.textContent = n;
+        badge.style.display = n ? 'inline-block' : 'none';
+      });
+    } catch { /* 무시 */ }
   }
 
   // ── 목록 로드 ────────────────────────────────────────────
@@ -131,6 +152,7 @@ const AsRequestPage = (() => {
         return;
       }
       container.innerHTML = list.map(_renderCard).join('');
+      _loadTabCounts();
     } catch (e) {
       if (gen !== _loadGen) return;
       console.error('[as-request] loadList 오류:', e);
