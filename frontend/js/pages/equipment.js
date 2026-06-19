@@ -419,10 +419,11 @@ const EquipmentPage = (() => {
 
   // ── 장비 추가 (AJ) ──────────────────────────────────────
   async function openAddForm() {
-    const [sites, models, companies] = await Promise.all([
+    const [sites, models, companies, floors] = await Promise.all([
       Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]),
       Api.get('/equipment/models').catch(() => []),
       Api.get('/companies').catch(() => []),
+      Api.get('/floors').catch(() => []),
     ]);
     Modal.open({
       title: '장비 추가',
@@ -470,7 +471,10 @@ const EquipmentPage = (() => {
         </div>
         <div class="form-group">
           <label class="form-label">사용층수</label>
-          <input id="add-floor" class="form-input" placeholder="예: 3F, B1" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
+          <select id="add-floor" class="form-input form-select">
+            <option value="">-- 선택 --</option>
+            ${floors.map(f=>`<option value="${f.name}">${f.name}</option>`).join('')}
+          </select>
         </div>
       `,
       footer: `
@@ -490,7 +494,7 @@ const EquipmentPage = (() => {
       const model     = document.getElementById('add-model').value.trim().toUpperCase();
       if (!model) { Toast.error('모델명을 입력해주세요.'); return; }
       const serial_no = document.getElementById('add-serial').value.trim() || null;
-      const floor     = document.getElementById('add-floor').value.trim().toUpperCase() || null;
+      const floor     = document.getElementById('add-floor').value || null;
 
       const btn = document.getElementById('btn-do-add');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
@@ -681,9 +685,13 @@ const EquipmentPage = (() => {
     const e = _listCache.find(x => x.id === id);
     if (!e) { Toast.error('장비 정보를 찾을 수 없습니다.'); return; }
 
-    const [models, companies] = await Promise.all([
+    const user = Auth.getUser();
+    const isAj = ['aj', 'admin'].includes(user?.role);
+
+    const [models, companies, floors] = await Promise.all([
       Api.get('/equipment/models').catch(() => []),
       Api.get(`/companies${e.site_id ? `?site_id=${e.site_id}` : ''}`).catch(() => []),
+      Api.get('/floors').catch(() => []),
     ]);
 
     const { equipNo, spec, siteId, company, status, model, serial_no, floor } = {
@@ -701,6 +709,14 @@ const EquipmentPage = (() => {
       `<option value="${c.name}" ${c.name === company ? 'selected' : ''}>${c.name}</option>`
     ).join('');
 
+    const floorOptions = floors.map(f =>
+      `<option value="${f.name}" ${f.name === floor ? 'selected' : ''}>${f.name}</option>`
+    ).join('');
+    const floorHasMatch = floors.some(f => f.name === floor);
+
+    const ro = isAj ? '' : 'disabled';
+    const STATUS_LABELS_MAP = { in_use:'사용중', returned:'반출완료', transit:'반입예정', stock:'재고' };
+
     Modal.open({
       title: `장비 수정 — ${equipNo}`,
       body: `
@@ -708,21 +724,31 @@ const EquipmentPage = (() => {
           ${models.map(m=>`<option value="${m}">`).join('')}
         </datalist>
         <div class="form-group">
-          <label class="form-label">장비번호</label>
-          <input id="ed-equip-no" class="form-input" value="${equipNo}" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
+          <label class="form-label">장비번호${isAj ? '' : ' <span style="font-size:11px;color:var(--gray-400)">(AJ관리자만 수정)</span>'}</label>
+          <input id="ed-equip-no" class="form-input" value="${equipNo}"
+            oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase"
+            ${isAj ? '' : 'readonly style="background:var(--gray-50);text-transform:uppercase"'}>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div class="form-group">
-            <label class="form-label">제원</label>
-            <select id="ed-spec" class="form-input form-select">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" style="font-size:12px">상태${isAj?'':' <span style="font-size:10px;color:var(--gray-400)">(AJ만)</span>'}</label>
+            <select id="ed-status" class="form-input form-select" style="padding:6px 8px" ${ro}>
+              <option value="in_use"   ${status==='in_use'  ?'selected':''}>사용중</option>
+              <option value="returned" ${status==='returned'?'selected':''}>반출완료</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" style="font-size:12px">제원</label>
+            <select id="ed-spec" class="form-input form-select" style="padding:6px 8px">
               ${SPEC_OPTIONS.map(s=>`<option value="${s}" ${s===spec?'selected':''}>${s}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">상태</label>
-            <select id="ed-status" class="form-input form-select">
-              <option value="in_use"   ${status==='in_use'  ?'selected':''}>사용중</option>
-              <option value="returned" ${status==='returned'?'selected':''}>반출완료</option>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" style="font-size:12px">사용층수</label>
+            <select id="ed-floor" class="form-input form-select" style="padding:6px 8px">
+              <option value="">-- 선택 --</option>
+              ${floorOptions}
+              ${!floorHasMatch && floor ? `<option value="${floor}" selected>${floor}</option>` : ''}
             </select>
           </div>
         </div>
@@ -737,17 +763,16 @@ const EquipmentPage = (() => {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">모델명</label>
-            <input id="ed-model" class="form-input" list="ed-model-list" value="${model}" placeholder="예: GR20NS" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
+            <label class="form-label">모델명${isAj ? '' : ' <span style="font-size:11px;color:var(--gray-400)">(AJ만)</span>'}</label>
+            <input id="ed-model" class="form-input" list="ed-model-list" value="${model}"
+              placeholder="예: GR20NS" oninput="this.value=this.value.toUpperCase()"
+              style="text-transform:uppercase" ${ro}>
           </div>
           <div class="form-group">
-            <label class="form-label">시리얼번호</label>
-            <input id="ed-serial" class="form-input" value="${serial_no}" placeholder="예: GJ512-001" style="font-family:monospace">
+            <label class="form-label">시리얼번호${isAj ? '' : ' <span style="font-size:11px;color:var(--gray-400)">(AJ만)</span>'}</label>
+            <input id="ed-serial" class="form-input" value="${serial_no}"
+              placeholder="예: GJ512-001" style="font-family:monospace" ${ro}>
           </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">사용층수</label>
-          <input id="ed-floor" class="form-input" value="${floor}" placeholder="예: 3F, B1" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
         </div>
       `,
       footer: `
@@ -760,15 +785,22 @@ const EquipmentPage = (() => {
       const btn = document.getElementById('btn-do-edit');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
       try {
-        const newEquipNo  = document.getElementById('ed-equip-no').value.trim().toUpperCase();
-        const newSerialNo = document.getElementById('ed-serial').value.trim() || null;
-        const newStatus   = document.getElementById('ed-status').value;
+        // disabled 필드는 DOM 값이 비어있으므로 원래 값 유지
+        const newEquipNo  = isAj
+          ? document.getElementById('ed-equip-no').value.trim().toUpperCase()
+          : equipNo;
+        const newSerialNo = isAj
+          ? (document.getElementById('ed-serial').value.trim() || null)
+          : (serial_no || null);
+        const newStatus   = isAj ? document.getElementById('ed-status').value : status;
         const newCompany  = document.getElementById('ed-company').value;
         const newSpec     = document.getElementById('ed-spec').value;
-        const newModel    = document.getElementById('ed-model').value.trim().toUpperCase() || null;
-        const newFloor    = document.getElementById('ed-floor').value.trim().toUpperCase() || null;
+        const newModel    = isAj
+          ? (document.getElementById('ed-model').value.trim().toUpperCase() || null)
+          : (model || null);
+        const newFloor    = document.getElementById('ed-floor').value || null;
 
-        if (newStatus !== 'returned') {
+        if (isAj && newStatus !== 'returned') {
           const dup = await _checkDuplicate(newEquipNo, newSerialNo, id);
           if (dup.equipNoDup)  { Toast.error(`장비번호 ${newEquipNo}는 이미 등록된 번호입니다.`);  btn.disabled=false; btn.textContent='저장'; return; }
           if (dup.serialNoDup) { Toast.error(`시리얼번호 ${newSerialNo}는 이미 등록된 번호입니다.`); btn.disabled=false; btn.textContent='저장'; return; }
@@ -810,7 +842,6 @@ const EquipmentPage = (() => {
 
         // change_log 갱신 (변경사항 있을 때만)
         if (diffs.length) {
-          const user = Auth.getUser();
           const now  = new Date().toISOString();
           const existing = e.change_log || [];
           const newEntry = {
