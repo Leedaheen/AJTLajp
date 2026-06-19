@@ -168,7 +168,12 @@ const UsageLogPage = (() => {
       const user = Auth.getUser();
       const canStart = ['tech','partner','aj'].includes(user.role);
 
-      const active = list.filter(r => r.status === 'using');
+      const myId = user.id;
+      const myName = user.name;
+      const active = list.filter(r =>
+        r.status === 'using' &&
+        (r.recorder_id === myId || r.recorder === myName)
+      );
       _renderActiveSection(active, canStart);
 
       if (!list.length) {
