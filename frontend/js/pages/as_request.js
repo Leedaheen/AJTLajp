@@ -233,44 +233,53 @@ const AsRequestPage = (() => {
   }
 
   // ── 협력사 수기 AS 신청 폼 ──────────────────────────────
-  function openNewForm() {
+  async function openNewForm() {
+    const [sites, companies] = await Promise.all([
+      Api.get('/sites').catch(() => [{ code: 'P4', name: 'P4 복합동' }, { code: 'P5', name: 'P5 복합동' }]),
+      Api.get('/companies?site_id=P4').catch(() => []),
+    ]);
+
     Modal.open({
       title: 'AS 신청',
       body: `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
-            <select id="as-site" class="form-input form-select">
-              <option value="P4">P4 복합동</option>
-              <option value="P5">P5 복합동</option>
+            <select id="as-site" class="form-input form-select" onchange="AsRequestPage._onAsSiteChange()">
+              ${sites.map(s => `<option value="${s.code}" data-name="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
-            <input id="as-company" class="form-input" placeholder="업체명">
+            <select id="as-company" class="form-input form-select" onchange="AsRequestPage._onAsCompanyChange()">
+              <option value="">-- 업체 선택 --</option>
+              ${companies.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+            </select>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">장비번호 <span style="color:var(--red)">*</span></label>
-            <input id="as-equip-no" class="form-input" placeholder="예: GF592" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
+            <select id="as-equip-no" class="form-input form-select" onchange="AsRequestPage._onAsEquipChange()">
+              <option value="">-- 업체 선택 후 장비 선택 --</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">장비 모델명</label>
-            <input id="as-equip-spec" class="form-input" placeholder="예: 8M">
+            <input id="as-equip-spec" class="form-input" readonly
+              style="background:var(--gray-100);color:var(--gray-500)" placeholder="장비 선택 시 자동 표시">
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">사용층수 <span style="color:var(--red)">*</span></label>
-            <select id="as-floor" class="form-input form-select">
-              <option value="">-- 선택 --</option>
-              ${FLOOR_OPTS.map(f => `<option value="${f}">${f}</option>`).join('')}
-            </select>
+            <label class="form-label">사용층수</label>
+            <input id="as-floor" class="form-input" readonly
+              style="background:var(--gray-100);color:var(--gray-500)" placeholder="장비 선택 시 자동 표시">
           </div>
           <div class="form-group">
             <label class="form-label">세부 위치 <span style="color:var(--red)">*</span></label>
-            <input id="as-location-detail" class="form-input" placeholder="예: A구역, 동편">
+            <input id="as-location-detail" class="form-input" placeholder="예: A/10열, F/30열"
+              oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
         </div>
         <div class="form-group">
@@ -307,23 +316,103 @@ const AsRequestPage = (() => {
     document.getElementById('btn-submit-as').onclick = _submitNewAs;
   }
 
+  // 현장 변경 → 업체 목록 재로드
+  async function _onAsSiteChange() {
+    const siteId = document.getElementById('as-site')?.value;
+    const coEl   = document.getElementById('as-company');
+    const eqEl   = document.getElementById('as-equip-no');
+    if (coEl) { coEl.innerHTML = '<option value="">-- 업체 선택 --</option>'; }
+    if (eqEl) { eqEl.innerHTML = '<option value="">-- 업체 선택 후 장비 선택 --</option>'; }
+    const floorEl = document.getElementById('as-floor');
+    const specEl  = document.getElementById('as-equip-spec');
+    if (floorEl) floorEl.value = '';
+    if (specEl)  specEl.value  = '';
+    try {
+      const list = await Api.get(`/companies${siteId ? `?site_id=${siteId}` : ''}`);
+      (list || []).forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.name; o.textContent = c.name;
+        coEl.appendChild(o);
+      });
+    } catch { /* 실패 시 빈 목록 유지 */ }
+  }
+
+  // 업체 변경 → 해당 업체 사용 장비 목록 로드
+  async function _onAsCompanyChange() {
+    const siteId  = document.getElementById('as-site')?.value;
+    const company = document.getElementById('as-company')?.value;
+    const eqEl    = document.getElementById('as-equip-no');
+    if (!eqEl) return;
+    eqEl.innerHTML = '<option value="">-- 장비 선택 --</option>';
+    const floorEl = document.getElementById('as-floor');
+    const specEl  = document.getElementById('as-equip-spec');
+    if (floorEl) floorEl.value = '';
+    if (specEl)  specEl.value  = '';
+    if (!company) return;
+
+    eqEl.innerHTML = '<option value="">불러오는 중...</option>';
+    try {
+      const qs = new URLSearchParams({ site_id: siteId, company, statuses: 'in_use,transit', limit: 200 });
+      const rows = await Api.get(`/equipment?${qs}`, { silent: true });
+      eqEl.innerHTML = '<option value="">-- 장비 선택 --</option>';
+      if (!rows?.length) {
+        const o = document.createElement('option');
+        o.disabled = true; o.textContent = '현장에 해당 업체 장비가 없습니다';
+        eqEl.appendChild(o);
+        return;
+      }
+      rows.forEach(e => {
+        const o = document.createElement('option');
+        o.value = e.equip_no;
+        o.textContent = `${e.equip_no}${e.spec ? '  (' + e.spec + ')' : ''}`;
+        o.dataset.spec = e.spec || '';
+        eqEl.appendChild(o);
+      });
+    } catch {
+      eqEl.innerHTML = '<option value="">-- 장비 선택 --</option>';
+    }
+  }
+
+  // 장비 선택 → 층수/모델 자동 입력
+  async function _onAsEquipChange() {
+    const eqEl   = document.getElementById('as-equip-no');
+    const equip_no = eqEl?.value;
+    const spec   = eqEl?.options[eqEl.selectedIndex]?.dataset?.spec || '';
+    const specEl = document.getElementById('as-equip-spec');
+    const floorEl = document.getElementById('as-floor');
+    if (specEl)  specEl.value  = spec;
+    if (floorEl) floorEl.value = '';
+    if (!equip_no) return;
+    try {
+      const { data: log } = await _sb.from('usage_logs')
+        .select('floor')
+        .eq('equip_no', equip_no)
+        .eq('status', 'using')
+        .order('start_time', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (log?.floor && floorEl) floorEl.value = log.floor;
+    } catch { /* 층수 자동입력 실패 시 무시 */ }
+  }
+
   async function _submitNewAs() {
-    const siteId   = document.getElementById('as-site').value;
-    const company  = document.getElementById('as-company').value.trim();
-    const floor    = document.getElementById('as-floor').value;
-    const detail   = document.getElementById('as-location-detail').value.trim();
-    const location = detail ? `${floor} ${detail}` : floor;
+    const siteEl   = document.getElementById('as-site');
+    const siteId   = siteEl?.value;
+    const siteName = siteEl?.options[siteEl.selectedIndex]?.getAttribute('data-name') || siteId;
+    const company  = document.getElementById('as-company')?.value;
+    const equipNo  = document.getElementById('as-equip-no')?.value;
+    const floor    = document.getElementById('as-floor')?.value;
+    const detail   = document.getElementById('as-location-detail')?.value.trim().toUpperCase();
+    const location = detail ? (floor ? `${floor} ${detail}` : detail) : floor;
     const fault    = document.getElementById('as-fault').value;
     const desc     = document.getElementById('as-desc').value.trim();
     const reporter = document.getElementById('as-reporter').value.trim();
     const phone    = document.getElementById('as-phone').value.trim();
 
-    const equipNo  = document.getElementById('as-equip-no').value.trim();
-    if (!equipNo)  { Toast.error('장비번호를 입력해주세요.'); return; }
-    if (!company || !floor || !desc || !reporter || !phone) {
-      Toast.error('필수 항목을 모두 입력해주세요.'); return;
-    }
-    if (!detail) { Toast.error('세부 위치를 입력해주세요.'); return; }
+    if (!company)  { Toast.error('업체를 선택해주세요.'); return; }
+    if (!equipNo)  { Toast.error('장비번호를 선택해주세요.'); return; }
+    if (!detail)   { Toast.error('세부 위치를 입력해주세요.'); return; }
+    if (!desc || !reporter || !phone) { Toast.error('필수 항목을 모두 입력해주세요.'); return; }
 
     const btn = document.getElementById('btn-submit-as');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
@@ -331,15 +420,15 @@ const AsRequestPage = (() => {
     try {
       await Api.post('/as-requests', {
         site_id:       siteId,
-        site_name:     siteId === 'P4' ? 'P4 복합동' : 'P5 복합동',
+        site_name:     siteName,
         company,
         equip_no:      equipNo,
-        equip_spec:    document.getElementById('as-equip-spec').value.trim(),
+        equip_spec:    document.getElementById('as-equip-spec')?.value || '',
         location,
         fault_type:    fault,
         description:   desc,
         reporter_name: reporter,
-        reporter_phone:phone,
+        reporter_phone: phone,
         created_by:    Auth.getUser()?.id,
       });
       Modal.close();
@@ -560,7 +649,8 @@ const AsRequestPage = (() => {
           </div>
           <div class="form-group">
             <label class="form-label">세부 위치</label>
-            <input id="as-qr-detail" class="form-input" placeholder="예: A구역, 동편">
+            <input id="as-qr-detail" class="form-input" placeholder="예: A/10열, F/30열"
+              oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
           </div>
         </div>
         <div class="form-group">
@@ -635,6 +725,7 @@ const AsRequestPage = (() => {
   return {
     render, switchTab, loadList,
     openNewForm, openNewFormWithEquip,
+    _onAsSiteChange, _onAsCompanyChange, _onAsEquipChange,
     setMaterial, openHoldForm, openResolveForm, openCancelForm,
   };
 })();
