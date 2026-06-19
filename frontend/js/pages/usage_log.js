@@ -20,7 +20,7 @@ const UsageLogPage = (() => {
       window._sb.from('projects').select('code,name').eq('active', true).order('name'),
     ]);
 
-    const siteOptions = sites.map(s => `<option value="${s.code}">${s.name}</option>`).join('');
+    const siteOptions = sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
     const projOptions = projects.map(p => `<option value="${p.code}">${p.name}</option>`).join('');
 
     document.getElementById('page-usage-log').innerHTML = `

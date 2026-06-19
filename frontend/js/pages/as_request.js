@@ -272,7 +272,7 @@ const AsRequestPage = (() => {
           <div class="form-group">
             <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
             <select id="as-site" class="form-input form-select" onchange="AsRequestPage._onAsCompanyChange()">
-              ${sites.map(s => `<option value="${s.code}" data-name="${s.name}"${s.code === defaultSiteId ? ' selected' : ''}>${s.name}</option>`).join('')}
+              ${sites.map(s => `<option value="${s.name}"${s.name === defaultSiteId ? ' selected' : ''}>${s.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">

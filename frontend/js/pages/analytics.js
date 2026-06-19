@@ -108,7 +108,7 @@ const AnalyticsEquipmentPage = (() => {
       window._sb.from('sites').select('code,name').eq('active', true).order('name'),
       window._sb.from('projects').select('code,name').eq('active', true).order('name'),
     ]);
-    const siteOpts = sites.map(s => `<option value="${s.code}">${s.name}</option>`).join('');
+    const siteOpts = sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
     const projOpts = projs.map(p => `<option value="${p.code}">${p.name}</option>`).join('');
 
     document.getElementById('page-analytics-equipment').innerHTML = `

@@ -106,9 +106,13 @@ const Auth = (() => {
 
   // ── 역할 선택 모달 ───────────────────────────────────────────
   async function _showRoleModal(session) {
-    // 발주처 목록 동적 로드
-    const { data: clients = [] } = await window._sb.from('clients').select('code,name').eq('active', true).order('sort_order').order('name');
-    const clientOpts = clients.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+    // 발주처·현장 목록 동적 로드
+    const [{ data: clients = [] }, { data: sites = [] }] = await Promise.all([
+      window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name'),
+      window._sb.from('sites').select('id,name').eq('active', true).order('name'),
+    ]);
+    const clientOpts = clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+    const siteOpts   = sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
 
     Modal.open({
       title: '역할 및 현장 선택',
@@ -138,8 +142,7 @@ const Auth = (() => {
         <div class="form-group">
           <label class="form-label">담당 현장 <span style="color:var(--red)">*</span></label>
           <select id="sel-site" class="form-input form-select">
-            <option value="P4">P4 복합동</option>
-            <option value="P5">P5 복합동</option>
+            ${siteOpts}
             <option value="ALL" id="opt-all" style="display:none">전체 (AJ관리자)</option>
           </select>
         </div>

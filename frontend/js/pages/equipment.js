@@ -107,7 +107,7 @@ const EquipmentPage = (() => {
       const sel = document.getElementById('eq-site');
       if (!sel) return;
       sel.innerHTML = `<option value="">전체 현장</option>` +
-        sites.map(s => `<option value="${s.code}">${s.name}</option>`).join('');
+        sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
     } catch {}
   }
 
@@ -377,7 +377,7 @@ const EquipmentPage = (() => {
             <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
             <select id="add-site" class="form-input form-select">
               <option value="">-- 현장 선택 --</option>
-              ${sites.map(s=>`<option value="${s.code}" data-name="${s.name}">${s.name}</option>`).join('')}
+              ${sites.map(s=>`<option value="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">

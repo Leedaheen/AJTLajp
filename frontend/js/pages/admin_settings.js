@@ -108,21 +108,18 @@ const AdminSettingsPage = (() => {
     const el = document.getElementById('clients-list');
     if (!el) return;
     try {
-      const { data: list = [] } = await window._sb.from('clients').select('*').order('sort_order').order('name');
+      const { data: list = [] } = await window._sb.from('clients').select('id,name,active,sort_order').order('sort_order').order('name');
       if (!list.length) { el.innerHTML = '<div class="text-muted text-sm" style="text-align:center;padding:16px">발주처 없음</div>'; return; }
       el.innerHTML = list.map(c => `
         <div style="display:flex;justify-content:space-between;align-items:center;
                     padding:10px 12px;border-bottom:1px solid var(--gray-100)">
-          <div>
-            <span style="font-weight:600;font-size:14px">${c.name}</span>
-            <span style="margin-left:8px;font-size:12px;color:var(--gray-400)">${c.code || ''}</span>
-          </div>
+          <span style="font-weight:600;font-size:14px">${c.name}</span>
           <div style="display:flex;gap:6px;align-items:center">
             <span class="badge" style="${c.active?'background:#d1fae5;color:#065f46':'background:#fee2e2;color:#991b1b'}">
               ${c.active?'활성':'비활성'}
             </span>
             <button class="btn btn-outline btn-sm"
-              onclick="AdminSettingsPage.openEditClient(${c.id},'${_esc(c.code)}','${_esc(c.name)}',${c.active})">수정</button>
+              onclick="AdminSettingsPage.openEditClient(${c.id},'${_esc(c.name)}',${c.active})">수정</button>
             <button onclick="AdminSettingsPage.deleteClient(${c.id},'${_esc(c.name)}')"
               style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:18px;line-height:1;padding:2px 4px;border-radius:4px"
               onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">×</button>
@@ -137,10 +134,6 @@ const AdminSettingsPage = (() => {
       title: '발주처 추가',
       body: `
         <div class="form-group">
-          <label class="form-label">발주처 코드 <span style="color:var(--red)">*</span></label>
-          <input id="client-code" class="form-input" placeholder="예: SAMSUNG_EA">
-        </div>
-        <div class="form-group">
           <label class="form-label">발주처명 <span style="color:var(--red)">*</span></label>
           <input id="client-name" class="form-input" placeholder="예: E&A">
         </div>
@@ -149,26 +142,22 @@ const AdminSettingsPage = (() => {
                <button class="btn btn-primary btn-sm" id="btn-add-client">추가</button>`,
     });
     document.getElementById('btn-add-client').onclick = async () => {
-      const code = document.getElementById('client-code').value.trim().toUpperCase();
       const name = document.getElementById('client-name').value.trim();
-      if (!code) { Toast.error('코드를 입력해주세요.'); return; }
       if (!name) { Toast.error('발주처명을 입력해주세요.'); return; }
       const btn = document.getElementById('btn-add-client');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
-        const { error } = await window._sb.from('clients').insert({ code, name, active: true });
+        const { error } = await window._sb.from('clients').insert({ name, active: true });
         if (error) throw error;
         Modal.close(); Toast.success('발주처가 추가되었습니다.'); _loadClients();
       } catch { btn.disabled = false; btn.textContent = '추가'; Toast.error('추가 실패'); }
     };
   }
 
-  function openEditClient(id, code, name, active) {
+  function openEditClient(id, name, active) {
     Modal.open({
       title: `발주처 수정 — ${name}`,
       body: `
-        <div class="form-group"><label class="form-label">발주처 코드</label>
-          <input id="client-code-edit" class="form-input" value="${code}"></div>
         <div class="form-group"><label class="form-label">발주처명</label>
           <input id="client-name-edit" class="form-input" value="${name}"></div>
         <div class="form-group"><label class="form-label">상태</label>
@@ -185,7 +174,6 @@ const AdminSettingsPage = (() => {
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
         const { error } = await window._sb.from('clients').update({
-          code:   document.getElementById('client-code-edit').value.trim().toUpperCase(),
           name:   document.getElementById('client-name-edit').value.trim(),
           active: document.getElementById('client-active-edit').value === 'true',
         }).eq('id', id);
@@ -216,16 +204,13 @@ const AdminSettingsPage = (() => {
       el.innerHTML = list.map(s => `
         <div style="display:flex;justify-content:space-between;align-items:center;
                     padding:10px 12px;border-bottom:1px solid var(--gray-100)">
-          <div>
-            <span style="font-weight:600;font-size:14px">${s.name}</span>
-            <span style="margin-left:8px;font-size:12px;color:var(--gray-400)">${s.code}</span>
-          </div>
+          <span style="font-weight:600;font-size:14px">${s.name}</span>
           <div style="display:flex;gap:6px;align-items:center">
             <span class="badge" style="${s.active?'background:#d1fae5;color:#065f46':'background:#fee2e2;color:#991b1b'}">
               ${s.active?'활성':'비활성'}
             </span>
             <button class="btn btn-outline btn-sm"
-              onclick="AdminSettingsPage.openEditSite(${s.id},'${_esc(s.code)}','${_esc(s.name)}',${s.active})">수정</button>
+              onclick="AdminSettingsPage.openEditSite(${s.id},'${_esc(s.name)}',${s.active})">수정</button>
             <button onclick="AdminSettingsPage.deleteSite(${s.id},'${_esc(s.name)}')"
               style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:18px;line-height:1;padding:2px 4px;border-radius:4px"
               onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-400)'">×</button>
@@ -240,10 +225,6 @@ const AdminSettingsPage = (() => {
       title: '현장 추가',
       body: `
         <div class="form-group">
-          <label class="form-label">현장 코드 <span style="color:var(--red)">*</span></label>
-          <input id="site-code" class="form-input" placeholder="예: P6">
-        </div>
-        <div class="form-group">
           <label class="form-label">현장명 <span style="color:var(--red)">*</span></label>
           <input id="site-name" class="form-input" placeholder="예: P6 복합동">
         </div>
@@ -252,25 +233,21 @@ const AdminSettingsPage = (() => {
                <button class="btn btn-primary btn-sm" id="btn-add-site">추가</button>`,
     });
     document.getElementById('btn-add-site').onclick = async () => {
-      const code = document.getElementById('site-code').value.trim().toUpperCase();
       const name = document.getElementById('site-name').value.trim();
-      if (!code) { Toast.error('현장 코드를 입력해주세요.'); return; }
       if (!name) { Toast.error('현장명을 입력해주세요.'); return; }
       const btn = document.getElementById('btn-add-site');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
-        await Api.post('/sites', { code, name, active: true });
+        await Api.post('/sites', { code: name, name, active: true });
         Modal.close(); Toast.success('현장이 추가되었습니다.'); _loadSites();
       } catch { btn.disabled = false; btn.textContent = '추가'; }
     };
   }
 
-  function openEditSite(id, code, name, active) {
+  function openEditSite(id, name, active) {
     Modal.open({
       title: `현장 수정 — ${name}`,
       body: `
-        <div class="form-group"><label class="form-label">현장 코드</label>
-          <input id="site-code-edit" class="form-input" value="${code}"></div>
         <div class="form-group"><label class="form-label">현장명</label>
           <input id="site-name-edit" class="form-input" value="${name}"></div>
         <div class="form-group"><label class="form-label">상태</label>
@@ -285,10 +262,11 @@ const AdminSettingsPage = (() => {
     document.getElementById('btn-edit-site').onclick = async () => {
       const btn = document.getElementById('btn-edit-site');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      const newName = document.getElementById('site-name-edit').value.trim();
       try {
         await Api.patch(`/sites/${id}`, {
-          code:   document.getElementById('site-code-edit').value.trim().toUpperCase(),
-          name:   document.getElementById('site-name-edit').value.trim(),
+          code:   newName,
+          name:   newName,
           active: document.getElementById('site-active-edit').value === 'true',
         });
         Modal.close(); Toast.success('현장 정보가 수정되었습니다.'); _loadSites();
@@ -441,7 +419,7 @@ const AdminSettingsPage = (() => {
     Api.get('/sites').then(sites => {
       const sel = document.getElementById('co-site');
       if (!sel) return;
-      sites.forEach(s => { const o = document.createElement('option'); o.value = s.code; o.textContent = s.name; sel.appendChild(o); });
+      sites.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; sel.appendChild(o); });
     }).catch(() => {});
     document.getElementById('btn-add-co').onclick = async () => {
       const name = document.getElementById('co-name').value.trim();
@@ -477,8 +455,8 @@ const AdminSettingsPage = (() => {
       const sel = document.getElementById('co-site-edit');
       if (!sel) return;
       sites.forEach(s => {
-        const o = document.createElement('option'); o.value = s.code; o.textContent = s.name;
-        if (s.code === siteId) o.selected = true;
+        const o = document.createElement('option'); o.value = s.name; o.textContent = s.name;
+        if (s.name === siteId) o.selected = true;
         sel.appendChild(o);
       });
     }).catch(() => {});

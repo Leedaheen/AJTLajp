@@ -428,7 +428,7 @@ const TransitPage = (() => {
             <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
             <select id="tr-site" class="form-input form-select"
               onchange="TransitPage._onSiteChange()">
-              ${sites.map(s => `<option value="${s.code}" data-name="${s.name}">${s.name}</option>`).join('')}
+              ${sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">

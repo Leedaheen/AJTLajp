@@ -748,3 +748,9 @@ ALTER TABLE app_users ADD COLUMN IF NOT EXISTS client_id text;
 ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_role_check;
 ALTER TABLE app_users ADD CONSTRAINT app_users_role_check
   CHECK (role IN ('tech','partner','aj','as_tech','admin','pro'));
+
+-- clients 테이블에서 code 컬럼 제거 (name만 사용)
+ALTER TABLE clients DROP COLUMN IF EXISTS code;
+
+-- sites 테이블: 신규 추가 시 code = name 으로 자동 설정 (기존 P4/P5 코드는 유지)
+-- (코드는 내부 참조용으로만 존재, UI에서는 name만 표시/관리)
