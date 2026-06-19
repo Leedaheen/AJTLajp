@@ -202,16 +202,16 @@ const Auth = (() => {
 
     const needApproval = ['partner', 'as_tech', 'pro'].includes(role);
     const { data, error } = await _sb.from('app_users').insert({
-      id:        session.user.id,
-      google_id: session.user.user_metadata?.provider_id || session.user.id,
-      email:     session.user.email,
-      name:      session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+      id:          session.user.id,
+      google_id:   session.user.user_metadata?.provider_id || session.user.id,
+      email:       session.user.email,
+      name:        session.user.user_metadata?.full_name || session.user.email.split('@')[0],
       phone,
       role,
-      site_id:   siteId,
+      site_id:     siteId,
       company,
-      client_id: client || null,
-      status:    needApproval ? 'pending' : 'active',
+      client_name: client || '',
+      status:      needApproval ? 'pending' : 'active',
     }).select().single();
 
     if (error) {

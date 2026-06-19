@@ -49,8 +49,6 @@ async def list_as_requests(
     role = current_user["role"]
     if role == "partner":
         query = query.eq("site_id", current_user["site_id"])
-    elif role == "as_tech":
-        query = query.eq("tech_id", current_user["sub"])
     elif role == "tech":
         query = query.eq("created_by", current_user["sub"])
 

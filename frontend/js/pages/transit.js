@@ -116,10 +116,8 @@ const TransitPage = (() => {
   let _schedMonth = new Date().getMonth(); // 0-based
   let _schedData  = [];
   let _schedOpen  = true;
-  let _schedFilterSites   = new Set(); // 현장명 다중 선택
-  let _schedFilterCompany = '';        // 소속 단일 선택 ('' = 전체)
-  let _schedSiteOptions   = [];        // 관리자설정에서 로드한 현장 목록
-  let _schedClientOptions = [];        // 관리자설정에서 로드한 소속 목록
+  let _schedFilterSites = new Set(); // 현장명 다중 선택
+  let _schedSiteOptions = [];        // 관리자설정에서 로드한 현장 목록
 
   const _WEEK = ['일','월','화','수','목','금','토'];
 
@@ -155,10 +153,8 @@ const TransitPage = (() => {
     const drop = document.getElementById(`sch-drop-${key}`);
     if (!drop) return;
     const isOpen = drop.style.display !== 'none';
-    ['site','company'].forEach(k => {
-      const d = document.getElementById(`sch-drop-${k}`);
-      if (d) d.style.display = 'none';
-    });
+    const d2 = document.getElementById('sch-drop-site');
+    if (d2) d2.style.display = 'none';
     drop.style.display = isOpen ? 'none' : 'block';
     if (!isOpen) {
       setTimeout(() => document.addEventListener('click', _closeSchedDropdowns, { once: true }), 0);
@@ -166,36 +162,23 @@ const TransitPage = (() => {
   }
 
   function _closeSchedDropdowns() {
-    ['site','company'].forEach(k => {
-      const d = document.getElementById(`sch-drop-${k}`);
-      if (d) d.style.display = 'none';
-    });
+    const d = document.getElementById('sch-drop-site');
+    if (d) d.style.display = 'none';
   }
 
-  // 현장명 — 다중 선택
   function schedToggleSite(value) {
     if (_schedFilterSites.has(value)) _schedFilterSites.delete(value);
     else _schedFilterSites.add(value);
     _renderScheduler();
   }
 
-  // 소속 — 단일 선택 (같은 값 클릭 시 전체로 복귀)
-  function schedSelectCompany(value) {
-    _schedFilterCompany = (_schedFilterCompany === value) ? '' : value;
-    _closeSchedDropdowns();
-    _renderScheduler();
-  }
-
   function schedClearFilter(key) {
     if (key === 'site') _schedFilterSites.clear();
-    else _schedFilterCompany = '';
     _renderScheduler();
   }
 
-  // schedToggleFilterItem은 현장명 다중선택 호환용으로 유지
   function schedToggleFilterItem(key, value) {
     if (key === 'site') schedToggleSite(value);
-    else schedSelectCompany(value);
   }
 
   function _renderScheduler() {
@@ -207,18 +190,14 @@ const TransitPage = (() => {
     const daysInMonth = new Date(y, m+1, 0).getDate();
     const today = new Date().toISOString().slice(0,10);
 
-    // 관리자설정에서 로드한 옵션 사용 (없으면 데이터에서 추출)
-    const allSites   = _schedSiteOptions.length
+    // 관리자설정에서 로드한 현장 옵션 사용 (없으면 데이터에서 추출)
+    const allSites = _schedSiteOptions.length
       ? _schedSiteOptions
       : [...new Set(_schedData.map(t => t.site_name).filter(Boolean))].sort();
-    const allClients = _schedClientOptions.length
-      ? _schedClientOptions
-      : [...new Set(_schedData.map(t => t.company).filter(Boolean))].sort();
 
-    // 필터 적용
+    // 현장명 필터 적용
     const filtered = _schedData.filter(t => {
       if (_schedFilterSites.size > 0 && !_schedFilterSites.has(t.site_name)) return false;
-      if (_schedFilterCompany && t.company !== _schedFilterCompany) return false;
       return true;
     });
 
@@ -238,29 +217,6 @@ const TransitPage = (() => {
     }));
 
     const monthLabel = `${y}년 ${m+1}월`;
-
-    // 소속 — 단일 선택 드롭다운
-    function _companyDropdown() {
-      const hasFilter = !!_schedFilterCompany;
-      const btnLabel  = hasFilter ? `소속: ${_schedFilterCompany}` : '소속';
-      const allItem = `<div class="sch-flt-radio${!hasFilter ? ' sch-flt-radio-on' : ''}"
-        onclick="event.stopPropagation();TransitPage.schedSelectCompany('')">전체</div>`;
-      const items = allClients.map(v => {
-        const on = _schedFilterCompany === v;
-        return `<div class="sch-flt-radio${on ? ' sch-flt-radio-on' : ''}"
-          onclick="event.stopPropagation();TransitPage.schedSelectCompany('${v.replace(/'/g,"\\'")}')">
-          ${v}
-        </div>`;
-      }).join('');
-      return `
-        <div class="sch-flt-wrap" style="position:relative">
-          <button class="sch-flt-btn${hasFilter ? ' sch-flt-btn-active' : ''}"
-            onclick="TransitPage.schedToggleFilterDropdown('company',event)">${btnLabel} &#9662;</button>
-          <div id="sch-drop-company" class="sch-flt-drop" style="display:none">
-            <div class="sch-flt-list">${allItem}${items || ''}</div>
-          </div>
-        </div>`;
-    }
 
     // 현장명 — 다중 선택 드롭다운
     function _siteDropdown() {
@@ -332,7 +288,6 @@ const TransitPage = (() => {
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        ${_companyDropdown()}
         ${_siteDropdown()}
       </div>
       <div class="sch-grid">
@@ -344,12 +299,10 @@ const TransitPage = (() => {
 
   async function _loadSchedulerOptions() {
     try {
-      const [sitesRes, clientsRes] = await Promise.all([
+      const [sitesRes] = await Promise.all([
         _sb.from('sites').select('name').eq('active', true).order('name'),
-        _sb.from('clients').select('name').eq('active', true).order('sort_order').order('name'),
       ]);
-      _schedSiteOptions   = (sitesRes.data   || []).map(r => r.name);
-      _schedClientOptions = (clientsRes.data || []).map(r => r.name);
+      _schedSiteOptions = (sitesRes.data || []).map(r => r.name);
     } catch { /* 실패 시 데이터에서 추출하는 폴백 유지 */ }
   }
 
@@ -358,12 +311,20 @@ const TransitPage = (() => {
     const from = `${y}-${String(m).padStart(2,'0')}-01`;
     const to   = `${y}-${String(m+2).padStart(2,'0')}-01`;
     try {
-      const { data } = await _sb.from('transit')
-        .select('id,type,status,site_name,company,equip_specs,scheduled_date,scheduled_time,requested_date,created_at,site_id,vehicle_info,driver_info,note,aj_equip')
+      const user = Auth.getUser();
+      let q = _sb.from('transit')
+        .select('id,type,status,site_name,company,equip_specs,scheduled_date,scheduled_time,requested_date,created_at,site_id,vehicle_info,driver_info,note,aj_equip,client_name')
         .neq('status','cancelled')
         .or(`scheduled_date.gte.${from},requested_date.gte.${from}`)
         .or(`scheduled_date.lt.${to},requested_date.lt.${to}`)
         .order('scheduled_date', { ascending: true });
+      if (['aj','admin'].includes(user?.role)) {
+        const cf = App.getClientFilter?.();
+        if (cf) q = q.eq('client_name', cf);
+      } else if (user?.client_name) {
+        q = q.eq('client_name', user.client_name);
+      }
+      const { data } = await q;
       _schedData = data || [];
     } catch { _schedData = []; }
     _renderScheduler();
@@ -574,7 +535,14 @@ const TransitPage = (() => {
       const searchEquip = (document.getElementById('tr-search-equip')?.value || '').trim().toUpperCase();
       const searchDate  = (document.getElementById('tr-search-date')?.value  || '').trim();
 
+      const _listUser = Auth.getUser();
       let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(500);
+      if (['aj','admin'].includes(_listUser?.role)) {
+        const cf = App.getClientFilter?.();
+        if (cf) q = q.eq('client_name', cf);
+      } else if (_listUser?.client_name) {
+        q = q.eq('client_name', _listUser.client_name);
+      }
       if (_currentTab === 'requested') {
         // 신청 탭: 신청접수 + 협력사확인완료 모두 표시
         q = q.in('status', ['requested', 'partner_confirmed']);
@@ -588,9 +556,11 @@ const TransitPage = (() => {
       if (error) throw error;
       if (gen !== _loadGen) return;
       // RLS 정책 우회 가능성 대비 클라이언트 사이드 필터 이중 적용
-      let list = _currentTab !== 'all'
-        ? (raw || []).filter(t => t.status === _currentTab)
-        : (raw || []);
+      let list = _currentTab === 'requested'
+        ? (raw || []).filter(t => ['requested','partner_confirmed'].includes(t.status))
+        : _currentTab !== 'all'
+          ? (raw || []).filter(t => t.status === _currentTab)
+          : (raw || []);
       // 날짜 필터: 희망일 또는 확정일이 검색 날짜와 일치
       if (searchDate) {
         list = list.filter(t =>
@@ -761,11 +731,15 @@ const TransitPage = (() => {
   // ── 신규 신청 폼 (sites/projects/companies 동적 로드) ───────
   async function openNewForm() {
     const defaultFloors = ['모듈동','1F외곽','1F','2F','3F','4F','5F','6F','7F','8F','9F'];
+    const user = Auth.getUser();
+    const isAjAdmin = ['aj','admin'].includes(user?.role);
     const [sites, projects, floors, clientsRes] = await Promise.all([
       Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]),
       Api.get('/projects').catch(() => [{code:'Ph1'},{code:'Ph2'},{code:'Ph3'},{code:'Ph4'}]),
       Api.get('/floors').catch(() => defaultFloors.map(n => ({name:n}))),
-      window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name').catch(() => ({ data: [] })),
+      isAjAdmin
+        ? window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name').catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
     ]);
     const clients = clientsRes?.data || [];
 
@@ -815,13 +789,14 @@ const TransitPage = (() => {
               ${sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
+          ${isAjAdmin ? `
           <div class="form-group">
             <label class="form-label">소속 <span style="color:var(--red)">*</span></label>
             <select id="tr-client" class="form-input form-select">
               <option value="">-- 소속 선택 --</option>
               ${clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
             </select>
-          </div>
+          </div>` : `<input type="hidden" id="tr-client" value="${user?.client_name || ''}">`}
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
@@ -1215,7 +1190,8 @@ const TransitPage = (() => {
     const phone      = document.getElementById('tr-phone').value.trim();
     const date       = document.getElementById('tr-date').value;
 
-    if (!clientName) { Toast.error('소속을 선택해주세요.'); return; }
+    const _curUser = Auth.getUser();
+    if (['aj','admin'].includes(_curUser?.role) && !clientName) { Toast.error('소속을 선택해주세요.'); return; }
     if (!company) { Toast.error('업체를 선택해주세요.'); return; }
     if (!reporter || !phone) { Toast.error('필수 항목을 모두 입력해주세요.'); return; }
     if (!project) { Toast.error('프로젝트를 선택해주세요.'); return; }
@@ -2683,6 +2659,6 @@ ${pages.join('')}
     applySearch, clearSearch,
     schedPrev, schedNext, schedToday, schedShowDetail, schedJumpToDate, toggleScheduler,
     schedToggleFilterDropdown, schedToggleFilterItem, schedClearFilter,
-    schedToggleSite, schedSelectCompany,
+    schedToggleSite,
   };
 })();

@@ -341,7 +341,7 @@ const AdminPage = (() => {
         <td class="text-sm text-muted">${u.email}</td>
         <td>${ROLE_LABELS[u.role] || u.role}</td>
         <td>${u.site_id || '-'}</td>
-        <td class="text-sm">${u.company || '-'}</td>
+        <td class="text-sm">${u.client_name || '-'}</td>
         <td>${u.phone || '-'}</td>
         <td>${STATUS_LABELS[u.status] || u.status}</td>
         <td class="text-sm text-muted">${new Date(u.created_at).toLocaleDateString('ko-KR')}</td>
@@ -352,7 +352,7 @@ const AdminPage = (() => {
               <button class="btn btn-danger btn-sm" onclick="AdminPage.rejectUser('${u.id}','${u.name}')">거절</button>
             ` : ''}
             ${u.status === 'active' ? `
-              <button class="btn btn-outline btn-sm" onclick="AdminPage.changeRole('${u.id}','${u.name}','${u.role}','${u.site_id}','${u.company||''}')">역할 변경</button>
+              <button class="btn btn-outline btn-sm" onclick="AdminPage.changeRole('${u.id}','${u.name}','${u.role}','${u.site_id}','${u.client_name||''}')">역할 변경</button>
             ` : ''}
             ${u.status === 'rejected' ? `
               <button class="btn btn-outline btn-sm" onclick="AdminPage.approveUser('${u.id}','${u.name}')">재승인</button>
@@ -421,7 +421,7 @@ const AdminPage = (() => {
   }
 
   // ── 역할 변경 ────────────────────────────────────────────
-  async function changeRole(userId, name, currentRole, currentSite, currentCompany) {
+  async function changeRole(userId, name, currentRole, currentSite, currentClientName) {
     const [sitesRes, clientsRes] = await Promise.all([
       Api.get('/sites').catch(() => []),
       window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name').catch(() => ({ data: [] })),
@@ -436,7 +436,7 @@ const AdminPage = (() => {
 
     const clientOpts = [
       `<option value="">-</option>`,
-      ...clients.map(c => `<option value="${c.name}" ${currentCompany===c.name?'selected':''}>${c.name}</option>`),
+      ...clients.map(c => `<option value="${c.name}" ${currentClientName===c.name?'selected':''}>${c.name}</option>`),
     ].join('');
 
     Modal.open({
@@ -457,8 +457,8 @@ const AdminPage = (() => {
           <select id="sel-new-site" class="form-input form-select">${siteOpts}</select>
         </div>
         <div class="form-group">
-          <label class="form-label">소속</label>
-          <select id="sel-new-company" class="form-input form-select">${clientOpts}</select>
+          <label class="form-label">소속 (발주처)</label>
+          <select id="sel-new-client" class="form-input form-select">${clientOpts}</select>
         </div>
       `,
       footer: `
@@ -467,11 +467,11 @@ const AdminPage = (() => {
       `,
     });
     document.getElementById('btn-confirm-role').onclick = async () => {
-      const role    = document.getElementById('sel-new-role').value;
-      const siteId  = document.getElementById('sel-new-site').value;
-      const company = document.getElementById('sel-new-company').value;
+      const role        = document.getElementById('sel-new-role').value;
+      const siteId      = document.getElementById('sel-new-site').value;
+      const clientName  = document.getElementById('sel-new-client').value;
       try {
-        await Api.patch(`/users/${userId}/role`, { role, site_id: siteId, company });
+        await Api.patch(`/users/${userId}/role`, { role, site_id: siteId, client_name: clientName });
         Modal.close();
         Toast.success('역할이 변경되었습니다.');
         loadUsers();

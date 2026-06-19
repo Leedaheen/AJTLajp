@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS app_users (
   reject_reason text,
   local_id      text UNIQUE,            -- 관리자 전용 로컬 ID
   pw_hash       text,                   -- 관리자 전용 bcrypt 해시
+  company       text DEFAULT '',           -- 업체명 (협력사명)
+  client_name   text DEFAULT '',           -- 소속 발주처 (E&A, 물산, 중공업 등)
   push_sub      jsonb,
   notif_prefs   jsonb DEFAULT '{"transit":true,"as":true,"approval":true}',
   created_at    timestamptz DEFAULT now(),

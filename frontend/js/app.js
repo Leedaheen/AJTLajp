@@ -116,6 +116,10 @@ const App = (() => {
     renderers[pageId]?.();
   }
 
+  let _clientFilter = '';  // AJ관리자가 선택한 소속 필터 ('' = 전체)
+
+  function getClientFilter() { return _clientFilter; }
+
   function _buildLayout() {
     const user = Auth.getUser();
     if (!user) return;
@@ -127,8 +131,64 @@ const App = (() => {
     document.getElementById('bottom-nav').classList.remove('hidden');
     document.getElementById('fab-qr')?.classList.remove('hidden');
 
+    // 소속 배지 / 소속 필터
+    _initClientBadge(user);
+
     _setSidebarAccess(user);
     _setBottomNavAccess(user);
+  }
+
+  async function _initClientBadge(user) {
+    const isAj = ['aj','admin'].includes(user.role);
+    if (isAj) {
+      // AJ: 소속 선택 드롭다운
+      const wrap = document.getElementById('header-client-select');
+      if (wrap) wrap.style.display = '';
+      // clients 목록 로드
+      try {
+        const { data } = await window._sb.from('clients').select('name').eq('active', true).order('sort_order').order('name');
+        const drop = document.getElementById('header-client-drop');
+        if (drop && data) {
+          const opts = [{ name: '전체' }, ...data];
+          drop.innerHTML = opts.map(c => `
+            <div onclick="App.selectClientFilter('${c.name === '전체' ? '' : c.name}')"
+              style="padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap;
+              ${(c.name === '전체' && !_clientFilter) || (_clientFilter === c.name) ? 'background:#eff6ff;color:var(--navy);font-weight:600' : ''}"
+              onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='${(c.name === '전체' && !_clientFilter) || (_clientFilter === c.name) ? '#eff6ff' : ''}'">
+              ${c.name}
+            </div>`).join('');
+        }
+      } catch {}
+    } else if (user.client_name) {
+      // 비AJ: 정적 배지
+      const badge = document.getElementById('header-client-badge');
+      if (badge) { badge.textContent = user.client_name; badge.style.display = ''; }
+    }
+  }
+
+  function toggleClientFilter() {
+    const drop = document.getElementById('header-client-drop');
+    if (!drop) return;
+    const isOpen = drop.style.display !== 'none';
+    drop.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) {
+      setTimeout(() => {
+        document.addEventListener('click', e => {
+          const wrap = document.getElementById('header-client-select');
+          if (!wrap?.contains(e.target)) drop.style.display = 'none';
+        }, { once: true, capture: true });
+      }, 0);
+    }
+  }
+
+  function selectClientFilter(name) {
+    _clientFilter = name;
+    const label = document.getElementById('header-client-label');
+    if (label) label.textContent = name || '전체 소속';
+    document.getElementById('header-client-drop').style.display = 'none';
+    // 현재 페이지 데이터 새로고침
+    const active = document.querySelector('.page:not(.hidden)');
+    if (active?.id === 'page-transit') TransitPage.loadList(true);
   }
 
   function _setSidebarAccess(user) {
@@ -288,7 +348,8 @@ const App = (() => {
       content.innerHTML = `
         <div style="font-weight:700;font-size:15px;margin-bottom:4px">${user.name}</div>
         <div style="font-size:12px;color:#666;margin-bottom:2px">${user.email || ''}</div>
-        ${user.company ? `<div style="font-size:12px;color:#666;margin-bottom:2px">소속: ${user.company}</div>` : ''}
+        ${user.company ? `<div style="font-size:12px;color:#666;margin-bottom:2px">업체명: ${user.company}</div>` : ''}
+        ${user.client_name ? `<div style="font-size:12px;color:#666;margin-bottom:2px">소속: ${user.client_name}</div>` : ''}
         <div style="font-size:11px;color:#999;margin-top:4px;padding-top:4px;border-top:1px solid #f0f0f0">
           ${ROLE_LABELS_MAP[user.role] || user.role} · ${user.site_id || ''}
         </div>
@@ -312,7 +373,7 @@ const App = (() => {
     }
   }
 
-  return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel, toggleUserMenu };
+  return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel, toggleUserMenu, toggleClientFilter, selectClientFilter, getClientFilter };
 })();
 
 document.addEventListener('DOMContentLoaded', () => App.init());
