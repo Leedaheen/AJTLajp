@@ -756,7 +756,7 @@ const TransitPage = (() => {
             <label class="form-label">현장명 <span style="color:var(--red)">*</span></label>
             <select id="tr-site" class="form-input form-select"
               onchange="TransitPage._onSiteChange()">
-              ${sites.map(s => `<option value="${s.code||s.name}" data-name="${s.name}">${s.name}</option>`).join('')}
+              ${sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -1150,8 +1150,8 @@ const TransitPage = (() => {
   async function _submitNewTransit() {
     const type    = document.querySelector('input[name="tr-type"]:checked')?.value;
     const siteEl  = document.getElementById('tr-site');
-    const siteId  = siteEl?.value;
-    const siteName= siteEl?.options[siteEl?.selectedIndex]?.getAttribute('data-name') || siteId;
+    const siteName= siteEl?.value || '';
+    const siteId  = siteName;
     const project    = document.getElementById('tr-project')?.value;
     const company    = document.getElementById('tr-company').value.trim();
     const clientName = document.getElementById('tr-client')?.value || '';
