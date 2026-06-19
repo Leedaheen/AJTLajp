@@ -38,6 +38,7 @@ const TransitPage = (() => {
   let _currentTab = 'all';
   let _transitCache = {};  // id → transit object
   let _loadGen = 0;
+  let _schedCellH = 72;  // 셀 기본 높이(px), 드래그로 조절
 
   // ── localStorage 저장/불러오기 ───────────────────────────
   function _saveFormData() {
@@ -290,7 +291,7 @@ const TransitPage = (() => {
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         ${_siteDropdown()}
       </div>
-      <div class="sch-grid">
+      <div class="sch-grid" id="sch-grid" style="--sch-cell-h:${_schedCellH}px">
         ${_WEEK.map((w,i) => `<div class="sch-wday" style="color:${i===0?'#E8192C':i===6?'#3d82c8':'var(--gray-500)'}">${w}</div>`).join('')}
         ${cells}
       </div>
@@ -385,19 +386,45 @@ const TransitPage = (() => {
   }
 
   function schedJumpToDate(dateStr) {
-    // 날짜 검색창에 값 넣고 검색
     const inp = document.getElementById('tr-search-date');
     if (inp) { inp.value = dateStr; applySearch(); }
-    // 스크롤
     document.getElementById('transit-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── 스케줄러 셀 높이 리사이즈 바 ──────────────────────────
+  function _applySchedCellH(h) {
+    _schedCellH = Math.max(40, Math.min(200, h));
+    const grid = document.getElementById('sch-grid');
+    if (grid) grid.style.setProperty('--sch-cell-h', `${_schedCellH}px`);
+  }
+
+  function _onResizeBarMouseDown(e) {
+    e.preventDefault();
+    const startY  = e.clientY;
+    const startH  = _schedCellH;
+    function onMove(ev) { _applySchedCellH(startH + ev.clientY - startY); }
+    function onUp()     { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  function _onResizeBarTouchStart(e) {
+    const startY = e.touches[0].clientY;
+    const startH = _schedCellH;
+    function onMove(ev) { _applySchedCellH(startH + ev.touches[0].clientY - startY); }
+    function onEnd()    { document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); }
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onEnd);
   }
 
   function toggleScheduler() {
     _schedOpen = !_schedOpen;
-    const body = document.getElementById('tr-sched-body');
-    const btn  = document.getElementById('tr-sched-toggle');
+    const body    = document.getElementById('tr-sched-body');
+    const btn     = document.getElementById('tr-sched-toggle');
+    const resizeBar = document.getElementById('tr-sched-resize-bar');
     if (!body || !btn) return;
     body.style.display = _schedOpen ? '' : 'none';
+    if (resizeBar) resizeBar.style.display = _schedOpen ? 'flex' : 'none';
     btn.textContent = _schedOpen ? '접기' : '펼치기';
   }
 
@@ -427,10 +454,10 @@ const TransitPage = (() => {
           <style>
             .sch-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--gray-200);border:1px solid var(--gray-200);border-radius:8px;overflow:hidden}
             .sch-wday{background:var(--gray-50);text-align:center;font-size:11px;font-weight:700;padding:6px 0;color:var(--gray-500)}
-            .sch-cell{background:#fff;min-height:72px;padding:4px;cursor:pointer;transition:background .15s;position:relative;min-width:0;overflow:hidden}
+            .sch-cell{background:#fff;min-height:var(--sch-cell-h,72px);padding:4px;cursor:pointer;transition:background .15s;position:relative;min-width:0;overflow:hidden}
             .sch-cell:hover{background:#f8faff}
             .sch-cell.sch-today{background:#eff6ff}
-            .sch-cell.sch-empty{background:var(--gray-50);cursor:default;min-height:72px}
+            .sch-cell.sch-empty{background:var(--gray-50);cursor:default;min-height:var(--sch-cell-h,72px)}
             .sch-day{font-size:11px;font-weight:700;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:2px}
             .sch-pill{font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;margin-bottom:2px;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%;line-height:1.3}
             .sch-pill:hover{filter:brightness(.93)}
@@ -457,6 +484,15 @@ const TransitPage = (() => {
             }
           </style>
           <div id="tr-scheduler"></div>
+        </div>
+
+        <div id="tr-sched-resize-bar"
+          style="display:${_schedOpen?'flex':'none'};align-items:center;justify-content:center;
+            height:14px;cursor:row-resize;margin:6px -16px -16px;border-radius:0 0 12px 12px;
+            background:var(--gray-100);border-top:1px solid var(--gray-200);user-select:none"
+          onmousedown="TransitPage._onResizeBarMouseDown(event)"
+          ontouchstart="TransitPage._onResizeBarTouchStart(event)">
+          <div style="width:32px;height:3px;border-radius:2px;background:var(--gray-300)"></div>
         </div>
       </div>
 
@@ -2670,5 +2706,6 @@ ${pages.join('')}
     schedPrev, schedNext, schedToday, schedShowDetail, schedJumpToDate, toggleScheduler,
     schedToggleFilterDropdown, schedToggleFilterItem, schedClearFilter,
     schedToggleSite,
+    _onResizeBarMouseDown, _onResizeBarTouchStart,
   };
 })();
