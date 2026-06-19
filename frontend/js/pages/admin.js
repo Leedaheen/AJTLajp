@@ -424,7 +424,7 @@ const AdminPage = (() => {
   async function changeRole(userId, name, currentRole, currentSite, currentClientName) {
     const [sitesRes, clientsRes] = await Promise.all([
       Api.get('/sites').catch(() => []),
-      window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name').catch(() => ({ data: [] })),
+      window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name').then(r => r).catch(() => ({ data: [] })),
     ]);
     const sites   = Array.isArray(sitesRes) ? sitesRes : (sitesRes?.data || []);
     const clients = clientsRes?.data || [];

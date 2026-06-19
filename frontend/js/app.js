@@ -353,11 +353,14 @@ const App = (() => {
         <div style="font-size:11px;color:#999;margin-top:4px;padding-top:4px;border-top:1px solid #f0f0f0">
           ${ROLE_LABELS_MAP[user.role] || user.role} · ${user.site_id || ''}
         </div>
+        <div style="border-top:1px solid #eee;margin-top:8px;padding-top:8px">
+          <button onclick="App.openProfileEdit()" class="btn btn-outline btn-sm"
+            style="width:100%;font-size:13px;text-align:left">내 정보 수정</button>
+        </div>
       `;
     }
     menu.style.display = 'block';
 
-    // 외부 클릭 시 닫기
     setTimeout(() => {
       document.addEventListener('click', _closeUserMenu, { once: true, capture: true });
     }, 0);
@@ -373,7 +376,97 @@ const App = (() => {
     }
   }
 
-  return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel, toggleUserMenu, toggleClientFilter, selectClientFilter, getClientFilter };
+  async function openProfileEdit() {
+    document.getElementById('user-menu').style.display = 'none';
+    const user = Auth.getUser();
+
+    // 발주처 목록 로드
+    const { data: clients = [] } = await window._sb
+      .from('clients').select('name').eq('active', true).order('sort_order').order('name')
+      .then(r => r).catch(() => ({ data: [] }));
+
+    const clientOpts = clients.map(c =>
+      `<option value="${c.name}" ${user.client_name === c.name ? 'selected' : ''}>${c.name}</option>`
+    ).join('');
+
+    const needsApproval = !['aj', 'admin'].includes(user.role);
+
+    Modal.open({
+      title: '내 정보 수정',
+      body: `
+        <div style="font-size:12px;color:#666;margin-bottom:14px">
+          연락처는 즉시 반영됩니다.<br>
+          ${needsApproval ? `<span style="color:#E8192C;font-weight:600">발주처 또는 업체명을 변경하면 재승인이 필요합니다.</span>` : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">연락처</label>
+          <input id="prof-phone" class="form-input" type="tel" placeholder="010-0000-0000"
+            value="${user.phone || ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">업체명</label>
+          <input id="prof-company" class="form-input" placeholder="소속 업체명"
+            value="${user.company || ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">소속 (발주처)</label>
+          <select id="prof-client" class="form-input form-select">
+            <option value="">-</option>
+            ${clientOpts}
+          </select>
+        </div>
+        ${needsApproval ? `
+        <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;margin-top:4px">
+          발주처 또는 업체명 변경 시 계정이 승인 대기 상태로 전환되며,<br>
+          AJ관리자 재승인 후 이용 가능합니다.
+        </div>` : ''}
+      `,
+      footer: `
+        <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
+        <button class="btn btn-primary btn-sm" id="btn-prof-save">저장</button>
+      `,
+    });
+
+    document.getElementById('btn-prof-save').onclick = async () => {
+      const phone      = document.getElementById('prof-phone').value.trim();
+      const company    = document.getElementById('prof-company').value.trim();
+      const clientName = document.getElementById('prof-client').value;
+
+      const btn = document.getElementById('btn-prof-save');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+      const profileChanged = needsApproval && (
+        company !== (user.company || '') ||
+        clientName !== (user.client_name || '')
+      );
+
+      const updates = { phone, company, client_name: clientName };
+      if (profileChanged) updates.status = 'pending';
+
+      const { error } = await window._sb
+        .from('app_users').update(updates).eq('id', user.id);
+
+      if (error) {
+        Toast.error('저장에 실패했습니다.');
+        btn.disabled = false; btn.textContent = '저장';
+        return;
+      }
+
+      Modal.close();
+
+      if (profileChanged) {
+        Toast.success('정보가 변경되었습니다. AJ관리자 재승인 후 이용 가능합니다.');
+        setTimeout(() => Auth.logout(), 2000);
+      } else {
+        // 로컬 user 객체 갱신
+        user.phone = phone;
+        Toast.success('연락처가 저장되었습니다.');
+        toggleUserMenu();
+      }
+    };
+  }
+
+  return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel, toggleUserMenu, toggleClientFilter, selectClientFilter, getClientFilter, openProfileEdit };
 })();
 
 document.addEventListener('DOMContentLoaded', () => App.init());
