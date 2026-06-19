@@ -66,12 +66,12 @@ const EquipmentPage = (() => {
             <tr>
               ${isAj ? `<th style="width:36px"><input type="checkbox" id="eq-check-all" title="전체 선택"></th>` : ''}
               <th>장비번호 / 모델 / 시리얼</th>
+              <th>상태</th>
               <th>제원</th>
               <th>현장</th>
               <th>프로젝트</th>
               <th>업체</th>
               <th>층수</th>
-              <th>상태</th>
               <th>반입일</th>
               <th>반출일</th>
               <th>QR / 관리</th>
@@ -230,15 +230,15 @@ const EquipmentPage = (() => {
                 ${e.serial_no ? `<span style="font-family:monospace;margin-left:${e.model?'4px':'0'}">${e.serial_no}</span>` : ''}
               </div>` : ''}
           </td>
+          <td>
+            <span class="badge" style="${st.style}">${st.label}</span>
+            ${_outTransitEquips.has((e.equip_no || '').toUpperCase()) ? `<span class="badge" style="background:#fce7f3;color:#9d174d;margin-left:4px">반출예정</span>` : ''}
+          </td>
           <td>${e.spec || '-'}</td>
           <td>${e.site_name || e.site_id || '-'}</td>
           <td>${e.project || '-'}</td>
           <td>${e.company || '-'}</td>
           <td>${e.floor || '-'}</td>
-          <td>
-            <span class="badge" style="${st.style}">${st.label}</span>
-            ${_outTransitEquips.has((e.equip_no || '').toUpperCase()) ? `<span class="badge" style="background:#fce7f3;color:#9d174d;margin-left:4px">반출예정</span>` : ''}
-          </td>
           <td class="text-sm">${e.in_date || '-'}</td>
           <td class="text-sm">${e.out_date || '-'}</td>
           <td style="white-space:nowrap">
