@@ -20,6 +20,7 @@ const App = (() => {
 
   // 더보기 시트 항목 정의
   const MORE_ITEMS = [
+    { type: 'item',    page: 'as-request',          label: 'AS 요청',        abbr: 'AS',   bg: '#fef3c7' },
     { type: 'item',    page: 'equipment',           label: '장비 관리',      abbr: '장비', bg: '#dbeafe' },
     { type: 'section', label: '분석 리포트' },
     { type: 'item',    page: 'analytics-equipment', label: '장비 사용내역',  abbr: '장비', bg: '#ede9fe', sub: true },
