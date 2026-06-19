@@ -166,8 +166,12 @@ const AdminPage = (() => {
     document.getElementById('admin-filter-status').addEventListener('change', loadUsers);
     document.getElementById('admin-search').addEventListener('input', _filterTable);
 
-    await loadUsers();
-    if (isAdmin) await _loadPerms();
+    if (isAdmin) {
+      _renderPermTable(_permRole); // 저장값 로드 전 기본값으로 즉시 렌더
+      await Promise.all([loadUsers(), _loadPerms()]);
+    } else {
+      await loadUsers();
+    }
   }
 
   // ── 권한 설정 로드 ────────────────────────────────────────
