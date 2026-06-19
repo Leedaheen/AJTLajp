@@ -83,6 +83,22 @@ const TransitPage = (() => {
     });
   }
 
+  async function _loadTabCounts() {
+    try {
+      const { data } = await _sb.from('transit').select('status');
+      if (!data) return;
+      const counts = {};
+      data.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+      ['requested', 'scheduled', 'confirmed'].forEach(s => {
+        const badge = document.getElementById(`tr-badge-${s}`);
+        if (!badge) return;
+        const n = counts[s] || 0;
+        badge.textContent = n;
+        badge.style.display = n ? 'inline-block' : 'none';
+      });
+    } catch { /* 무시 */ }
+  }
+
   // ── 렌더 ─────────────────────────────────────────────────
   async function render() {
     const user = Auth.getUser();
@@ -99,13 +115,17 @@ const TransitPage = (() => {
       </div>
 
       <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;flex-wrap:wrap">
-        ${_TABS.map(([v, l]) => `
+        ${_TABS.map(([v, l]) => {
+          const hasBadge = v === 'requested' || v === 'scheduled' || v === 'confirmed';
+          return `
           <button id="tr-tab-${v}" onclick="TransitPage.switchTab('${v}')"
             style="padding:8px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;
             color:${_currentTab===v?'var(--navy)':'var(--gray-400)'};
-            border-bottom:${_currentTab===v?'2px solid var(--navy)':'2px solid transparent'};margin-bottom:-2px">
-            ${l}
-          </button>`).join('')}
+            border-bottom:${_currentTab===v?'2px solid var(--navy)':'2px solid transparent'};margin-bottom:-2px;
+            display:flex;align-items:center;gap:5px">
+            ${l}${hasBadge ? `<span id="tr-badge-${v}" style="display:none;background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;font-weight:700;min-width:18px;text-align:center"></span>` : ''}
+          </button>`;
+        }).join('')}
       </div>
 
       <div id="transit-list"></div>
@@ -159,8 +179,9 @@ const TransitPage = (() => {
         : (raw || []);
       _transitCache = {};
       list.forEach(t => { _transitCache[t.id] = t; });
-      if (!list.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; return; }
-      c.innerHTML = list.map(_renderCard).join('');
+      if (!list.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; }
+      else { c.innerHTML = list.map(_renderCard).join(''); }
+      _loadTabCounts();
     } catch (e) {
       if (gen !== _loadGen) return;
       console.error('[transit] loadList 오류:', e);
@@ -1634,6 +1655,7 @@ const TransitPage = (() => {
           typeLabel,
           action:  '신청 접수',
           detail:  `${t.company} · ${t.site_name}${t.project ? ' · ' + t.project : ''} · 희망일 ${t.requested_date || '-'}`,
+          who:     t.reporter_name || '',
           badge:   'badge-pending',
           badgeText: `${typeLabel} 신청`,
         });
@@ -1660,6 +1682,7 @@ const TransitPage = (() => {
             typeLabel,
             action:   '협력사 일정 확인완료',
             detail:   `확정일 ${t.scheduled_date}`,
+            who:      t.reporter_name || '',
             badge:    '',
             badgeStyle: 'background:#1B365D;color:#fff',
             badgeText:  `${typeLabel} 확정`,
