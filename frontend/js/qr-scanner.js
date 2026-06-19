@@ -375,53 +375,8 @@ const QrScanner = (() => {
   }
 
   function printQrCode() {
-    const equip = _currentEquip;
-    if (!equip) return;
-    const qrUrl    = _qrUrl(equip.qr_code);
-    const equipNo  = equip.equip_no  || '';
-    const siteLine = [equip.site_name, equip.company].filter(Boolean).join(' · ');
-    const serial   = equip.serial_no || '';
-    const inDate   = equip.in_date   ? `반입일: ${equip.in_date}` : '';
-
-    const win = window.open('', '_blank', 'width=700,height=900');
-    if (!win) { Toast.error('팝업 차단을 해제해주세요.'); return; }
-    win.document.write(`
-      <!DOCTYPE html><html><head>
-        <meta charset="UTF-8">
-        <title>QR 코드 — ${equipNo}</title>
-        <style>
-          body { margin:0;padding:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Malgun Gothic',sans-serif }
-          .card { text-align:center;padding:60px 54px;border:2px solid #1B365D;border-radius:20px;max-width:560px }
-          h2 { color:#1B365D;margin:0 0 28px;font-size:30px }
-          #qr { display:inline-block;margin:0 auto 28px }
-          .equip-no { font-size:30px;font-weight:700;color:#1B365D;margin-bottom:8px }
-          .info-line { font-size:20px;font-weight:700;color:#1B365D;margin:4px 0 }
-          .info-mono { font-size:20px;font-weight:700;color:#1B365D;margin:4px 0;font-family:monospace }
-        </style>
-      </head><body>
-        <div class="card">
-          <h2>삼성E&amp;A</h2>
-          <div id="qr"></div>
-          <div class="equip-no">${equipNo}</div>
-          ${siteLine ? `<div class="info-line">${siteLine}</div>` : ''}
-          ${serial   ? `<div class="info-mono">${serial}</div>`   : ''}
-          ${inDate   ? `<div class="info-line">${inDate}</div>`   : ''}
-        </div>
-        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
-        <script>
-          window.onload = () => {
-            new QRCode(document.getElementById('qr'), {
-              text: '${qrUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}',
-              width:330, height:330,
-              colorDark:'#1B365D', colorLight:'#ffffff',
-              correctLevel: QRCode.CorrectLevel.H
-            });
-            setTimeout(() => window.print(), 400);
-          };
-        <\/script>
-      </body></html>
-    `);
-    win.document.close();
+    if (!_currentEquip) return;
+    QrPrint.printOne(_currentEquip);
   }
 
   return { scan, scanAndAct, stop, handleQrCode, showQrCode, printQrCode };

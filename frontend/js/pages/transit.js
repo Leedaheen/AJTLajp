@@ -1650,24 +1650,28 @@ const TransitPage = (() => {
       return;
     }
 
-    // 장비 레코드에서 id/spec/qr_code/site_id 조회
+    // 장비 레코드에서 id/spec/qr_code/site_id/serial_no/in_date 조회
     const { data: equipRows } = await _sb.from('equipment')
-      .select('id,equip_no,spec,qr_code,site_id')
+      .select('id,equip_no,spec,qr_code,site_id,serial_no,in_date')
       .in('equip_no', equipNos);
     const equipMap = {};
     (equipRows || []).forEach(r => { equipMap[r.equip_no] = r; });
 
     const siteName = t.site_name || t.site_id || '';
+    const inDate   = t.scheduled_date || t.completed_at?.slice(0, 10) || '';
 
     const list = equipNos.map((no, idx) => {
       const eq = equipMap[no] || {};
       return {
         id:        eq.id || `t${idx}`,
         equip_no:  no,
-        qr_code:   eq.qr_code || `AJ-${no}`,
-        spec:      eq.spec || '',
+        qr_code:   eq.qr_code  || `AJ-${no}`,
+        spec:      eq.spec     || '',
         site_name: siteName,
-        site_id:   eq.site_id || '',
+        site_id:   eq.site_id  || '',
+        company:   t.company   || '',
+        serial_no: eq.serial_no || '',
+        in_date:   eq.in_date  || inDate,
       };
     });
 
