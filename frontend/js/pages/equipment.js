@@ -28,6 +28,7 @@ const EquipmentPage = (() => {
             <button id="btn-bulk-qr" class="btn btn-outline btn-sm hidden" onclick="EquipmentPage.openBulkQr()">
               선택 QR 보기/인쇄
             </button>
+            <button class="btn btn-outline btn-sm" onclick="EquipmentPage.openLogViewer()">로그 확인</button>
             <button class="btn btn-outline btn-sm" onclick="EquipmentPage.downloadExcel()" title="필터링된 목록 엑셀 다운로드">
               ↓ 엑셀
             </button>
@@ -671,7 +672,12 @@ const EquipmentPage = (() => {
   async function openEditForm(id) {
     const e = _listCache.find(x => x.id === id);
     if (!e) { Toast.error('장비 정보를 찾을 수 없습니다.'); return; }
-    const models = await Api.get('/equipment/models').catch(() => []);
+
+    const [models, companies] = await Promise.all([
+      Api.get('/equipment/models').catch(() => []),
+      Api.get(`/companies${e.site_id ? `?site_id=${e.site_id}` : ''}`).catch(() => []),
+    ]);
+
     const { equipNo, spec, siteId, company, status, model, serial_no } = {
       equipNo:   e.equip_no  || '',
       spec:      e.spec      || '',
@@ -681,6 +687,11 @@ const EquipmentPage = (() => {
       model:     e.model     || '',
       serial_no: e.serial_no || '',
     };
+
+    const companyOptions = companies.map(c =>
+      `<option value="${c.name}" ${c.name === company ? 'selected' : ''}>${c.name}</option>`
+    ).join('');
+
     Modal.open({
       title: `장비 수정 — ${equipNo}`,
       body: `
@@ -708,7 +719,12 @@ const EquipmentPage = (() => {
         </div>
         <div class="form-group">
           <label class="form-label">업체명</label>
-          <input id="ed-company" class="form-input" value="${company}">
+          <select id="ed-company" class="form-input form-select">
+            <option value="">-- 업체 선택 --</option>
+            ${companyOptions}
+            ${!companies.find(c => c.name === company) && company
+              ? `<option value="${company}" selected>${company}</option>` : ''}
+          </select>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
@@ -726,6 +742,7 @@ const EquipmentPage = (() => {
         <button class="btn btn-primary btn-sm" id="btn-do-edit">저장</button>
       `,
     });
+
     document.getElementById('btn-do-edit').onclick = async () => {
       const btn = document.getElementById('btn-do-edit');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
@@ -733,31 +750,193 @@ const EquipmentPage = (() => {
         const newEquipNo  = document.getElementById('ed-equip-no').value.trim().toUpperCase();
         const newSerialNo = document.getElementById('ed-serial').value.trim() || null;
         const newStatus   = document.getElementById('ed-status').value;
+        const newCompany  = document.getElementById('ed-company').value;
+        const newSpec     = document.getElementById('ed-spec').value;
+        const newModel    = document.getElementById('ed-model').value.trim().toUpperCase() || null;
 
-        // 반출완료로 바꾸는 경우엔 중복 체크 생략 (반출된 장비는 중복 허용)
         if (newStatus !== 'returned') {
           const dup = await _checkDuplicate(newEquipNo, newSerialNo, id);
-          if (dup.equipNoDup) { Toast.error(`장비번호 ${newEquipNo}는 이미 등록된 번호입니다.`); btn.disabled=false; btn.textContent='저장'; return; }
+          if (dup.equipNoDup)  { Toast.error(`장비번호 ${newEquipNo}는 이미 등록된 번호입니다.`);  btn.disabled=false; btn.textContent='저장'; return; }
           if (dup.serialNoDup) { Toast.error(`시리얼번호 ${newSerialNo}는 이미 등록된 번호입니다.`); btn.disabled=false; btn.textContent='저장'; return; }
         }
 
+        // 변경 항목 diff 기록
+        const FIELD_LABELS = { equip_no:'장비번호', spec:'제원', status:'상태', company:'업체명', model:'모델명', serial_no:'시리얼번호' };
+        const STATUS_LABELS = { in_use:'사용중', returned:'반출완료', transit:'반입예정', stock:'재고' };
+        const diffs = [];
+        const pairs = [
+          ['equip_no', equipNo,   newEquipNo],
+          ['spec',     spec,       newSpec],
+          ['status',   status,     newStatus],
+          ['company',  company,    newCompany],
+          ['model',    model,      newModel   || ''],
+          ['serial_no',serial_no, newSerialNo || ''],
+        ];
+        pairs.forEach(([field, before, after]) => {
+          if ((before || '') !== (after || '')) {
+            const bl = field === 'status' ? (STATUS_LABELS[before] || before) : (before || '-');
+            const al = field === 'status' ? (STATUS_LABELS[after]  || after)  : (after  || '-');
+            diffs.push({ field: FIELD_LABELS[field] || field, before: bl, after: al });
+          }
+        });
+
         const updateBody = {
           equip_no:  newEquipNo,
-          spec:      document.getElementById('ed-spec').value,
+          spec:      newSpec,
           status:    newStatus,
-          company:   document.getElementById('ed-company').value.trim(),
-          model:     document.getElementById('ed-model').value.trim().toUpperCase() || null,
+          company:   newCompany,
+          model:     newModel,
           serial_no: newSerialNo,
         };
         if (newStatus === 'returned' && status !== 'returned') {
           updateBody.out_date = new Date().toISOString().slice(0, 10);
         }
+
+        // change_log 갱신 (변경사항 있을 때만)
+        if (diffs.length) {
+          const user = Auth.getUser();
+          const now  = new Date().toISOString();
+          const existing = e.change_log || [];
+          const newEntry = {
+            who:    user?.name || '-',
+            when:   now,
+            diffs,
+          };
+          updateBody.change_log = [...existing, newEntry];
+        }
+
         await Api.patch(`/equipment/${id}`, updateBody);
         Modal.close();
         Toast.success('장비 정보가 수정되었습니다.');
         loadList();
       } catch { btn.disabled=false; btn.textContent='저장'; }
     };
+  }
+
+  // ── 장비 수정 로그 뷰어 ──────────────────────────────────
+  async function openLogViewer() {
+    Modal.open({
+      title: '장비 수정 로그',
+      body: '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>',
+      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>`,
+    });
+    const box = document.querySelector('.modal-box');
+    if (box) box.style.maxWidth = '740px';
+
+    try {
+      const { data: rows } = await _sb
+        .from('equipment')
+        .select('equip_no,company,site_name,change_log')
+        .not('change_log', 'eq', '[]')
+        .not('change_log', 'is', null)
+        .order('equip_no');
+
+      // 전체 로그 엔트리 평탄화
+      const allEntries = [];
+      (rows || []).forEach(eq => {
+        (eq.change_log || []).forEach(log => {
+          allEntries.push({ ...log, equip_no: eq.equip_no, company: eq.company || '', site_name: eq.site_name || '' });
+        });
+      });
+      allEntries.sort((a, b) => (b.when || '') > (a.when || '') ? 1 : -1);
+
+      const body = document.querySelector('.modal-body');
+      if (!body) return;
+
+      if (!allEntries.length) {
+        body.innerHTML = '<div class="empty-state"><div>수정 이력이 없습니다</div></div>';
+        return;
+      }
+
+      function renderLog(entries) {
+        if (!entries.length) return '<div class="empty-state"><div>검색 결과가 없습니다</div></div>';
+        const groups = {};
+        entries.forEach(e => {
+          const day = (e.when || '').slice(0, 10) || '날짜 없음';
+          if (!groups[day]) groups[day] = [];
+          groups[day].push(e);
+        });
+        return `
+          <div style="max-height:55vh;overflow-y:auto;padding-right:4px">
+            ${Object.entries(groups).map(([day, items]) => `
+              <div style="margin-bottom:16px">
+                <div style="font-size:11px;font-weight:700;color:var(--gray-400);
+                            letter-spacing:0.05em;padding:4px 0;
+                            border-bottom:1px solid var(--gray-200);margin-bottom:8px">${day}</div>
+                ${items.map(entry => {
+                  const time = entry.when ? new Date(entry.when).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }) : '';
+                  return `
+                    <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+                      <div style="min-width:38px;text-align:right;font-size:11px;color:var(--gray-400);padding-top:2px">${time}</div>
+                      <div style="flex:1">
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                          <span style="font-family:monospace;font-weight:700;color:var(--navy);font-size:13px">${entry.equip_no}</span>
+                          <span style="font-size:11px;color:var(--gray-400)">${entry.company}</span>
+                          <span style="font-size:11px;color:var(--gray-400)">· ${entry.who || '-'}</span>
+                        </div>
+                        <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px">
+                          ${(entry.diffs || []).map(d => `
+                            <div style="font-size:12px;color:var(--gray-600)">
+                              <span style="font-weight:600;color:var(--gray-700)">${d.field}:</span>
+                              <span style="color:#9f1239">${d.before}</span>
+                              <span style="color:var(--gray-400);margin:0 4px">→</span>
+                              <span style="color:#065f46;font-weight:600">${d.after}</span>
+                            </div>`).join('')}
+                        </div>
+                      </div>
+                    </div>`;
+                }).join('')}
+              </div>`).join('')}
+          </div>`;
+      }
+
+      body.innerHTML = `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input id="eq-log-equip" class="search-input" style="width:130px" placeholder="장비번호">
+          <input id="eq-log-company" class="search-input" style="width:130px" placeholder="업체명">
+          <input id="eq-log-who" class="search-input" style="width:110px" placeholder="수정자">
+          <input id="eq-log-date" type="date" class="form-input" style="width:145px">
+          <input id="eq-log-field" class="search-input" style="width:110px" placeholder="항목명">
+          <button class="btn btn-primary btn-sm" onclick="EquipmentPage._filterLog()">검색</button>
+          <button class="btn btn-outline btn-sm" onclick="EquipmentPage._filterLog(true)">초기화</button>
+        </div>
+        <div id="eq-log-result">${renderLog(allEntries)}</div>
+      `;
+
+      // 전역에 참조 저장 (검색 클로저)
+      window._eqLogEntries = allEntries;
+      window._eqLogRender  = renderLog;
+    } catch {
+      const body = document.querySelector('.modal-body');
+      if (body) body.innerHTML = '<div class="empty-state"><div>로그를 불러오지 못했습니다</div></div>';
+    }
+  }
+
+  function _filterLog(reset = false) {
+    if (reset) {
+      ['eq-log-equip','eq-log-company','eq-log-who','eq-log-field'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+      });
+      const dateEl = document.getElementById('eq-log-date');
+      if (dateEl) dateEl.value = '';
+    }
+    const equip   = (document.getElementById('eq-log-equip')?.value   || '').trim().toUpperCase();
+    const company = (document.getElementById('eq-log-company')?.value || '').trim();
+    const who     = (document.getElementById('eq-log-who')?.value     || '').trim();
+    const date    = (document.getElementById('eq-log-date')?.value    || '').trim();
+    const field   = (document.getElementById('eq-log-field')?.value   || '').trim();
+
+    const filtered = (window._eqLogEntries || []).filter(e => {
+      if (equip   && !e.equip_no.includes(equip))                                   return false;
+      if (company && !e.company.includes(company))                                   return false;
+      if (who     && !(e.who || '').includes(who))                                   return false;
+      if (date    && !(e.when || '').startsWith(date))                               return false;
+      if (field   && !(e.diffs || []).some(d => d.field.includes(field)))            return false;
+      return true;
+    });
+
+    const result = document.getElementById('eq-log-result');
+    if (result && window._eqLogRender) result.innerHTML = window._eqLogRender(filtered);
   }
 
   // ── QR 보기 ──────────────────────────────────────────────
@@ -801,5 +980,5 @@ const EquipmentPage = (() => {
     Toast.success(`${rows.length}건 다운로드 완료`);
   }
 
-  return { render, loadList, filterByStatus, _updateBulkBtn, openBulkQr, openAddForm, openBulkUpload, _downloadBulkTemplate, openEditForm, showQr, genQr, downloadExcel };
+  return { render, loadList, filterByStatus, _updateBulkBtn, openBulkQr, openAddForm, openBulkUpload, _downloadBulkTemplate, openEditForm, showQr, genQr, downloadExcel, openLogViewer, _filterLog };
 })();

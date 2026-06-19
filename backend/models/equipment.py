@@ -16,7 +16,11 @@ class EquipmentUpdateRequest(BaseModel):
     equip_no: Optional[str] = None
     spec: Optional[str] = None
     model: Optional[str] = None
+    serial_no: Optional[str] = None
     site_id: Optional[str] = None
     site_name: Optional[str] = None
     company: Optional[str] = None
     status: Optional[str] = None
+    out_date: Optional[str] = None
+    qr_code: Optional[str] = None
+    change_log: Optional[list] = None

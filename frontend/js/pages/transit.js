@@ -128,6 +128,16 @@ const TransitPage = (() => {
         }).join('')}
       </div>
 
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <input id="tr-search-equip" type="text" class="search-input" style="width:160px;text-transform:uppercase"
+          placeholder="장비번호 검색" oninput="this.value=this.value.toUpperCase()"
+          onkeydown="if(event.key==='Enter')TransitPage.applySearch()">
+        <input id="tr-search-date" type="date" class="form-input" style="width:150px"
+          title="희망일 또는 확정일 기준">
+        <button class="btn btn-primary btn-sm" onclick="TransitPage.applySearch()">검색</button>
+        <button class="btn btn-outline btn-sm" onclick="TransitPage.clearSearch()">초기화</button>
+      </div>
+
       <div id="transit-list"></div>
     `;
     await loadList();
@@ -137,6 +147,16 @@ const TransitPage = (() => {
   function switchTab(tab) {
     _currentTab = tab;
     _updateTabStyles();
+    loadList();
+  }
+
+  function applySearch() { loadList(); }
+
+  function clearSearch() {
+    const eEl = document.getElementById('tr-search-equip');
+    const dEl = document.getElementById('tr-search-date');
+    if (eEl) eEl.value = '';
+    if (dEl) dEl.value = '';
     loadList();
   }
 
@@ -166,17 +186,30 @@ const TransitPage = (() => {
       c.innerHTML = '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>';
     }
     try {
+      const searchEquip = (document.getElementById('tr-search-equip')?.value || '').trim().toUpperCase();
+      const searchDate  = (document.getElementById('tr-search-date')?.value  || '').trim();
+
       let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(500);
       if (_currentTab !== 'all') {
         q = q.eq('status', _currentTab);
+      }
+      if (searchEquip) {
+        q = q.or(`aj_equip.ilike.%${searchEquip}%,company.ilike.%${searchEquip}%`);
       }
       const { data: raw, error } = await q;
       if (error) throw error;
       if (gen !== _loadGen) return;
       // RLS 정책 우회 가능성 대비 클라이언트 사이드 필터 이중 적용
-      const list = _currentTab !== 'all'
+      let list = _currentTab !== 'all'
         ? (raw || []).filter(t => t.status === _currentTab)
         : (raw || []);
+      // 날짜 필터: 희망일 또는 확정일이 검색 날짜와 일치
+      if (searchDate) {
+        list = list.filter(t =>
+          (t.requested_date || '').startsWith(searchDate) ||
+          (t.scheduled_date || '').startsWith(searchDate)
+        );
+      }
       _transitCache = {};
       list.forEach(t => { _transitCache[t.id] = t; });
       if (!list.length) { c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>'; }
@@ -2146,5 +2179,6 @@ ${pages.join('')}
     openCompleteForm, openCancelForm,
     openDispatchForm, openEditConfirmedForm, openQrPrint,
     openDocumentForm, openLogViewer,
+    applySearch, clearSearch,
   };
 })();

@@ -707,3 +707,6 @@ CREATE POLICY "support_update_aj"
 CREATE POLICY "support_delete_aj"
   ON support_posts FOR DELETE TO authenticated
   USING (get_my_role() IN ('aj','admin'));
+
+-- equipment change_log 컬럼 추가
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS change_log jsonb DEFAULT '[]';
