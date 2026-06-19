@@ -25,7 +25,7 @@ const App = (() => {
     { type: 'section', label: '분석 리포트' },
     { type: 'item',    page: 'analytics-equipment', label: '장비 사용내역',  abbr: '장비', bg: '#ede9fe', sub: true },
     { type: 'item',    page: 'analytics-as',        label: 'AS 요청 분석',   abbr: 'AS',   bg: '#fef3c7', sub: true },
-    { type: 'item',    page: 'analytics-usage',     label: '사용 기록 분석', abbr: '사용', bg: '#d1fae5', sub: true },
+    { type: 'item',    page: 'analytics-usage',     label: '가동률 분석',    abbr: '가동', bg: '#d1fae5', sub: true },
     { type: 'divider' },
     { type: 'item',    page: 'admin',               label: '사용자 관리',    abbr: '관리', bg: '#fce7f3' },
     { type: 'item',    page: 'admin-settings',      label: '관리자설정',     abbr: '설정', bg: '#e0f2fe' },
