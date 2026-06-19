@@ -710,3 +710,4 @@ CREATE POLICY "support_delete_aj"
 
 -- equipment change_log 컬럼 추가
 ALTER TABLE equipment ADD COLUMN IF NOT EXISTS change_log jsonb DEFAULT '[]';
+ALTER TABLE equipment ADD COLUMN IF NOT EXISTS floor text;

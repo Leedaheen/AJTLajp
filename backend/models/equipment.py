@@ -10,6 +10,7 @@ class EquipmentCreateRequest(BaseModel):
     site_id: Optional[str] = ""
     site_name: Optional[str] = ""
     company: Optional[str] = ""
+    floor: Optional[str] = None
 
 
 class EquipmentUpdateRequest(BaseModel):
@@ -24,3 +25,4 @@ class EquipmentUpdateRequest(BaseModel):
     out_date: Optional[str] = None
     qr_code: Optional[str] = None
     change_log: Optional[list] = None
+    floor: Optional[str] = None

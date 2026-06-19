@@ -394,7 +394,7 @@ const TransitPage = (() => {
             </select>
           </div>
           <div class="form-group" id="tr-floor-section">
-            <label class="form-label">사용층수</label>
+            <label class="form-label">사용층수 <span style="color:var(--red)">*</span></label>
             <select id="tr-floor" class="form-input form-select" onchange="TransitPage._onFloorChange()">
               <option value="">-- 선택 --</option>
               ${floors.map(f => `<option value="${f.name}">${f.name}</option>`).join('')}
@@ -788,6 +788,14 @@ const TransitPage = (() => {
         equip_specs.push({ spec: sel.value, qty });
       });
       if (!equip_specs.length) { Toast.error('장비를 1개 이상 추가해주세요.'); return; }
+
+      // 반입 시 사용층수 필수
+      const floorSelCheck = document.getElementById('tr-floor');
+      const floorCustomCheck = document.getElementById('tr-floor-custom');
+      const floorCheck = floorSelCheck?.value === '기타'
+        ? (floorCustomCheck?.value.trim() || '')
+        : (floorSelCheck?.value || '');
+      if (!floorCheck) { Toast.error('사용층수를 선택해주세요.'); return; }
     } else {
       // 체크리스트 선택값 우선, 없으면 직접 입력값
       const checked = [...document.querySelectorAll('.equip-checkbox:checked')].map(cb => cb.value);
@@ -1335,6 +1343,7 @@ const TransitPage = (() => {
           site_name:  t.site_name,
           company:    t.company,
           project:    t.project,
+          floor:      t.floor || null,
           status:     'in_use',
           in_date:    t.scheduled_date || today,
           transit_id: transitId,

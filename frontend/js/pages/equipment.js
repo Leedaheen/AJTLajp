@@ -70,6 +70,7 @@ const EquipmentPage = (() => {
               <th>현장</th>
               <th>프로젝트</th>
               <th>업체</th>
+              <th>층수</th>
               <th>상태</th>
               <th>반입일</th>
               <th>반출일</th>
@@ -77,7 +78,7 @@ const EquipmentPage = (() => {
             </tr>
           </thead>
           <tbody id="eq-tbody">
-            <tr><td colspan="10" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>
+            <tr><td colspan="11" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>
           </tbody>
         </table>
       </div>
@@ -123,7 +124,7 @@ const EquipmentPage = (() => {
     if (q)      params.set('q', q);
 
     const tbody = document.getElementById('eq-tbody');
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>`;
 
     try {
       const [list] = await Promise.all([
@@ -207,7 +208,7 @@ const EquipmentPage = (() => {
     _updateBulkBtn();
 
     if (!list.length) {
-      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding:32px">장비 없음</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted" style="padding:32px">장비 없음</td></tr>`;
       return;
     }
 
@@ -233,6 +234,7 @@ const EquipmentPage = (() => {
           <td>${e.site_name || e.site_id || '-'}</td>
           <td>${e.project || '-'}</td>
           <td>${e.company || '-'}</td>
+          <td>${e.floor || '-'}</td>
           <td>
             <span class="badge" style="${st.style}">${st.label}</span>
             ${_outTransitEquips.has((e.equip_no || '').toUpperCase()) ? `<span class="badge" style="background:#fce7f3;color:#9d174d;margin-left:4px">반출예정</span>` : ''}
@@ -466,6 +468,10 @@ const EquipmentPage = (() => {
             <input id="add-serial" class="form-input" placeholder="예: GJ512-001" style="font-family:monospace">
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">사용층수</label>
+          <input id="add-floor" class="form-input" placeholder="예: 3F, B1" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
+        </div>
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
@@ -484,6 +490,7 @@ const EquipmentPage = (() => {
       const model     = document.getElementById('add-model').value.trim().toUpperCase();
       if (!model) { Toast.error('모델명을 입력해주세요.'); return; }
       const serial_no = document.getElementById('add-serial').value.trim() || null;
+      const floor     = document.getElementById('add-floor').value.trim().toUpperCase() || null;
 
       const btn = document.getElementById('btn-do-add');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
@@ -500,6 +507,7 @@ const EquipmentPage = (() => {
           site_id:   siteId,
           site_name: siteName,
           company,
+          floor,
           status:    'in_use',
         });
         Modal.close();
@@ -678,7 +686,7 @@ const EquipmentPage = (() => {
       Api.get(`/companies${e.site_id ? `?site_id=${e.site_id}` : ''}`).catch(() => []),
     ]);
 
-    const { equipNo, spec, siteId, company, status, model, serial_no } = {
+    const { equipNo, spec, siteId, company, status, model, serial_no, floor } = {
       equipNo:   e.equip_no  || '',
       spec:      e.spec      || '',
       siteId:    e.site_id   || '',
@@ -686,6 +694,7 @@ const EquipmentPage = (() => {
       status:    e.status    || 'in_use',
       model:     e.model     || '',
       serial_no: e.serial_no || '',
+      floor:     e.floor     || '',
     };
 
     const companyOptions = companies.map(c =>
@@ -736,6 +745,10 @@ const EquipmentPage = (() => {
             <input id="ed-serial" class="form-input" value="${serial_no}" placeholder="예: GJ512-001" style="font-family:monospace">
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">사용층수</label>
+          <input id="ed-floor" class="form-input" value="${floor}" placeholder="예: 3F, B1" oninput="this.value=this.value.toUpperCase()" style="text-transform:uppercase">
+        </div>
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
@@ -753,6 +766,7 @@ const EquipmentPage = (() => {
         const newCompany  = document.getElementById('ed-company').value;
         const newSpec     = document.getElementById('ed-spec').value;
         const newModel    = document.getElementById('ed-model').value.trim().toUpperCase() || null;
+        const newFloor    = document.getElementById('ed-floor').value.trim().toUpperCase() || null;
 
         if (newStatus !== 'returned') {
           const dup = await _checkDuplicate(newEquipNo, newSerialNo, id);
@@ -761,7 +775,7 @@ const EquipmentPage = (() => {
         }
 
         // 변경 항목 diff 기록
-        const FIELD_LABELS = { equip_no:'장비번호', spec:'제원', status:'상태', company:'업체명', model:'모델명', serial_no:'시리얼번호' };
+        const FIELD_LABELS = { equip_no:'장비번호', spec:'제원', status:'상태', company:'업체명', model:'모델명', serial_no:'시리얼번호', floor:'층수' };
         const STATUS_LABELS = { in_use:'사용중', returned:'반출완료', transit:'반입예정', stock:'재고' };
         const diffs = [];
         const pairs = [
@@ -771,6 +785,7 @@ const EquipmentPage = (() => {
           ['company',  company,    newCompany],
           ['model',    model,      newModel   || ''],
           ['serial_no',serial_no, newSerialNo || ''],
+          ['floor',    floor,      newFloor   || ''],
         ];
         pairs.forEach(([field, before, after]) => {
           if ((before || '') !== (after || '')) {
@@ -787,6 +802,7 @@ const EquipmentPage = (() => {
           company:   newCompany,
           model:     newModel,
           serial_no: newSerialNo,
+          floor:     newFloor,
         };
         if (newStatus === 'returned' && status !== 'returned') {
           updateBody.out_date = new Date().toISOString().slice(0, 10);
