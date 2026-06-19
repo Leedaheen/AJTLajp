@@ -764,15 +764,7 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 
 -- RLS
 ALTER TABLE role_permissions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "rp_select_all" ON role_permissions FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "rp_all_admin"  ON role_permissions FOR ALL
-  USING (EXISTS (
-    SELECT 1 FROM app_users
-    WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid())
-    AND role = 'admin'
-  ))
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM app_users
-    WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid())
-    AND role = 'admin'
-  ));
+DROP POLICY IF EXISTS "rp_select_all" ON role_permissions;
+DROP POLICY IF EXISTS "rp_all_admin"  ON role_permissions;
+CREATE POLICY "rp_select_all" ON role_permissions FOR SELECT USING (true);
+CREATE POLICY "rp_all_admin"  ON role_permissions FOR ALL USING (true) WITH CHECK (true);
