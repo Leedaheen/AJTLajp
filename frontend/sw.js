@@ -1,7 +1,7 @@
 /**
  * Service Worker — 오프라인 캐시 + PWA Push 수신 + Background Sync
  */
-const CACHE_NAME = 'ajtl-v7';
+const CACHE_NAME = 'ajtl-v8';
 const CACHE_URLS = [
   '/', '/index.html',
   '/css/base.css', '/css/layout.css', '/css/components.css',
@@ -40,9 +40,14 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// fetch: 캐시 우선 전략 (API 제외)
+// fetch: 캐시 우선 전략 (API · Supabase REST 제외)
 self.addEventListener('fetch', e => {
+  // 우리 백엔드 API
   if (e.request.url.includes('/api/')) return;
+  // Supabase PostgREST · Auth · Storage API는 항상 네트워크에서 가져옴
+  if (e.request.url.includes('/rest/v1/') ||
+      e.request.url.includes('/auth/v1/') ||
+      e.request.url.includes('/storage/v1/')) return;
 
   e.respondWith(
     caches.match(e.request).then(cached => {

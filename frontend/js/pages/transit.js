@@ -111,7 +111,7 @@ const TransitPage = (() => {
       <div id="transit-list"></div>
     `;
     await loadList();
-    Realtime.on('transit', 'transit', loadList);
+    Realtime.on('transit', 'transit', () => loadList(true));
   }
 
   function switchTab(tab) {
@@ -120,12 +120,31 @@ const TransitPage = (() => {
     loadList();
   }
 
+  // ── 캐시 기반 즉시 렌더 (낙관적 업데이트용) ─────────────
+  function _renderFromCache() {
+    const c = document.getElementById('transit-list');
+    if (!c) return;
+    const all  = Object.values(_transitCache)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const list = _currentTab === 'all'
+      ? all
+      : all.filter(t => t.status === _currentTab);
+    if (!list.length) {
+      c.innerHTML = '<div class="empty-state"><div>신청 내역이 없습니다</div></div>';
+      return;
+    }
+    c.innerHTML = list.map(_renderCard).join('');
+  }
+
   // ── 목록 ────────────────────────────────────────────────
-  async function loadList() {
+  // silent=true 이면 스피너 없이 백그라운드에서 서버 동기화만 수행
+  async function loadList(silent = false) {
     const gen = ++_loadGen;
     const c = document.getElementById('transit-list');
     if (!c) return;
-    c.innerHTML = '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>';
+    if (!silent) {
+      c.innerHTML = '<div style="text-align:center;padding:32px"><span class="spinner"></span></div>';
+    }
     try {
       let q = _sb.from('transit').select('*').order('created_at', { ascending: false }).limit(500);
       if (_currentTab !== 'all') {
@@ -145,7 +164,7 @@ const TransitPage = (() => {
     } catch (e) {
       if (gen !== _loadGen) return;
       console.error('[transit] loadList 오류:', e);
-      c.innerHTML = '<div class="empty-state"><div>불러오기 실패</div></div>';
+      if (!silent) c.innerHTML = '<div class="empty-state"><div>불러오기 실패</div></div>';
     }
   }
 
@@ -760,18 +779,16 @@ const TransitPage = (() => {
       Modal.close();
       Toast.success('신청이 완료되었습니다. AJ관리자 검토 후 일정이 확정됩니다.');
 
-      // 탭 전환
-      _currentTab = 'requested';
-      _updateTabStyles();
-
-      // 새 레코드를 즉시 DOM에 표시 (loadList 완료 전에도 보임)
+      // 낙관적 업데이트: 캐시에 즉시 추가 → 신청 탭으로 전환 후 바로 렌더
       if (saved) {
         _transitCache[saved.id] = saved;
-        const c = document.getElementById('transit-list');
-        if (c) c.innerHTML = _renderCard(saved);
       }
+      _currentTab = 'requested';
+      _updateTabStyles();
+      _renderFromCache();
 
-      await loadList();
+      // 백그라운드에서 서버 동기화 (스피너 없음)
+      loadList(true);
     } catch (e) { btn.disabled = false; btn.textContent = '신청 완료'; console.error('[transit] 신청 실패:', e); }
   }
 
@@ -903,11 +920,27 @@ const TransitPage = (() => {
           }, { silent: true });
         }
 
-        Modal.close();
         Toast.success(dateChanged
           ? '일정이 저장되었습니다. 협력사 확인 후 최종 확정됩니다.'
           : '일정이 확정되었습니다.');
-        await loadList();
+
+        // 낙관적 업데이트: 캐시에서 상태 즉시 변경 → 해당 탭으로 전환
+        if (_transitCache[transitId]) {
+          _transitCache[transitId] = {
+            ..._transitCache[transitId],
+            status:         newStatus,
+            scheduled_date: date,
+            aj_equip:       equipNos,
+            vehicle_info:   document.getElementById('sc-vehicle')?.value.trim() || _transitCache[transitId].vehicle_info,
+            driver_info:    document.getElementById('sc-driver')?.value.trim()  || _transitCache[transitId].driver_info,
+          };
+        }
+        _currentTab = newStatus;
+        _updateTabStyles();
+        _renderFromCache();
+
+        // 백그라운드 서버 동기화
+        loadList(true);
       } catch (e) { btn.disabled = false; btn.textContent = '확정'; console.error('[Schedule]', e); }
     };
   }
@@ -1111,7 +1144,15 @@ const TransitPage = (() => {
     try {
       await Api.patch(`/transit/${transitId}/partner-confirm`, {});
       Toast.success('일정 확인 완료. 확정 상태로 변경되었습니다.');
-      await loadList();
+
+      // 낙관적 업데이트: scheduled → confirmed, 확정 탭으로 즉시 이동
+      if (_transitCache[transitId]) {
+        _transitCache[transitId] = { ..._transitCache[transitId], status: 'confirmed' };
+      }
+      _currentTab = 'confirmed';
+      _updateTabStyles();
+      _renderFromCache();
+      loadList(true);
     } catch (e) { Toast.error('처리에 실패했습니다.'); console.error('[confirmSchedule]', e); }
   }
 
