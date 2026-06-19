@@ -720,7 +720,7 @@ const TransitPage = (() => {
             </div>
           </div>
           <div style="text-align:right;font-size:12px;color:var(--gray-400)">
-            ${(() => { const d = new Date(t.created_at); return d.toLocaleDateString('ko-KR') + ' ' + d.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}); })()}
+            ${(() => { const d = new Date(t.created_at); if (isNaN(d)) return '-'; const h = d.getHours(); return `${d.getFullYear()}. ${String(d.getMonth()+1).padStart(2,'0')}. ${String(d.getDate()).padStart(2,'0')} ${h<12?'오전':'오후'} ${String(h%12||12).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
           </div>
         </div>
 

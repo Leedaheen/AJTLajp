@@ -4,7 +4,7 @@
  */
 const App = (() => {
   const PAGES = ['home', 'transit', 'equipment', 'as-request', 'usage-log',
-    'analytics-equipment', 'analytics-as', 'analytics-usage', 'admin', 'admin-settings', 'support'];
+    'analytics-equipment', 'analytics-as', 'analytics-usage', 'admin', 'admin-settings', 'dispatch', 'support'];
 
   const ACCESS = {
     tech:    ['home', 'as-request', 'usage-log', 'support'],
@@ -13,11 +13,11 @@ const App = (() => {
                'analytics-equipment', 'analytics-as', 'analytics-usage', 'support'],
     aj:      ['home', 'transit', 'equipment', 'as-request', 'usage-log',
                'analytics-equipment', 'analytics-as', 'analytics-usage',
-               'admin', 'admin-settings', 'support'],
+               'admin', 'admin-settings', 'dispatch', 'support'],
     as_tech: ['home', 'as-request', 'support'],
     admin:   ['home', 'transit', 'equipment', 'as-request', 'usage-log',
                'analytics-equipment', 'analytics-as', 'analytics-usage',
-               'admin', 'admin-settings', 'support'],
+               'admin', 'admin-settings', 'dispatch', 'support'],
   };
 
   // 더보기 시트 항목 정의
@@ -28,6 +28,8 @@ const App = (() => {
     { type: 'item',    page: 'analytics-equipment', label: '장비 사용내역',  abbr: '장비', bg: '#ede9fe', sub: true },
     { type: 'item',    page: 'analytics-as',        label: 'AS 요청 분석',   abbr: 'AS',   bg: '#fef3c7', sub: true },
     { type: 'item',    page: 'analytics-usage',     label: '가동률 분석',    abbr: '가동', bg: '#d1fae5', sub: true },
+    { type: 'divider' },
+    { type: 'item',    page: 'dispatch',            label: '배차 관리',      abbr: '배차', bg: '#fff7ed' },
     { type: 'divider' },
     { type: 'item',    page: 'admin',               label: '사용자 관리',    abbr: '관리', bg: '#fce7f3' },
     { type: 'item',    page: 'admin-settings',      label: '관리자설정',     abbr: '설정', bg: '#e0f2fe' },
@@ -109,6 +111,7 @@ const App = (() => {
       'analytics-equipment': () => AnalyticsEquipmentPage.render(),
       'analytics-as':        () => AnalyticsAsPage.render(),
       'analytics-usage':     () => AnalyticsUsagePage.render(),
+      dispatch:              () => DispatchPage.render(),
       support:               () => SupportPage.render(),
       admin:                 () => AdminPage.render(),
       'admin-settings':      () => AdminSettingsPage.render(),
@@ -195,6 +198,7 @@ const App = (() => {
     else if (id === 'page-as-request') AsRequestPage.loadList();
     else if (id === 'page-equipment')  EquipmentPage?.loadList?.();
     else if (id === 'page-usage-log')  UsageLogPage?.loadList?.();
+    else if (id === 'page-dispatch')   DispatchPage?.loadList?.();
   }
 
   function _setSidebarAccess(user) {
