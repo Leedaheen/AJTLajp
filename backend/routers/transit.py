@@ -124,11 +124,10 @@ async def schedule_transit(
     }
     change_log = (old.get("change_log") or []) + [log_entry]
 
-    # partner_confirmed 상태에서 AJ가 확정하면 → confirmed (최종확정)
-    # 그 외(requested)에서 날짜를 바꾸면 → scheduled (협력사 재확인 필요)
-    # 날짜 변경 없으면 → confirmed 직접 확정
-    if old.get("status") == "partner_confirmed":
-        new_status = "confirmed"
+    # 확정 상태에서 AJ가 일정을 수정하면 → 신청 단계(requested)로 되돌림
+    # 그 외: body.status가 명시된 경우 사용, 없으면 scheduled(협력사 확인 요청)
+    if old.get("status") == "confirmed":
+        new_status = "requested"
     elif body.status in ("scheduled", "confirmed"):
         new_status = body.status
     else:
@@ -147,7 +146,6 @@ async def schedule_transit(
     if body.note is not None:
         update["note"] = body.note
     if new_status == "confirmed":
-        update["partner_confirmed_at"] = now_str
         update["confirmed_by_name"] = _me_name(current_user)
     elif new_status == "scheduled":
         update["scheduled_by_name"] = _me_name(current_user)
@@ -174,13 +172,14 @@ async def partner_confirm_transit(
     if current_user["role"] not in ("partner", "aj", "admin"):
         raise HTTPException(status_code=403, detail="권한이 없습니다.")
     old = _get_or_404(transit_id)
-    if old["status"] != "scheduled":
+    if old["status"] not in ("scheduled", "partner_confirmed"):
         raise HTTPException(status_code=400, detail="협력사 확인 대기 상태가 아닙니다.")
     now_str = _now_str()
     supabase.table("transit").update({
-        "status":                    "partner_confirmed",
+        "status":                    "confirmed",
         "partner_confirmed_at":      now_str,
         "partner_confirmed_by_name": _me_name(current_user),
+        "confirmed_by_name":         _me_name(current_user),
     }).eq("id", transit_id).execute()
     return {"ok": True}
 

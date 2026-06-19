@@ -278,12 +278,9 @@ const TransitPage = (() => {
           </div>
         </div>
       `,
-      footer: `
-        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>
-          ${actionBtns}
-        </div>
-      `,
+      footer: actionBtns
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${actionBtns}</div>`
+        : '',
     });
   }
 
@@ -1486,16 +1483,15 @@ const TransitPage = (() => {
 
   // ── 협력사 일정 확인완료 ──────────────────────────────────
   async function confirmSchedule(transitId) {
-    if (!confirm('일정을 확인하고 승인하시겠습니까?\nAJ관리자가 최종 확정 후 완전히 확정됩니다.')) return;
+    if (!confirm('해당 일정을 확인하고 확정하시겠습니까?')) return;
     try {
       await Api.patch(`/transit/${transitId}/partner-confirm`, {});
-      Toast.success('일정 확인 완료. AJ관리자가 최종 확정합니다.');
-
-      // 낙관적 업데이트: scheduled → partner_confirmed, 협력사확인 탭에서 사라짐
+      Toast.success('일정 확인 완료. 확정 처리되었습니다.');
+      Modal.close();
       if (_transitCache[transitId]) {
-        _transitCache[transitId] = { ..._transitCache[transitId], status: 'partner_confirmed' };
+        _transitCache[transitId] = { ..._transitCache[transitId], status: 'confirmed' };
       }
-      _currentTab = 'scheduled';
+      _currentTab = 'confirmed';
       _updateTabStyles();
       _renderFromCache();
       loadList(true);
