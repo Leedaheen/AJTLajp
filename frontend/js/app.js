@@ -273,7 +273,46 @@ const App = (() => {
     _handlePendingQr();
   }
 
-  return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel };
+  // ── 사용자 프로필 드롭다운 ──────────────────────────────────
+  const ROLE_LABELS_MAP = { tech:'기술인', partner:'협력사 담당자', pro:'프로', aj:'AJ관리자', as_tech:'AS기사', admin:'관리자' };
+
+  function toggleUserMenu() {
+    const menu = document.getElementById('user-menu');
+    if (!menu) return;
+    const isOpen = menu.style.display !== 'none';
+    if (isOpen) { menu.style.display = 'none'; return; }
+
+    const user = Auth.getUser();
+    const content = document.getElementById('user-menu-content');
+    if (content && user) {
+      content.innerHTML = `
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">${user.name}</div>
+        <div style="font-size:12px;color:#666;margin-bottom:2px">${user.email || ''}</div>
+        ${user.company ? `<div style="font-size:12px;color:#666;margin-bottom:2px">소속: ${user.company}</div>` : ''}
+        <div style="font-size:11px;color:#999;margin-top:4px;padding-top:4px;border-top:1px solid #f0f0f0">
+          ${ROLE_LABELS_MAP[user.role] || user.role} · ${user.site_id || ''}
+        </div>
+      `;
+    }
+    menu.style.display = 'block';
+
+    // 외부 클릭 시 닫기
+    setTimeout(() => {
+      document.addEventListener('click', _closeUserMenu, { once: true, capture: true });
+    }, 0);
+  }
+
+  function _closeUserMenu(e) {
+    const menu = document.getElementById('user-menu');
+    const name = document.getElementById('header-name');
+    if (menu && !menu.contains(e.target) && !name?.contains(e.target)) {
+      menu.style.display = 'none';
+    } else if (menu && menu.style.display !== 'none') {
+      document.addEventListener('click', _closeUserMenu, { once: true, capture: true });
+    }
+  }
+
+  return { init, showPage, onLoginSuccess, toggleAnalyticsMenu, openMoreSheet, closeMoreSheet, toggleNotifPanel, toggleUserMenu };
 })();
 
 document.addEventListener('DOMContentLoaded', () => App.init());

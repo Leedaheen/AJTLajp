@@ -457,7 +457,7 @@ const AdminPage = (() => {
           <select id="sel-new-site" class="form-input form-select">${siteOpts}</select>
         </div>
         <div class="form-group">
-          <label class="form-label">소속 (발주처)</label>
+          <label class="form-label">소속</label>
           <select id="sel-new-company" class="form-input form-select">${clientOpts}</select>
         </div>
       `,

@@ -386,10 +386,20 @@ CREATE POLICY "transit_select_partner"
     AND created_by = auth.uid()
   );
 
--- aj: 전체 조회
+-- aj·admin·pro: 전체 조회
 CREATE POLICY "transit_select_aj"
   ON transit FOR SELECT TO authenticated
-  USING (get_my_role() = 'aj');
+  USING (get_my_role() IN ('aj', 'admin', 'pro'));
+
+-- tech·as_tech: 자신의 현장 조회
+CREATE POLICY "transit_select_tech"
+  ON transit FOR SELECT TO authenticated
+  USING (
+    get_my_role() IN ('tech', 'as_tech')
+    AND site_id = (
+      SELECT site_id FROM app_users WHERE id = auth.uid() LIMIT 1
+    )
+  );
 
 -- partner·aj: 신청 등록 (created_by = 본인 강제)
 CREATE POLICY "transit_insert"

@@ -133,9 +133,9 @@ const Auth = (() => {
           </select>
         </div>
         <div id="grp-client" class="form-group" style="display:none">
-          <label class="form-label">발주처 <span style="color:var(--red)">*</span></label>
+          <label class="form-label">소속 <span style="color:var(--red)">*</span></label>
           <select id="sel-client" class="form-input form-select">
-            <option value="">-- 발주처 선택 --</option>
+            <option value="">-- 소속 선택 --</option>
             ${clientOpts}
           </select>
         </div>
@@ -168,7 +168,7 @@ const Auth = (() => {
       const selSite = document.getElementById('sel-site');
       const grpClient = document.getElementById('grp-client');
 
-      // 발주처 선택: 협력사·기술인·프로에게만 표시
+      // 소속 선택: 협력사·기술인·프로에게만 표시
       grpClient.style.display = ['tech','partner','pro'].includes(role) ? '' : 'none';
 
       // 현장 ALL: AJ관리자만
@@ -191,7 +191,7 @@ const Auth = (() => {
     if (!role)    { Toast.error('역할을 선택해주세요.'); return; }
     if (!company) { Toast.error('업체명을 입력해주세요.'); return; }
     if (['tech','partner','pro'].includes(role) && !client) {
-      Toast.error('발주처를 선택해주세요.'); return;
+      Toast.error('소속을 선택해주세요.'); return;
     }
 
     const btn = document.getElementById('btn-role-confirm');

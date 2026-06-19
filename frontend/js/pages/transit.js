@@ -117,7 +117,7 @@ const TransitPage = (() => {
   let _schedData  = [];
   let _schedOpen  = true;
   let _schedFilterSites     = new Set(); // 선택된 현장명 (빈 Set = 전체)
-  let _schedFilterCompanies = new Set(); // 선택된 발주처 (빈 Set = 전체)
+  let _schedFilterCompanies = new Set(); // 선택된 소속 (빈 Set = 전체)
 
   const _WEEK = ['일','월','화','수','목','금','토'];
 
@@ -291,7 +291,7 @@ const TransitPage = (() => {
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         ${_filterDropdown('site',    '현장명', allSites,     _schedFilterSites)}
-        ${_filterDropdown('company', '발주처', allCompanies, _schedFilterCompanies)}
+        ${_filterDropdown('company', '소속', allCompanies, _schedFilterCompanies)}
       </div>
       <div class="sch-grid">
         ${_WEEK.map((w,i) => `<div class="sch-wday" style="color:${i===0?'#E8192C':i===6?'#3d82c8':'var(--gray-500)'}">${w}</div>`).join('')}
@@ -760,9 +760,9 @@ const TransitPage = (() => {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">발주처 <span style="color:var(--red)">*</span></label>
+            <label class="form-label">소속 <span style="color:var(--red)">*</span></label>
             <select id="tr-client" class="form-input form-select">
-              <option value="">-- 발주처 선택 --</option>
+              <option value="">-- 소속 선택 --</option>
               ${clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
             </select>
           </div>
@@ -1159,7 +1159,7 @@ const TransitPage = (() => {
     const phone      = document.getElementById('tr-phone').value.trim();
     const date       = document.getElementById('tr-date').value;
 
-    if (!clientName) { Toast.error('발주처를 선택해주세요.'); return; }
+    if (!clientName) { Toast.error('소속을 선택해주세요.'); return; }
     if (!company) { Toast.error('업체를 선택해주세요.'); return; }
     if (!reporter || !phone) { Toast.error('필수 항목을 모두 입력해주세요.'); return; }
     if (!project) { Toast.error('프로젝트를 선택해주세요.'); return; }
