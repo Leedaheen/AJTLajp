@@ -109,6 +109,195 @@ const TransitPage = (() => {
     } catch { /* 무시 */ }
   }
 
+  // ══════════════════════════════════════════════════════════
+  // 스케줄러 (달력 뷰)
+  // ══════════════════════════════════════════════════════════
+  let _schedYear  = new Date().getFullYear();
+  let _schedMonth = new Date().getMonth(); // 0-based
+  let _schedData  = [];
+  let _schedOpen  = true;
+
+  const _WEEK = ['일','월','화','수','목','금','토'];
+
+  function _specQty(t) {
+    if (!t.equip_specs?.length) return '';
+    return t.equip_specs
+      .filter(s => s.qty > 0)
+      .map(s => `${s.spec}×${s.qty}`)
+      .join(' ');
+  }
+
+  function _eventDate(t) {
+    return t.scheduled_date || t.requested_date || (t.created_at||'').slice(0,10);
+  }
+
+  // 이벤트 필 스타일
+  function _pillStyle(type, status) {
+    if (status === 'cancelled') return 'background:#f3f4f6;color:#6b7280';
+    if (type === 'in') {
+      if (status === 'completed') return 'background:#0f2744;color:#bfdbfe';
+      if (status === 'confirmed') return 'background:#1B365D;color:#fff';
+      return 'background:#dbeafe;color:#1e3a8a';
+    } else {
+      if (status === 'completed') return 'background:#7f1d1d;color:#fee2e2';
+      if (status === 'confirmed') return 'background:#dc2626;color:#fff';
+      return 'background:#ffe4e6;color:#9f1239';
+    }
+  }
+
+  function _renderScheduler() {
+    const el = document.getElementById('tr-scheduler');
+    if (!el) return;
+
+    const y = _schedYear, m = _schedMonth;
+    const firstDay = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    const today = new Date().toISOString().slice(0,10);
+
+    // 이 달 이벤트 그룹핑
+    const byDate = {};
+    _schedData.forEach(t => {
+      const d = _eventDate(t);
+      if (!d || !d.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)) return;
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(t);
+    });
+
+    const monthLabel = `${y}년 ${m+1}월`;
+
+    // 달력 그리드
+    let cells = '';
+    let dayNum = 1;
+    // 빈 칸
+    for (let i = 0; i < firstDay; i++) cells += `<div class="sch-cell sch-empty"></div>`;
+    while (dayNum <= daysInMonth) {
+      const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+      const isToday = dateStr === today;
+      const events  = byDate[dateStr] || [];
+      const dotW = (firstDay + dayNum - 1) % 7;
+      const isSun = dotW === 0, isSat = dotW === 6;
+      const dayColor = isSun ? '#E8192C' : isSat ? '#3d82c8' : 'inherit';
+
+      const pills = events.slice(0, 3).map(t => {
+        const label = [t.site_name, t.company, _specQty(t)].filter(Boolean).join(' · ');
+        const style = _pillStyle(t.type, t.status);
+        return `<div class="sch-pill" style="${style}" onclick="event.stopPropagation();TransitPage.schedShowDetail(${t.id})" title="${label}">${label}</div>`;
+      }).join('');
+      const more = events.length > 3
+        ? `<div class="sch-more">+${events.length - 3}건</div>` : '';
+
+      cells += `
+        <div class="sch-cell${isToday ? ' sch-today' : ''}" onclick="TransitPage.schedJumpToDate('${dateStr}')">
+          <div class="sch-day" style="color:${dayColor}${isToday ? ';background:#1B365D;color:#fff' : ''}">${dayNum}</div>
+          ${pills}${more}
+        </div>`;
+      dayNum++;
+    }
+
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="sch-nav" onclick="TransitPage.schedPrev()">&#8249;</button>
+          <span style="font-size:15px;font-weight:700;color:var(--navy)">${monthLabel}</span>
+          <button class="sch-nav" onclick="TransitPage.schedNext()">&#8250;</button>
+          <button class="sch-nav" onclick="TransitPage.schedToday()" style="font-size:11px;padding:2px 8px">오늘</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;color:var(--gray-500);display:flex;align-items:center;gap:4px">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#dbeafe"></span>반입
+            <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ffe4e6;margin-left:6px"></span>반출
+          </span>
+        </div>
+      </div>
+      <div class="sch-grid">
+        ${_WEEK.map((w,i) => `<div class="sch-wday" style="color:${i===0?'#E8192C':i===6?'#3d82c8':'var(--gray-500)'}">${w}</div>`).join('')}
+        ${cells}
+      </div>
+    `;
+  }
+
+  async function _loadSchedulerData() {
+    const y = _schedYear, m = _schedMonth;
+    const from = `${y}-${String(m).padStart(2,'0')}-01`;
+    const to   = `${y}-${String(m+2).padStart(2,'0')}-01`;
+    try {
+      const { data } = await _sb.from('transit')
+        .select('id,type,status,site_name,company,equip_specs,scheduled_date,requested_date,created_at,site_id,vehicle_info,driver_info,note,aj_equip')
+        .neq('status','cancelled')
+        .or(`scheduled_date.gte.${from},requested_date.gte.${from}`)
+        .or(`scheduled_date.lt.${to},requested_date.lt.${to}`)
+        .order('scheduled_date', { ascending: true });
+      _schedData = data || [];
+    } catch { _schedData = []; }
+    _renderScheduler();
+  }
+
+  function schedPrev() {
+    _schedMonth--;
+    if (_schedMonth < 0) { _schedMonth = 11; _schedYear--; }
+    _loadSchedulerData();
+  }
+  function schedNext() {
+    _schedMonth++;
+    if (_schedMonth > 11) { _schedMonth = 0; _schedYear++; }
+    _loadSchedulerData();
+  }
+  function schedToday() {
+    const now = new Date();
+    _schedYear = now.getFullYear();
+    _schedMonth = now.getMonth();
+    _loadSchedulerData();
+  }
+
+  function schedShowDetail(id) {
+    const t = _schedData.find(x => x.id === id) || _transitCache[id];
+    if (!t) return;
+    const typeLabel = t.type === 'in' ? '반입' : '반출';
+    const typeColor = t.type === 'in' ? '#1B365D' : '#E8192C';
+    const STATUS_LABEL = { requested:'신청 접수', scheduled:'협력사확인중', partner_confirmed:'협력사확인완료', confirmed:'일정확정', completed:'완료', cancelled:'취소' };
+    const specLine = _specQty(t);
+    Modal.open({
+      title: `${typeLabel} 상세`,
+      body: `
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-size:13px;font-weight:700;padding:3px 10px;border-radius:20px;color:#fff;background:${typeColor}">${typeLabel}</span>
+            <span style="font-size:13px;color:var(--gray-500)">${STATUS_LABEL[t.status]||t.status}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:6px 12px;font-size:13px">
+            <span style="color:var(--gray-400)">현장</span><span style="font-weight:600">${t.site_name||'-'}</span>
+            <span style="color:var(--gray-400)">업체</span><span>${t.company||'-'}</span>
+            ${specLine ? `<span style="color:var(--gray-400)">제원</span><span>${specLine}</span>` : ''}
+            <span style="color:var(--gray-400)">희망일</span><span>${t.requested_date||'-'}</span>
+            <span style="color:var(--gray-400)">확정일</span><span style="font-weight:600;color:${typeColor}">${t.scheduled_date||'미확정'}</span>
+            ${t.vehicle_info ? `<span style="color:var(--gray-400)">차량</span><span>${t.vehicle_info}</span>` : ''}
+            ${t.driver_info  ? `<span style="color:var(--gray-400)">기사</span><span>${t.driver_info}</span>` : ''}
+            ${t.aj_equip     ? `<span style="color:var(--gray-400)">장비번호</span><span style="font-size:12px">${t.aj_equip}</span>` : ''}
+            ${t.note         ? `<span style="color:var(--gray-400)">비고</span><span style="font-size:12px">${t.note}</span>` : ''}
+          </div>
+        </div>
+      `,
+      footer: `<button class="btn btn-outline btn-sm" onclick="Modal.close()">닫기</button>`,
+    });
+  }
+
+  function schedJumpToDate(dateStr) {
+    // 날짜 검색창에 값 넣고 검색
+    const inp = document.getElementById('tr-search-date');
+    if (inp) { inp.value = dateStr; applySearch(); }
+    // 스크롤
+    document.getElementById('transit-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function toggleScheduler() {
+    _schedOpen = !_schedOpen;
+    const body = document.getElementById('tr-sched-body');
+    const btn  = document.getElementById('tr-sched-toggle');
+    if (!body || !btn) return;
+    body.style.display = _schedOpen ? '' : 'none';
+    btn.textContent = _schedOpen ? '접기' : '펼치기';
+  }
+
   // ── 렌더 ─────────────────────────────────────────────────
   async function render() {
     const user = Auth.getUser();
@@ -121,6 +310,36 @@ const TransitPage = (() => {
         <div style="display:flex;gap:8px">
           ${isAj ? `<button class="btn btn-outline btn-sm" onclick="TransitPage.openLogViewer()">로그 확인</button>` : ''}
           ${canRequest ? `<button class="btn btn-primary btn-sm" onclick="TransitPage.openNewForm()">+ 신규 신청</button>` : ''}
+        </div>
+      </div>
+
+      <!-- 스케줄러 -->
+      <div class="card" style="padding:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${_schedOpen?'12':'0'}px">
+          <span style="font-size:14px;font-weight:700;color:var(--navy)">일정 달력</span>
+          <button id="tr-sched-toggle" class="btn btn-outline btn-sm" style="font-size:11px;padding:2px 10px"
+            onclick="TransitPage.toggleScheduler()">${_schedOpen?'접기':'펼치기'}</button>
+        </div>
+        <div id="tr-sched-body" style="display:${_schedOpen?'':'none'}">
+          <style>
+            .sch-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--gray-200);border:1px solid var(--gray-200);border-radius:8px;overflow:hidden}
+            .sch-wday{background:var(--gray-50);text-align:center;font-size:11px;font-weight:700;padding:6px 0;color:var(--gray-500)}
+            .sch-cell{background:#fff;min-height:72px;padding:4px;cursor:pointer;transition:background .15s;position:relative}
+            .sch-cell:hover{background:#f8faff}
+            .sch-cell.sch-today{background:#eff6ff}
+            .sch-cell.sch-empty{background:var(--gray-50);cursor:default;min-height:72px}
+            .sch-day{font-size:11px;font-weight:700;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:2px}
+            .sch-pill{font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;margin-bottom:2px;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%;line-height:1.3}
+            .sch-pill:hover{filter:brightness(.93)}
+            .sch-more{font-size:10px;color:var(--gray-400);padding-left:2px}
+            .sch-nav{background:none;border:1px solid var(--gray-200);border-radius:6px;cursor:pointer;font-size:18px;line-height:1;padding:2px 8px;color:var(--navy)}
+            .sch-nav:hover{background:var(--gray-50)}
+            @media(max-width:600px){
+              .sch-cell{min-height:52px}
+              .sch-pill{font-size:9px;padding:1px 3px}
+            }
+          </style>
+          <div id="tr-scheduler"></div>
         </div>
       </div>
 
@@ -150,8 +369,8 @@ const TransitPage = (() => {
 
       <div id="transit-list"></div>
     `;
-    await loadList();
-    Realtime.on('transit', 'transit', () => loadList(true));
+    await Promise.all([loadList(), _loadSchedulerData()]);
+    Realtime.on('transit', 'transit', () => { loadList(true); _loadSchedulerData(); });
   }
 
   function switchTab(tab) {
@@ -2234,5 +2453,6 @@ ${pages.join('')}
     openDispatchForm, openEditConfirmedForm, openQrPrint,
     openDocumentForm, openLogViewer, _applyTrLogFilter,
     applySearch, clearSearch,
+    schedPrev, schedNext, schedToday, schedShowDetail, schedJumpToDate, toggleScheduler,
   };
 })();
