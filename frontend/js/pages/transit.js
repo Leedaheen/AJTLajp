@@ -375,11 +375,13 @@ const TransitPage = (() => {
             ${t.note         ? `<span style="color:var(--gray-400)">비고</span><span style="font-size:12px">${t.note}</span>` : ''}
           </div>
         </div>
+        <div id="comments-transit-${t.id}"></div>
       `,
       footer: actionBtns
         ? `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${actionBtns}</div>`
         : '',
     });
+    Comments.render('transit', t.id);
   }
 
   function schedJumpToDate(dateStr) {
