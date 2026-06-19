@@ -472,24 +472,30 @@ const EquipmentPage = (() => {
       `,
     });
     document.getElementById('btn-do-add').onclick = async () => {
-      const equip_no = document.getElementById('add-equip-no').value.trim().toUpperCase();
+      const equip_no  = document.getElementById('add-equip-no').value.trim().toUpperCase();
       if (!equip_no) { Toast.error('장비번호를 입력해주세요.'); return; }
-      const siteEl   = document.getElementById('add-site');
-      const siteId   = siteEl.value;
+      const siteEl    = document.getElementById('add-site');
+      const siteId    = siteEl.value;
       if (!siteId) { Toast.error('현장을 선택해주세요.'); return; }
-      const siteName = siteEl.options[siteEl.selectedIndex]?.getAttribute('data-name') || siteId;
-      const company  = document.getElementById('add-company').value;
+      const siteName  = siteEl.options[siteEl.selectedIndex]?.getAttribute('data-name') || siteId;
+      const company   = document.getElementById('add-company').value;
       if (!company) { Toast.error('업체명을 선택해주세요.'); return; }
-      const model    = document.getElementById('add-model').value.trim().toUpperCase();
+      const model     = document.getElementById('add-model').value.trim().toUpperCase();
       if (!model) { Toast.error('모델명을 입력해주세요.'); return; }
+      const serial_no = document.getElementById('add-serial').value.trim() || null;
+
       const btn = document.getElementById('btn-do-add');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
       try {
+        const dup = await _checkDuplicate(equip_no, serial_no);
+        if (dup.equipNoDup) { Toast.error(`장비번호 ${equip_no}는 이미 등록된 번호입니다.`); btn.disabled=false; btn.textContent='추가'; return; }
+        if (dup.serialNoDup) { Toast.error(`시리얼번호 ${serial_no}는 이미 등록된 번호입니다.`); btn.disabled=false; btn.textContent='추가'; return; }
+
         await Api.post('/equipment', {
           equip_no,
           spec:      document.getElementById('add-spec').value,
           model:     model || null,
-          serial_no: document.getElementById('add-serial').value.trim() || null,
+          serial_no,
           site_id:   siteId,
           site_name: siteName,
           company,
@@ -596,6 +602,25 @@ const EquipmentPage = (() => {
       const btn = document.getElementById('btn-bulk-upload');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
+        // 기존 활성 장비(반출 제외)의 equip_no / serial_no 일괄 조회
+        const { data: existing } = await _sb.from('equipment')
+          .select('equip_no,serial_no')
+          .neq('status', 'returned');
+        const existNos     = new Set((existing || []).map(r => r.equip_no).filter(Boolean));
+        const existSerials = new Set((existing || []).map(r => r.serial_no).filter(Boolean));
+
+        const dupNos     = valid.filter(r => existNos.has(r.equip_no)).map(r => r.equip_no);
+        const dupSerials = valid.filter(r => r.serial_no && existSerials.has(r.serial_no)).map(r => r.serial_no);
+
+        if (dupNos.length || dupSerials.length) {
+          const msgs = [];
+          if (dupNos.length)     msgs.push(`중복 장비번호: ${dupNos.join(', ')}`);
+          if (dupSerials.length) msgs.push(`중복 시리얼번호: ${dupSerials.join(', ')}`);
+          Toast.error(msgs.join('\n'));
+          btn.disabled = false; btn.textContent = '업로드';
+          return;
+        }
+
         const { error } = await _sb.from('equipment').insert(
           valid.map(r => ({ ...r, record_id: `EQ-${r.equip_no}-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }))
         );
@@ -607,6 +632,28 @@ const EquipmentPage = (() => {
         btn.disabled = false; btn.textContent = '업로드';
         Toast.error(e.message || '업로드에 실패했습니다.');
       }
+    };
+  }
+
+  // 반출 제외 활성 장비 중 equip_no / serial_no 중복 여부 확인
+  // excludeId: 수정 시 자기 자신 제외
+  async function _checkDuplicate(equip_no, serial_no, excludeId = null) {
+    const conds = [];
+    if (equip_no)  conds.push(`equip_no.eq.${equip_no}`);
+    if (serial_no) conds.push(`serial_no.eq.${serial_no}`);
+    if (!conds.length) return { equipNoDup: false, serialNoDup: false };
+
+    let q = _sb.from('equipment')
+      .select('id,equip_no,serial_no')
+      .neq('status', 'returned')
+      .or(conds.join(','));
+    if (excludeId) q = q.neq('id', excludeId);
+
+    const { data } = await q;
+    const rows = data || [];
+    return {
+      equipNoDup:  equip_no  ? rows.some(r => r.equip_no  === equip_no)  : false,
+      serialNoDup: serial_no ? rows.some(r => r.serial_no === serial_no) : false,
     };
   }
 
@@ -683,14 +730,24 @@ const EquipmentPage = (() => {
       const btn = document.getElementById('btn-do-edit');
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
       try {
-        const newStatus = document.getElementById('ed-status').value;
+        const newEquipNo  = document.getElementById('ed-equip-no').value.trim().toUpperCase();
+        const newSerialNo = document.getElementById('ed-serial').value.trim() || null;
+        const newStatus   = document.getElementById('ed-status').value;
+
+        // 반출완료로 바꾸는 경우엔 중복 체크 생략 (반출된 장비는 중복 허용)
+        if (newStatus !== 'returned') {
+          const dup = await _checkDuplicate(newEquipNo, newSerialNo, id);
+          if (dup.equipNoDup) { Toast.error(`장비번호 ${newEquipNo}는 이미 등록된 번호입니다.`); btn.disabled=false; btn.textContent='저장'; return; }
+          if (dup.serialNoDup) { Toast.error(`시리얼번호 ${newSerialNo}는 이미 등록된 번호입니다.`); btn.disabled=false; btn.textContent='저장'; return; }
+        }
+
         const updateBody = {
-          equip_no:  document.getElementById('ed-equip-no').value.trim().toUpperCase(),
+          equip_no:  newEquipNo,
           spec:      document.getElementById('ed-spec').value,
           status:    newStatus,
           company:   document.getElementById('ed-company').value.trim(),
           model:     document.getElementById('ed-model').value.trim().toUpperCase() || null,
-          serial_no: document.getElementById('ed-serial').value.trim() || null,
+          serial_no: newSerialNo,
         };
         if (newStatus === 'returned' && status !== 'returned') {
           updateBody.out_date = new Date().toISOString().slice(0, 10);
