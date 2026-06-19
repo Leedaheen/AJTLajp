@@ -13,6 +13,7 @@ class TransitCreateRequest(BaseModel):
     site_id: str                        # P4 / P5
     site_name: str
     company: str
+    client_name: Optional[str] = ""     # 발주처
     project: Optional[str] = ""
     floor: Optional[str] = ""
     equip_specs: List[EquipSpec] = []

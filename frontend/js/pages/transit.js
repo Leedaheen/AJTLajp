@@ -705,11 +705,13 @@ const TransitPage = (() => {
   // ── 신규 신청 폼 (sites/projects/companies 동적 로드) ───────
   async function openNewForm() {
     const defaultFloors = ['모듈동','1F외곽','1F','2F','3F','4F','5F','6F','7F','8F','9F'];
-    const [sites, projects, floors] = await Promise.all([
+    const [sites, projects, floors, clientsRes] = await Promise.all([
       Api.get('/sites').catch(() => [{code:'P4',name:'P4 복합동'},{code:'P5',name:'P5 복합동'}]),
       Api.get('/projects').catch(() => [{code:'Ph1'},{code:'Ph2'},{code:'Ph3'},{code:'Ph4'}]),
       Api.get('/floors').catch(() => defaultFloors.map(n => ({name:n}))),
+      window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name').catch(() => ({ data: [] })),
     ]);
+    const clients = clientsRes?.data || [];
 
     Modal.open({
       title: '반입/반출 신청',
@@ -749,14 +751,24 @@ const TransitPage = (() => {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group">
-            <label class="form-label">현장 <span style="color:var(--red)">*</span></label>
+            <label class="form-label">현장명 <span style="color:var(--red)">*</span></label>
             <select id="tr-site" class="form-input form-select"
               onchange="TransitPage._onSiteChange()">
-              ${sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
+              ${sites.map(s => `<option value="${s.code||s.name}" data-name="${s.name}">${s.name}</option>`).join('')}
             </select>
           </div>
+          <div class="form-group">
+            <label class="form-label">발주처 <span style="color:var(--red)">*</span></label>
+            <select id="tr-client" class="form-input form-select">
+              <option value="">-- 발주처 선택 --</option>
+              ${clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
           <div class="form-group">
             <label class="form-label">프로젝트 <span style="color:var(--red)">*</span></label>
             <select id="tr-project" class="form-input form-select">
@@ -1140,12 +1152,14 @@ const TransitPage = (() => {
     const siteEl  = document.getElementById('tr-site');
     const siteId  = siteEl?.value;
     const siteName= siteEl?.options[siteEl?.selectedIndex]?.getAttribute('data-name') || siteId;
-    const project = document.getElementById('tr-project')?.value;
-    const company = document.getElementById('tr-company').value.trim();
-    const reporter= document.getElementById('tr-reporter').value.trim();
-    const phone   = document.getElementById('tr-phone').value.trim();
-    const date    = document.getElementById('tr-date').value;
+    const project    = document.getElementById('tr-project')?.value;
+    const company    = document.getElementById('tr-company').value.trim();
+    const clientName = document.getElementById('tr-client')?.value || '';
+    const reporter   = document.getElementById('tr-reporter').value.trim();
+    const phone      = document.getElementById('tr-phone').value.trim();
+    const date       = document.getElementById('tr-date').value;
 
+    if (!clientName) { Toast.error('발주처를 선택해주세요.'); return; }
     if (!company) { Toast.error('업체를 선택해주세요.'); return; }
     if (!reporter || !phone) { Toast.error('필수 항목을 모두 입력해주세요.'); return; }
     if (!project) { Toast.error('프로젝트를 선택해주세요.'); return; }
@@ -1198,6 +1212,7 @@ const TransitPage = (() => {
         project,
         floor:          type === 'in' ? floor : null,
         company,
+        client_name:    clientName,
         equip_specs:    type === 'in' ? equip_specs : [],
         aj_equip:       type === 'out' ? equip_nos : null,
         reporter_name:  reporter,
