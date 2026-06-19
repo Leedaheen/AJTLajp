@@ -279,6 +279,21 @@ const DispatchPage = (() => {
           </div>
         </div>
         <div class="form-group">
+          <label class="form-label">센터</label>
+          <div style="display:flex;gap:6px">
+            <select id="req-center-sel" class="form-input form-select" style="flex:1"
+              onchange="DispatchPage._onCenterSelChange()">
+              <option value="">선택</option>
+              <option value="안성센터" ${(disp.center||'').includes('안성')?'selected':''}>안성센터</option>
+              <option value="천안센터" ${(disp.center||'').includes('천안')?'selected':''}>천안센터</option>
+              <option value="청주센터" ${(disp.center||'').includes('청주')?'selected':''}>청주센터</option>
+              <option value="직접입력">직접 입력</option>
+            </select>
+            <input id="req-center-text" class="form-input" style="flex:1;display:none"
+              value="${disp.center||''}" placeholder="센터명 직접 입력">
+          </div>
+        </div>
+        <div class="form-group">
           <label class="form-label">비고 <span style="font-size:11px;color:var(--gray-400)">(표찰·등록 여부, 안전벨트 등)</span></label>
           <input id="req-note" class="form-input" value="${disp.note||''}"
             placeholder="예) 표찰O 등록O / 셀프카 안전벨트 필수">
@@ -307,11 +322,16 @@ const DispatchPage = (() => {
     const cnameText = document.getElementById('req-cname-text')?.value?.trim()
                    || document.getElementById('req-cname')?.value?.trim() || null;
 
+    const centerSel  = document.getElementById('req-center-sel')?.value;
+    const centerText = document.getElementById('req-center-text')?.value?.trim();
+    const center     = centerSel === '직접입력' ? (centerText || null) : (centerSel || null);
+
     const payload = {
       transit_id:        transitId,
       od_number:         od,
       arrival_time:      document.getElementById('req-arrival')?.value?.trim() || null,
       construction_name: cnameText,
+      center,
       note:              document.getElementById('req-note')?.value?.trim() || null,
       status:            'requested',
     };
@@ -384,6 +404,15 @@ const DispatchPage = (() => {
         <button class="btn btn-primary btn-sm" onclick="DispatchPage._saveComplete(${transitId},${disp.id})">저장 · 반입/반출 자동반영</button>
       `,
     });
+  }
+
+  function _onCenterSelChange() {
+    const sel  = document.getElementById('req-center-sel');
+    const text = document.getElementById('req-center-text');
+    if (!sel || !text) return;
+    const isDirect = sel.value === '직접입력';
+    text.style.display = isDirect ? '' : 'none';
+    if (!isDirect) text.value = '';
   }
 
   function _autoFillDriver(plate) {
@@ -631,7 +660,7 @@ const DispatchPage = (() => {
     render, loadList, setTab,
     openRequestModal, openCompleteModal,
     openCnameModal, openNotesModal, openDriversModal,
-    _autoFillDriver, _fillDriver,
+    _onCenterSelChange, _autoFillDriver, _fillDriver,
     _saveRequest, _saveComplete,
     _addCname, _deleteCname,
     _addNote, _deleteNote,
