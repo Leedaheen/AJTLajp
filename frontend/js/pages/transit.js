@@ -920,6 +920,7 @@ const TransitPage = (() => {
           }, { silent: true });
         }
 
+        Modal.close();
         Toast.success(dateChanged
           ? '일정이 저장되었습니다. 협력사 확인 후 최종 확정됩니다.'
           : '일정이 확정되었습니다.');
