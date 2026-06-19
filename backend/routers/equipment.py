@@ -26,7 +26,8 @@ async def list_equipment(
     limit: int = 100,
     current_user: dict = Depends(get_current_user),
 ):
-    query = supabase.table("equipment").select("*").order("created_at", desc=True).limit(limit)
+    order_col = "out_date" if status == "returned" else "in_date"
+    query = supabase.table("equipment").select("*").order(order_col, desc=True, nullsfirst=False).limit(limit)
 
     if status:  query = query.eq("status", status)
     if site_id: query = query.eq("site_id", site_id)
