@@ -122,6 +122,8 @@ const EquipmentPage = (() => {
     if (spec)   params.set('spec', spec);
     if (siteId) params.set('site_id', siteId);
     if (q)      params.set('q', q);
+    const cf = App.getClientFilter?.();
+    if (cf)     params.set('client_name', cf);
 
     const tbody = document.getElementById('eq-tbody');
     tbody.innerHTML = `<tr><td colspan="11" class="text-center"><span class="spinner" style="margin:12px auto;display:block"></span></td></tr>`;

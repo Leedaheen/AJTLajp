@@ -15,22 +15,23 @@ const Api = (() => {
   }
 
   function _applyFilters(query, params) {
-    if (params.status)    query = query.eq('status', params.status);
-    if (params.statuses)  query = query.in('status', params.statuses.split(','));
-    if (params.site_id)   query = query.eq('site_id', params.site_id);
-    if (params.company)   query = query.eq('company', params.company);
-    if (params.type)      query = query.eq('type', params.type);
-    if (params.equip_id)  query = query.eq('equip_id', Number(params.equip_id));
-    if (params.spec)      query = query.eq('spec', params.spec);
-    if (params.date)      query = query.eq('date', params.date);
-    if (params.equip)     query = query.ilike('equip_no', `%${params.equip}%`);
-    if (params.equip_no)  query = query.eq('equip_no', params.equip_no);
-    if (params.role)      query = query.eq('role', params.role);
+    if (params.status)      query = query.eq('status', params.status);
+    if (params.statuses)    query = query.in('status', params.statuses.split(','));
+    if (params.site_id)     query = query.eq('site_id', params.site_id);
+    if (params.company)     query = query.eq('company', params.company);
+    if (params.client_name) query = query.eq('client_name', params.client_name);
+    if (params.type)        query = query.eq('type', params.type);
+    if (params.equip_id)    query = query.eq('equip_id', Number(params.equip_id));
+    if (params.spec)        query = query.eq('spec', params.spec);
+    if (params.date)        query = query.eq('date', params.date);
+    if (params.equip)       query = query.ilike('equip_no', `%${params.equip}%`);
+    if (params.equip_no)    query = query.eq('equip_no', params.equip_no);
+    if (params.role)        query = query.eq('role', params.role);
     if (params.q) {
       const sq = params.q.replace(/[,%()]/g, '');
       if (sq) query = query.or(`equip_no.ilike.%${sq}%,company.ilike.%${sq}%`);
     }
-    if (params.limit)     query = query.limit(Number(params.limit));
+    if (params.limit)       query = query.limit(Number(params.limit));
     return query;
   }
 
