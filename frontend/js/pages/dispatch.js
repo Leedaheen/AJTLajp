@@ -467,12 +467,20 @@ const DispatchPage = (() => {
           ${t.company} · ${t.site_name} ${t.type==='in'?'반입':'반출'} · 확정일 ${t.scheduled_date||'-'}
         </div>
         ${disp.od_number ? `<div style="font-size:12px;font-family:monospace;color:var(--gray-700);margin-bottom:10px;font-weight:500">O/D ${disp.od_number}</div>` : ''}
+        ${_drivers.length ? `
+        <div style="margin-bottom:12px">
+          <label class="form-label">기사 DB에서 선택</label>
+          <select id="cmp-driver-sel" class="form-input form-select"
+            onchange="DispatchPage._fillDriverFromSel(this.value)">
+            <option value="">-- 기사 선택 --</option>
+            ${_drivers.map(d => `<option value="${d.id}">${d.plate} · ${d.name}${d.phone?' ('+d.phone+')':''}</option>`).join('')}
+          </select>
+        </div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <div>
             <label class="form-label">차량번호 <span style="color:#E8192C">*</span></label>
             <input id="cmp-plate" class="form-input" value="${disp.vehicle_plate||''}"
               placeholder="경기88자1330" oninput="DispatchPage._autoFillDriver(this.value)">
-            <div style="margin-top:5px;display:flex;flex-wrap:wrap">${driverChips}</div>
           </div>
           <div>
             <label class="form-label">기사 성함 <span style="color:#E8192C">*</span></label>
@@ -521,9 +529,15 @@ const DispatchPage = (() => {
     const fp = document.getElementById('cmp-plate');
     const fn = document.getElementById('cmp-name');
     const fph = document.getElementById('cmp-phone');
-    if (fp) { fp.value = plate; _autoFillDriver(plate); }
+    if (fp) fp.value = plate;
     if (fn) fn.value = name;
     if (fph) fph.value = phone;
+  }
+
+  function _fillDriverFromSel(driverId) {
+    if (!driverId) return;
+    const d = _drivers.find(d => String(d.id) === String(driverId));
+    if (d) _fillDriver(d.plate, d.name, d.phone || '');
   }
 
   async function _saveComplete(transitId, dispatchId) {
@@ -753,7 +767,7 @@ const DispatchPage = (() => {
     render, loadList, setTab, onSearch, onCenterFilter, clearSearch,
     openRequestModal, openCompleteModal,
     openCnameModal, openNotesModal, openDriversModal,
-    _onCenterSelChange, _autoFillDriver, _fillDriver,
+    _onCenterSelChange, _autoFillDriver, _fillDriver, _fillDriverFromSel,
     _saveRequest, _saveComplete,
     _addCname, _deleteCname,
     _addNote, _deleteNote,
