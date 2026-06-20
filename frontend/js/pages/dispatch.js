@@ -75,9 +75,7 @@ const DispatchPage = (() => {
           style="height:36px;font-size:13px;width:auto;min-width:110px"
           onchange="DispatchPage.onCenterFilter(this.value)">
           <option value="">전체 센터</option>
-          <option value="안성센터" ${_centerFilter==='안성센터'?'selected':''}>안성센터</option>
-          <option value="천안센터" ${_centerFilter==='천안센터'?'selected':''}>천안센터</option>
-          <option value="청주센터" ${_centerFilter==='청주센터'?'selected':''}>청주센터</option>
+          ${_centerOptions().map(c => `<option value="${c}" ${_centerFilter===c?'selected':''}>${c}</option>`).join('')}
         </select>
         ${_q || _centerFilter ? `<button class="btn btn-outline btn-sm" style="height:36px;white-space:nowrap" onclick="DispatchPage.clearSearch()">초기화</button>` : ''}
       </div>
@@ -114,6 +112,16 @@ const DispatchPage = (() => {
   // ──────────────────────────────────────────────────
   //  렌더
   // ──────────────────────────────────────────────────
+  const DEFAULT_CENTERS = ['안성센터', '천안센터', '청주센터'];
+
+  function _centerOptions() {
+    const fromData = _cache
+      .map(r => r.dispatch?.[0]?.center)
+      .filter(c => c && !DEFAULT_CENTERS.includes(c));
+    const extras = [...new Set(fromData)].sort();
+    return [...DEFAULT_CENTERS, ...extras];
+  }
+
   function _filtered(arr) {
     const q = _q.trim().toLowerCase();
     return arr.filter(r => {
