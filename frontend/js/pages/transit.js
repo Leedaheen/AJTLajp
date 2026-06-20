@@ -1887,18 +1887,11 @@ const TransitPage = (() => {
         <div style="background:var(--gray-100);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px">
           <strong>${t.company}</strong> · ${t.site_name} · 확정일 ${t.scheduled_date || '-'}
         </div>
-        <div class="form-group">
-          <label class="form-label">배차 차량</label>
-          <input id="dp-vehicle" class="form-input"
-            placeholder="예: 5톤 트럭 12가3456"
-            value="${t.vehicle_info || ''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">담당 기사 / 연락처</label>
-          <input id="dp-driver" class="form-input"
-            placeholder="예: 홍길동 / 010-0000-0000"
-            value="${t.driver_info || ''}">
-        </div>
+        ${(t.vehicle_info || t.driver_info) ? `
+        <div style="background:var(--gray-100);border:0.5px solid var(--gray-200);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--gray-700);margin-bottom:4px">
+          <span style="font-size:11px;color:var(--gray-400);display:block;margin-bottom:2px">배송기사 정보 (배차관리에서 입력)</span>
+          ${[t.vehicle_info, t.driver_info].filter(Boolean).join(' · ')}
+        </div>` : ''}
       `,
       footer: `
         <button class="btn btn-outline btn-sm" onclick="Modal.close()">취소</button>
@@ -1907,15 +1900,10 @@ const TransitPage = (() => {
     });
 
     document.getElementById('btn-save-dispatch').onclick = async () => {
-      const vehicle = document.getElementById('dp-vehicle').value.trim();
-      const driver  = document.getElementById('dp-driver').value.trim();
       const btn = document.getElementById('btn-save-dispatch');
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
       try {
-        await Api.patch(`/transit/${transitId}/dispatch`, {
-          vehicle_info: vehicle,
-          driver_info:  driver,
-        }, { silent: true });
+        await Api.patch(`/transit/${transitId}/dispatch`, {}, { silent: true });
         Modal.close();
         Toast.success('배차정보가 저장되었습니다.');
         await loadList();
@@ -1975,18 +1963,11 @@ const TransitPage = (() => {
             placeholder="GK111, GF123 (쉼표로 구분)">
         </div>
 
-        <div class="form-group">
-          <label class="form-label">배차 차량</label>
-          <input id="ecf-vehicle" class="form-input"
-            placeholder="예: 5톤 트럭 12가3456"
-            value="${t.vehicle_info || ''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">담당 기사 / 연락처</label>
-          <input id="ecf-driver" class="form-input"
-            placeholder="예: 홍길동 / 010-0000-0000"
-            value="${t.driver_info || ''}">
-        </div>
+        ${(t.vehicle_info || t.driver_info) ? `
+        <div style="background:var(--gray-100);border:0.5px solid var(--gray-200);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--gray-700);margin-bottom:12px">
+          <span style="font-size:11px;color:var(--gray-400);display:block;margin-bottom:2px">배송기사 정보 (배차관리에서 입력)</span>
+          ${[t.vehicle_info, t.driver_info].filter(Boolean).join(' · ')}
+        </div>` : ''}
 
         ${nos.length ? `
         <div class="form-group">
@@ -2037,8 +2018,6 @@ const TransitPage = (() => {
         await Api.patch(`/transit/${transitId}/dispatch`, {
           scheduled_date: document.getElementById('ecf-date').value || undefined,
           scheduled_time: document.getElementById('ecf-time').value || undefined,
-          vehicle_info:   document.getElementById('ecf-vehicle').value.trim(),
-          driver_info:    document.getElementById('ecf-driver').value.trim(),
           aj_equip:       newEquipNos || undefined,
         }, { silent: true });
 
