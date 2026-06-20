@@ -436,7 +436,7 @@ const AdminPage = (() => {
     ].join('');
 
     const clientOpts = [
-      `<option value="">-</option>`,
+      `<option value="" ${!currentClientName?'selected':''}>전체</option>`,
       ...clients.map(c => `<option value="${c.name}" ${currentClientName===c.name?'selected':''}>${c.name}</option>`),
     ].join('');
 
