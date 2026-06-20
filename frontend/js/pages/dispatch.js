@@ -181,6 +181,8 @@ const DispatchPage = (() => {
         ? `<div class="text-center" style="padding:40px 0;color:var(--gray-400)">항목이 없습니다</div>`
         : list.map(_renderCard).join('')}
     `;
+    // 댓글 컴포넌트 연결
+    list.forEach(t => Comments.render('dispatch', t.id));
   }
 
   function _renderCard(t) {
@@ -268,6 +270,7 @@ const DispatchPage = (() => {
         </div>
         ${noteHtml}
         ${action}
+        <div id="comments-dispatch-${t.id}"></div>
       </div>`;
   }
 

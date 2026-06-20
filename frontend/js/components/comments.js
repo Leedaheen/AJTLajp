@@ -48,7 +48,7 @@ const Comments = (() => {
   }
 
   function _roleLabel(role) {
-    const map = { aj: 'AJ관리자', as_tech: 'AS기사', partner: '협력사', tech: '기술인' };
+    const map = { aj: 'AJ관리자', as_tech: 'AS기사', partner: '협력사', tech: '기술인', aj_center: 'AJ센터' };
     return map[role] || role || '';
   }
 
@@ -136,7 +136,7 @@ const Comments = (() => {
   // ── 더보기 팝업 ───────────────────────────────────────────
   async function openAll(refType, refId) {
     const comments = await _loadComments(refType, refId);
-    const typeLabel = refType === 'as' ? 'AS 요청' : '반입/반출';
+    const typeLabel = refType === 'as' ? 'AS 요청' : refType === 'dispatch' ? '배차 관리' : '반입/반출';
 
     Modal.open({
       title: `${typeLabel} · 전체 댓글 (${comments.length}개)`,
@@ -166,13 +166,16 @@ const Comments = (() => {
 
     input.disabled = true;
     try {
+      const authorCompany = user.role === 'aj_center'
+        ? (user.center_name || user.company || '')
+        : (user.company || '');
       const { error } = await _sb.from('comments').insert({
         ref_type:       refType,
         ref_id:         Number(refId),
         author_id:      user.id,
         author_name:    user.name,
         author_role:    user.role,
-        author_company: user.company || '',
+        author_company: authorCompany,
         body,
       });
       if (error) throw error;
