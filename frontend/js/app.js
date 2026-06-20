@@ -196,14 +196,15 @@ const App = (() => {
     const label = document.getElementById('header-client-label');
     if (label) label.textContent = name || '전체 소속';
     document.getElementById('header-client-drop').style.display = 'none';
-    // 현재 활성 페이지 데이터 새로고침
-    const active = document.querySelector('.page:not([style*="display: none"]):not([style*="display:none"])');
+    // 현재 활성 페이지(.hidden 클래스 기준) 새로고침
+    const active = document.querySelector('.page:not(.hidden)');
     const id = active?.id;
-    if (id === 'page-transit')     TransitPage.loadList(true);
-    else if (id === 'page-as-request') AsRequestPage.loadList();
-    else if (id === 'page-equipment')  EquipmentPage?.loadList?.();
-    else if (id === 'page-usage-log')  UsageLogPage?.loadList?.();
-    else if (id === 'page-dispatch')   DispatchPage?.loadList?.();
+    if      (id === 'page-transit')     TransitPage.loadList(true);
+    else if (id === 'page-as-request')  AsRequestPage.loadList();
+    else if (id === 'page-equipment')   EquipmentPage?.loadList?.();
+    else if (id === 'page-usage-log')   UsageLogPage?.loadList?.();
+    else if (id === 'page-dispatch')    DispatchPage?.loadList?.();
+    else if (id === 'page-home')        HomePage?.render?.();
   }
 
   function _setSidebarAccess(user) {
