@@ -1363,18 +1363,13 @@ const TransitPage = (() => {
           </div>
         </div>
         <div id="sc-equip-detail-list"></div>
+        ${(t.vehicle_info || t.driver_info) ? `
         <div class="form-group">
-          <label class="form-label">배차 차량</label>
-          <input id="sc-vehicle" class="form-input"
-            placeholder="예: 5톤 트럭 12가3456"
-            value="${t.vehicle_info || ''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">담당 기사 / 연락처</label>
-          <input id="sc-driver" class="form-input"
-            placeholder="예: 홍길동 / 010-0000-0000"
-            value="${t.driver_info || ''}">
-        </div>
+          <label class="form-label">배송기사 정보 <span style="font-size:11px;color:var(--gray-400)">(배차관리에서 입력)</span></label>
+          <div style="background:var(--gray-100);border:0.5px solid var(--gray-200);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--gray-700)">
+            ${[t.vehicle_info, t.driver_info].filter(Boolean).join(' · ')}
+          </div>
+        </div>` : ''}
         <div class="form-group">
           <label class="form-label">비고</label>
           <textarea id="sc-note" class="form-input" rows="2">${t.note || ''}</textarea>
@@ -1414,8 +1409,6 @@ const TransitPage = (() => {
         await Api.patch(`/transit/${transitId}/schedule`, {
           scheduled_date: date,
           aj_equip:       equipNos,
-          vehicle_info:   document.getElementById('sc-vehicle').value.trim(),
-          driver_info:    document.getElementById('sc-driver').value.trim(),
           note:           document.getElementById('sc-note').value.trim(),
           status:         newStatus,
         });
@@ -1474,8 +1467,6 @@ const TransitPage = (() => {
             status:         newStatus,
             scheduled_date: date,
             aj_equip:       equipNos,
-            vehicle_info:   document.getElementById('sc-vehicle')?.value.trim() || _transitCache[transitId].vehicle_info,
-            driver_info:    document.getElementById('sc-driver')?.value.trim()  || _transitCache[transitId].driver_info,
           };
         }
         // confirmed → 확정 탭, scheduled → 협력사확인 탭
