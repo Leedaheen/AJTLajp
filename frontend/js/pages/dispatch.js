@@ -15,6 +15,8 @@ const DispatchPage = (() => {
   let _drivers   = [];
   let _notes     = {};          // { client_name: [content, ...] }
   let _cnames    = {};          // { "client_name|site_name": construction_name }
+  let _q         = '';          // 검색어 (O/D번호, 장비번호, 업체명)
+  let _centerFilter = '';       // 센터 필터
 
   // ── 날짜 포맷
   function _fmt(ts) {
@@ -59,6 +61,26 @@ const DispatchPage = (() => {
           <button class="btn btn-outline btn-sm" onclick="DispatchPage.openDriversModal()">기사 DB</button>
         </div>
       </div>
+      <!-- 검색 바 -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="position:relative;flex:1;min-width:180px">
+          <i class="ti ti-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:15px;pointer-events:none"></i>
+          <input id="dispatch-search" type="text" class="form-input"
+            style="padding-left:32px;height:36px;font-size:13px"
+            placeholder="O/D번호 · 장비번호 · 업체명"
+            value="${_q}"
+            oninput="DispatchPage.onSearch(this.value)">
+        </div>
+        <select id="dispatch-center-filter" class="form-input form-select"
+          style="height:36px;font-size:13px;width:auto;min-width:110px"
+          onchange="DispatchPage.onCenterFilter(this.value)">
+          <option value="">전체 센터</option>
+          <option value="안성센터" ${_centerFilter==='안성센터'?'selected':''}>안성센터</option>
+          <option value="천안센터" ${_centerFilter==='천안센터'?'selected':''}>천안센터</option>
+          <option value="청주센터" ${_centerFilter==='청주센터'?'selected':''}>청주센터</option>
+        </select>
+        ${_q || _centerFilter ? `<button class="btn btn-outline btn-sm" style="height:36px;white-space:nowrap" onclick="DispatchPage.clearSearch()">초기화</button>` : ''}
+      </div>
       <div id="dispatch-body"><div class="text-center" style="padding:40px 0;color:var(--gray-400)">로딩 중...</div></div>
     `;
     loadList();
@@ -92,6 +114,22 @@ const DispatchPage = (() => {
   // ──────────────────────────────────────────────────
   //  렌더
   // ──────────────────────────────────────────────────
+  function _filtered(arr) {
+    const q = _q.trim().toLowerCase();
+    return arr.filter(r => {
+      if (_centerFilter) {
+        const c = r.dispatch?.[0]?.center || '';
+        if (!c.includes(_centerFilter.replace('센터', ''))) return false;
+      }
+      if (!q) return true;
+      const disp = r.dispatch?.[0] || {};
+      return (disp.od_number     || '').toLowerCase().includes(q)
+          || (r.aj_equip         || '').toLowerCase().includes(q)
+          || (r.company          || '').toLowerCase().includes(q)
+          || (r.site_name        || '').toLowerCase().includes(q);
+    });
+  }
+
   function _renderBody() {
     const pending    = _cache.filter(r => !r.dispatch?.length);
     const requested  = _cache.filter(r => r.dispatch?.length && r.dispatch[0].status === 'requested');
@@ -99,10 +137,11 @@ const DispatchPage = (() => {
 
     const d1Items = pending.filter(r => _isDMinus1(r.scheduled_date));
 
-    const list = _tab === 'pending'   ? pending
+    const base = _tab === 'pending'   ? pending
                : _tab === 'requested' ? requested
                : _tab === 'done'      ? done
                : _cache;
+    const list = _filtered(base);
 
     const el = document.getElementById('dispatch-body');
     if (!el) return;
@@ -225,6 +264,37 @@ const DispatchPage = (() => {
   }
 
   function setTab(tab) { _tab = tab; _renderBody(); }
+
+  function onSearch(val) {
+    _q = val;
+    _renderBody();
+    // 초기화 버튼 표시 갱신
+    const clr = document.querySelector('#dispatch-body')?.previousElementSibling?.querySelector('button');
+    const wrap = document.querySelector('#dispatch-body')?.previousElementSibling;
+    if (wrap) {
+      const existing = wrap.querySelector('button[onclick*="clearSearch"]');
+      if (_q || _centerFilter) {
+        if (!existing) wrap.insertAdjacentHTML('beforeend', `<button class="btn btn-outline btn-sm" style="height:36px;white-space:nowrap" onclick="DispatchPage.clearSearch()">초기화</button>`);
+      } else {
+        existing?.remove();
+      }
+    }
+  }
+
+  function onCenterFilter(val) {
+    _centerFilter = val;
+    onSearch(_q);
+  }
+
+  function clearSearch() {
+    _q = ''; _centerFilter = '';
+    const s = document.getElementById('dispatch-search');
+    const c = document.getElementById('dispatch-center-filter');
+    if (s) s.value = '';
+    if (c) c.value = '';
+    _renderBody();
+    document.querySelector('[onclick*="clearSearch"]')?.remove();
+  }
 
   // ──────────────────────────────────────────────────
   //  배차 요청 모달 (O/D번호 입력 단계)
@@ -657,7 +727,7 @@ const DispatchPage = (() => {
   }
 
   return {
-    render, loadList, setTab,
+    render, loadList, setTab, onSearch, onCenterFilter, clearSearch,
     openRequestModal, openCompleteModal,
     openCnameModal, openNotesModal, openDriversModal,
     _onCenterSelChange, _autoFillDriver, _fillDriver,
