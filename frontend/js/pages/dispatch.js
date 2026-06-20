@@ -8,8 +8,6 @@
  *             → 배차 완료
  */
 const DispatchPage = (() => {
-  const _sb = window._sb;
-
   let _tab       = 'pending';   // pending | requested | done | all
   let _cache     = [];
   let _drivers   = [];
