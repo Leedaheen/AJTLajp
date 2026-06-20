@@ -559,10 +559,11 @@ const DispatchPage = (() => {
     if (error) { Toast.error('저장 오류: '+(error.message||'')); return; }
 
     // transit 카드에 배차 정보 동기화
-    await _sb.from('transit').update({
-      vehicle_info: `${plate}`,
-      driver_info:  `${name}${phone?' '+phone:''}`,
-    }).eq('id', transitId);
+    const { error: tErr } = await _sb.from('transit').update({
+      vehicle_info: plate,
+      driver_info:  `${name}${phone ? ' / ' + phone : ''}`,
+    }).eq('id', Number(transitId));
+    if (tErr) { Toast.error('반입/반출 연동 오류: '+(tErr.message||'')); return; }
 
     // 기사 DB에 없으면 자동 추가
     if (!_drivers.find(d => d.plate === plate) && phone) {
