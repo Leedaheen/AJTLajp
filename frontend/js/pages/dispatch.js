@@ -106,6 +106,20 @@ const DispatchPage = (() => {
     const clientFilter = App.getClientFilter();
     _cache = (transitRes.data || []).filter(r => !clientFilter || r.client_name === clientFilter);
 
+    // client_name이 없는 건: created_by 유저의 client_name으로 보완
+    const missingIds = _cache.filter(r => !r.client_name && r.created_by).map(r => r.created_by);
+    if (missingIds.length) {
+      const { data: users } = await _sb.from('app_users').select('id,client_name').in('id', missingIds);
+      const userMap = {};
+      (users||[]).forEach(u => { userMap[u.id] = u.client_name; });
+      _cache = _cache.map(r => (!r.client_name && r.created_by)
+        ? { ...r, client_name: userMap[r.created_by] || '' }
+        : r
+      );
+      // 보완 후 다시 발주처 필터 적용
+      if (clientFilter) _cache = _cache.filter(r => r.client_name === clientFilter);
+    }
+
     _renderBody();
   }
 
@@ -166,7 +180,7 @@ const DispatchPage = (() => {
         style="padding:8px 14px;font-size:12px;font-weight:500;cursor:pointer;margin-bottom:-1px;
           border-bottom:2px solid ${_tab===id?'#1B365D':'transparent'};
           color:${_tab===id?'#1B365D':'var(--gray-500)'}">
-        ${lbl}${cnt?` <span style="background:${_tab===id?'#E8192C':'var(--gray-300)'};color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;font-weight:700">${cnt}</span>`:''}
+        ${lbl}${cnt?` <span style="background:${_tab===id?'#E8192C':'var(--gray-200)'};color:${_tab===id?'#fff':'var(--gray-600)'};border-radius:10px;font-size:10px;padding:1px 6px;font-weight:700">${cnt}</span>`:''}
       </div>`;
 
     el.innerHTML = `
