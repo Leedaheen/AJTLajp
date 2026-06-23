@@ -118,6 +118,27 @@ const App = (() => {
       'admin-settings':      () => AdminSettingsPage.render(),
     };
     renderers[pageId]?.();
+    _updateFab(pageId);
+  }
+
+  function _updateFab(pageId) {
+    const fab   = document.getElementById('fab-action');
+    const label = document.getElementById('fab-label');
+    if (!fab || !label) return;
+
+    const FAB_CONFIG = {
+      transit:      { text: '반입/반출 신규신청', action: "TransitPage.openNewForm()" },
+      'as-request': { text: 'AS 요청 신청하기',   action: "AsRequestPage.openNewForm()" },
+    };
+
+    const cfg = FAB_CONFIG[pageId];
+    if (cfg) {
+      label.textContent = cfg.text;
+      fab.onclick = () => eval(cfg.action);
+      fab.classList.remove('hidden');
+    } else {
+      fab.classList.add('hidden');
+    }
   }
 
   let _clientFilter = '';  // AJ관리자가 선택한 소속 필터 ('' = 전체)
@@ -133,7 +154,6 @@ const App = (() => {
     document.getElementById('header-name').textContent = user.name;
     document.getElementById('app-layout').classList.remove('hidden');
     document.getElementById('bottom-nav').classList.remove('hidden');
-    document.getElementById('fab-qr')?.classList.remove('hidden');
 
     // 소속 배지 / 소속 필터
     _initClientBadge(user);
