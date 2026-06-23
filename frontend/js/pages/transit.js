@@ -2569,6 +2569,7 @@ ${pages.join('')}
     if (!win) { Toast.error('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.'); return; }
     win.document.write(html);
     win.document.close();
+    win.onload = () => win.print();
   }
 
   function _buildInspectionPage(t, equipNo, info, today) {
