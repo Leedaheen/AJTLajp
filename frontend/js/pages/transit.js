@@ -2506,33 +2506,34 @@ const TransitPage = (() => {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
-    // 장비번호로 model 조회, model로 equipment_specs 조회
+    // equipment_models 전체 로드 (관리자설정 - 장비 모델 관리)
+    const { data: allModels = [] } = await _sb.from('equipment_models').select('model,spec,work_height,load_capacity').eq('active', true);
+    const modelSpecMap = {};  // model → { work_height, load_capacity, spec }
+    (allModels || []).forEach(m => { modelSpecMap[m.model] = m; });
+
+    // 장비번호로 equipment 조회
     let equipDataMap = {};
     if (equipNos.length > 0) {
       const { data: equipRows } = await _sb.from('equipment')
         .select('equip_no,model,manufacture_year')
         .in('equip_no', equipNos);
       (equipRows || []).forEach(r => { equipDataMap[r.equip_no] = r; });
-
-      const modelNames = [...new Set((equipRows || []).map(r => r.model).filter(Boolean))];
-      if (modelNames.length > 0) {
-        const { data: specRows } = await _sb.from('equipment_specs')
-          .select('model,work_height')
-          .in('model', modelNames);
-        (specRows || []).forEach(r => {
-          Object.values(equipDataMap).forEach(eq => {
-            if (eq.model === r.model) eq._work_height = r.work_height;
-          });
-        });
-      }
     }
 
     const targets = equipNos.length > 0 ? equipNos : [''];
     const pages = targets.map((no, i) => {
-      const equipData = equipDataMap[no] || {};
-      const workHeight = equipData._work_height || specPool[i] || specPool[0] || '';
-      const info = _SPEC_INFO[workHeight] || { height: workHeight || '-', load: '227KG', model: '' };
-      info._mfgYear = equipData.manufacture_year || '';
+      const equipData  = equipDataMap[no] || {};
+      const modelName  = equipData.model || '';
+      const modelInfo  = modelSpecMap[modelName] || {};
+      // equipment_models에 있으면 우선 사용, 없으면 _SPEC_INFO 폴백
+      const specKey    = modelInfo.spec || specPool[i] || specPool[0] || '';
+      const fallback   = _SPEC_INFO[specKey] || {};
+      const info = {
+        height:   modelInfo.work_height   || fallback.height || specKey || '-',
+        load:     modelInfo.load_capacity || fallback.load   || '-',
+        model:    modelName || fallback.model || '-',
+        _mfgYear: equipData.manufacture_year || '',
+      };
       return _buildInspectionPage(t, no, info, today) + _buildChecklistPage(no, info);
     });
 
@@ -2542,8 +2543,9 @@ const TransitPage = (() => {
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Malgun Gothic','맑은 고딕',Arial,sans-serif;font-size:9pt;color:#000;background:#fff}
-  .page{width:190mm;height:270mm;margin:6mm auto;page-break-after:always;overflow:hidden}
+  .page{width:190mm;min-height:270mm;margin:6mm auto;page-break-after:always;page-break-inside:avoid;overflow:hidden}
   .page:last-child{page-break-after:auto}
+  @media print{.page{margin:0;width:100%;min-height:0;height:297mm}}
   h1,h2{text-align:center;font-size:12pt;font-weight:bold;border:2px solid #000;padding:4px;margin-bottom:4px}
   table{width:100%;border-collapse:collapse}
   th,td{border:1px solid #666;padding:2px 4px;font-size:7.8pt;vertical-align:middle}
@@ -2597,7 +2599,7 @@ ${pages.join('')}
     <tr>
       <td class="lbl">운전방식</td><td>자주식</td>
       <td class="lbl" style="width:50px">운행속도</td><td>3.2Km/h</td>
-      <td class="lbl">작업대최대높이/적재용량</td><td colspan="3"><strong>${info.height} / ${info.load}</strong></td>
+      <td class="lbl">작업최대높이/적재용량</td><td colspan="3"><strong>${info.height} / ${info.load}</strong></td>
     </tr>
     <tr>
       <td class="lbl">차량번호</td><td><strong>${equipNo || '-'}</strong></td>
