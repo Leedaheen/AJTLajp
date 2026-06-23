@@ -2545,17 +2545,20 @@ const TransitPage = (() => {
   body{font-family:'Malgun Gothic','맑은 고딕',Arial,sans-serif;font-size:9pt;color:#000;background:#fff}
   .page{width:190mm;min-height:270mm;margin:6mm auto;page-break-after:always;page-break-inside:avoid;overflow:hidden}
   .page:last-child{page-break-after:auto}
-  @media print{.page{margin:0;width:100%;min-height:0;height:297mm}}
-  h1,h2{text-align:center;font-size:12pt;font-weight:bold;border:2px solid #000;padding:4px;margin-bottom:4px}
+  h1,h2{text-align:center;font-size:11pt;font-weight:bold;border:2px solid #000;padding:3px;margin-bottom:3px}
   table{width:100%;border-collapse:collapse}
-  th,td{border:1px solid #666;padding:2px 4px;font-size:7.8pt;vertical-align:middle}
-  .lbl{background:#ebebeb;font-weight:bold;text-align:center;white-space:nowrap;font-size:7.5pt}
-  .sec{background:#cdd5e6;font-weight:bold;font-size:8pt}
-  .res{text-align:center;width:30px;font-size:10pt;font-weight:bold}
-  .chk-hdr{background:#d0d8e8;font-weight:bold;text-align:center;font-size:7.5pt;padding:2px}
+  th,td{border:1px solid #666;padding:2px 3px;font-size:7.2pt;vertical-align:middle}
+  .lbl{background:#ebebeb;font-weight:bold;text-align:center;white-space:nowrap;font-size:6.8pt}
+  .sec{background:#cdd5e6;font-weight:bold;font-size:7.5pt}
+  .res{text-align:center;width:28px;font-size:9pt;font-weight:bold}
+  .chk-hdr{background:#d0d8e8;font-weight:bold;text-align:center;font-size:7pt;padding:1px}
   .print-btn{display:block;margin:14px auto;padding:8px 28px;background:#1B365D;color:#fff;border:none;border-radius:6px;font-size:11pt;cursor:pointer;font-family:inherit}
-  @page{size:A4 portrait;margin:12mm 10mm}
-  @media print{.print-btn{display:none}body{margin:0}.page{margin:0;width:100%;height:auto}}
+  @page{size:A4 portrait;margin:0}
+  @media print{
+    .print-btn{display:none}
+    body{margin:0}
+    .page{margin:0;width:100%;min-height:0;height:297mm;padding:6mm 8mm;overflow:hidden}
+  }
 </style>
 </head><body>
 ${pages.join('')}
