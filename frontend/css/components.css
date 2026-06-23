@@ -137,7 +137,7 @@
 }
 .notif-item:hover { background: var(--gray-100); }
 .notif-item.unread { border-left: 3px solid var(--navy); }
-.notif-item-title { font-size: 13px; font-weight: 700; }
+.notif-item-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .notif-item-body  { font-size: 12px; color: var(--gray-600); margin-top: 2px; }
 .notif-item-time  { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
 
