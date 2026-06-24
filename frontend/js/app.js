@@ -127,13 +127,13 @@ const App = (() => {
     if (!fab || !label) return;
 
     const FAB_CONFIG = {
-      transit:      { text: '반입/반출 신규신청', action: "TransitPage.openNewForm()" },
-      'as-request': { text: 'AS 요청 신청하기',   action: "AsRequestPage.openNewForm()" },
+      transit:      { action: "TransitPage.openNewForm()" },
+      'as-request': { action: "AsRequestPage.openNewForm()" },
     };
 
     const cfg = FAB_CONFIG[pageId];
     if (cfg) {
-      label.textContent = cfg.text;
+      label.textContent = '';
       fab.onclick = () => eval(cfg.action);
       fab.classList.remove('hidden');
     } else {
