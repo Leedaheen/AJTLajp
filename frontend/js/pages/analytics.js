@@ -385,7 +385,7 @@ const AnalyticsAsPage = (() => {
 const AnalyticsUsagePage = (() => {
   let _charts = {};
 
-  function render() {
+  async function render() {
     const user = Auth.getUser();
     if (!['aj','admin'].includes(user.role)) {
       document.getElementById('page-analytics-usage').innerHTML =
@@ -393,10 +393,19 @@ const AnalyticsUsagePage = (() => {
       return;
     }
 
+    const { data: sites = [] } = await window._sb.from('sites').select('name').eq('active', true).order('name');
+    const siteOpts = sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+
     document.getElementById('page-analytics-usage').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
         <h2 class="section-title" style="margin:0">가동률 분석</h2>
-        <div style="display:flex;gap:8px">${_makeDaysSel('AnalyticsUsagePage.reload()')}${_makeSiteSelStatic('AnalyticsUsagePage.reload()')}</div>
+        <div style="display:flex;gap:8px">
+          ${_makeDaysSel('AnalyticsUsagePage.reload()')}
+          <select id="an-site" class="form-input form-select" style="width:130px" onchange="AnalyticsUsagePage.reload()">
+            <option value="">전체 현장</option>
+            ${siteOpts}
+          </select>
+        </div>
       </div>
       <div id="an-us-summary"></div>
 
