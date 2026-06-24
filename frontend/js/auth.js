@@ -106,13 +106,15 @@ const Auth = (() => {
 
   // ── 역할 선택 모달 ───────────────────────────────────────────
   async function _showRoleModal(session) {
-    // 발주처·현장 목록 동적 로드
-    const [{ data: clients = [] }, { data: sites = [] }] = await Promise.all([
+    // 발주처·현장·업체 목록 동적 로드
+    const [{ data: clients = [] }, { data: sites = [] }, { data: companies = [] }] = await Promise.all([
       window._sb.from('clients').select('id,name').eq('active', true).order('sort_order').order('name'),
       window._sb.from('sites').select('id,name').eq('active', true).order('name'),
+      window._sb.from('companies').select('id,name').eq('active', true).order('name'),
     ]);
-    const clientOpts = clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-    const siteOpts   = sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+    const clientOpts  = clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+    const siteOpts    = sites.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+    const companyOpts = companies.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
 
     Modal.open({
       title: '역할 및 현장 선택',
@@ -158,9 +160,16 @@ const Auth = (() => {
           </select>
         </div>
         <div class="form-group">
+          <label class="form-label">이름 <span style="color:var(--red)">*</span></label>
+          <input id="inp-name" class="form-input" placeholder="실명을 입력해주세요"
+            value="${session.user.user_metadata?.full_name || ''}">
+        </div>
+        <div class="form-group">
           <label class="form-label">업체명 <span style="color:var(--red)">*</span></label>
-          <input id="inp-company" class="form-input" placeholder="소속 업체명"
-            value="${localStorage.getItem('saved_company') || ''}">
+          <select id="sel-company" class="form-input form-select">
+            <option value="">-- 업체 선택 --</option>
+            ${companyOpts}
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">연락처</label>
@@ -198,15 +207,17 @@ const Auth = (() => {
   async function _submitProfile(session) {
     const role    = document.getElementById('sel-role').value;
     const siteId  = document.getElementById('sel-site').value;
+    const name    = document.getElementById('inp-name').value.trim();
     const phone   = document.getElementById('inp-phone').value;
-    const company = document.getElementById('inp-company').value.trim();
+    const company = document.getElementById('sel-company').value;
     const client  = ['tech','partner','pro'].includes(role)
       ? (document.getElementById('sel-client')?.value || '') : '';
     const center  = role === 'aj_center'
       ? (document.getElementById('sel-center')?.value || '') : '';
 
     if (!role)    { Toast.error('역할을 선택해주세요.'); return; }
-    if (!company) { Toast.error('업체명을 입력해주세요.'); return; }
+    if (!name)    { Toast.error('이름을 입력해주세요.'); return; }
+    if (!company) { Toast.error('업체명을 선택해주세요.'); return; }
     if (['tech','partner','pro'].includes(role) && !client) {
       Toast.error('소속을 선택해주세요.'); return;
     }
@@ -218,14 +229,12 @@ const Auth = (() => {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
 
-    localStorage.setItem('saved_company', company);
-
     const needApproval = ['partner', 'as_tech', 'pro', 'aj_center'].includes(role);
     const { data, error } = await _sb.from('app_users').insert({
       id:          session.user.id,
       google_id:   session.user.user_metadata?.provider_id || session.user.id,
       email:       session.user.email,
-      name:        session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+      name,
       phone,
       role,
       site_id:     siteId,

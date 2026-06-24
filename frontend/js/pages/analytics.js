@@ -43,11 +43,11 @@ function _destroyCharts(obj) {
   Object.values(obj).forEach(c => c?.destroy?.());
 }
 function _summaryCards(cards) {
-  return `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px">
+  return `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
     ${cards.map(c => `
-      <div class="card" style="text-align:center;padding:16px 12px">
-        <div style="font-size:26px;font-weight:700;color:${c.color}">${c.value ?? '-'}<span style="font-size:13px;font-weight:400;margin-left:2px">${c.unit}</span></div>
-        <div style="font-size:12px;color:var(--gray-500);margin-top:4px">${c.label}</div>
+      <div class="card" style="text-align:center;padding:10px 8px">
+        <div style="font-size:22px;font-weight:700;color:${c.color}">${c.value ?? '-'}<span style="font-size:12px;font-weight:400;margin-left:2px">${c.unit}</span></div>
+        <div style="font-size:11px;color:var(--gray-500);margin-top:2px">${c.label}</div>
       </div>`).join('')}
   </div>`;
 }
@@ -125,24 +125,22 @@ const AnalyticsEquipmentPage = (() => {
       </div>
       <div id="an-eq-summary"></div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">상태별 장비 현황</div>
-          <canvas id="chart-eq-status" height="240"></canvas>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">상태별 장비 현황</div>
+          <canvas id="chart-eq-status" height="160"></canvas>
         </div>
         <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">제원별 보유 현황</div>
-          <canvas id="chart-eq-spec" height="240"></canvas>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-        <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">현장별 배치 현황</div>
-          <canvas id="chart-eq-site" height="220"></canvas>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">제원별 보유 현황</div>
+          <canvas id="chart-eq-spec" height="160"></canvas>
         </div>
         <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">업체별 보유 장비 수 (상위 10)</div>
-          <canvas id="chart-eq-company" height="220"></canvas>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">현장별 배치 현황</div>
+          <canvas id="chart-eq-site" height="160"></canvas>
+        </div>
+        <div class="card">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">업체별 보유 장비 수 (상위 10)</div>
+          <canvas id="chart-eq-company" height="160"></canvas>
         </div>
       </div>
       <div class="card">
@@ -284,23 +282,23 @@ const AnalyticsAsPage = (() => {
       </div>
       <div id="an-as-summary"></div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">고장유형별 건수</div>
-          <canvas id="chart-as-fault" height="220"></canvas>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">고장유형별 건수</div>
+          <canvas id="chart-as-fault" height="160"></canvas>
         </div>
         <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">처리상태별 건수</div>
-          <canvas id="chart-as-status" height="220"></canvas>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">처리상태별 건수</div>
+          <canvas id="chart-as-status" height="160"></canvas>
         </div>
-      </div>
-      <div class="card" style="margin-bottom:16px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">날짜별 AS 접수 추이</div>
-        <canvas id="chart-as-trend" height="160"></canvas>
-      </div>
-      <div class="card">
-        <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">기사별 처리 건수</div>
-        <canvas id="chart-as-tech" height="160"></canvas>
+        <div class="card">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">날짜별 AS 접수 추이</div>
+          <canvas id="chart-as-trend" height="160"></canvas>
+        </div>
+        <div class="card">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">기사별 처리 건수</div>
+          <canvas id="chart-as-tech" height="160"></canvas>
+        </div>
       </div>
     `;
     _loadData();
@@ -420,28 +418,32 @@ const AnalyticsUsagePage = (() => {
       </div>
       <div id="an-us-summary"></div>
 
-      <!-- 업체별 일별/월별 가동시간 -->
-      <div class="card" style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div style="font-size:13px;font-weight:600;color:var(--gray-600)">업체별 가동시간 (h)</div>
-          <div style="display:flex;gap:4px">
-            <button id="btn-group-daily"  class="btn btn-primary btn-sm"  onclick="AnalyticsUsagePage.setGroup('daily')">일별</button>
-            <button id="btn-group-monthly" class="btn btn-outline btn-sm" onclick="AnalyticsUsagePage.setGroup('monthly')">월별</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <!-- 업체별 일별/월별 가동시간 -->
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:600;color:var(--gray-600)">업체별 가동시간 (h)</div>
+            <div style="display:flex;gap:4px">
+              <button id="btn-group-daily"  class="btn btn-primary btn-sm"  onclick="AnalyticsUsagePage.setGroup('daily')">일별</button>
+              <button id="btn-group-monthly" class="btn btn-outline btn-sm" onclick="AnalyticsUsagePage.setGroup('monthly')">월별</button>
+            </div>
           </div>
+          <canvas id="chart-us-company" height="160"></canvas>
         </div>
-        <canvas id="chart-us-company" height="180"></canvas>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <!-- 제원별 가동시간 -->
         <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">제원별 가동시간 (h)</div>
-          <canvas id="chart-us-spec" height="240"></canvas>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">제원별 가동시간 (h)</div>
+          <canvas id="chart-us-spec" height="160"></canvas>
         </div>
         <!-- 업체별 가동대수 / 총 보유대수 -->
         <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--gray-600)">업체별 가동대수 / 총 보유대수 (%)</div>
-          <canvas id="chart-us-utilization" height="240"></canvas>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">업체별 가동대수 / 총 보유대수 (%)</div>
+          <canvas id="chart-us-utilization" height="160"></canvas>
+        </div>
+        <!-- 날짜별 가동 기록 추이 -->
+        <div class="card">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">날짜별 가동 기록 추이</div>
+          <canvas id="chart-us-trend" height="160"></canvas>
         </div>
       </div>
     `;
@@ -624,6 +626,33 @@ const AnalyticsUsagePage = (() => {
         },
       });
     } else _emptyChart('chart-us-utilization');
+
+    // Chart 4: 날짜별 가동 기록 추이
+    const byDate = {};
+    doneLogs.forEach(r => {
+      if (r.date) byDate[r.date] = (byDate[r.date] || 0) + 1;
+    });
+    const trendDates = Object.keys(byDate).sort();
+    if (trendDates.length) {
+      _charts.trend = new Chart(document.getElementById('chart-us-trend'), {
+        type: 'line',
+        data: {
+          labels: trendDates,
+          datasets: [{ label: '가동 건수', data: trendDates.map(d => byDate[d]),
+            borderColor: '#1B365D', backgroundColor: 'rgba(27,54,93,.08)', tension: .3, fill: true, pointRadius: 3 }],
+        },
+        options: {
+          plugins: {
+            legend: { display: false },
+            datalabels: { anchor: 'end', align: 'top', formatter: v => v > 0 ? v + '건' : '', font: { size: 10, weight: '600' }, color: '#1B365D' },
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } },
+            x: { ticks: { maxTicksLimit: 12, font: { size: 10 } } },
+          },
+        },
+      });
+    } else _emptyChart('chart-us-trend');
   }
 
   return { render, reload, setGroup };
