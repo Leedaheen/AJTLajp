@@ -367,7 +367,7 @@ const DispatchPage = (() => {
                 value="${disp.construction_name||cname||''}" placeholder="직접 입력">
             </div>
             <div style="font-size:11px;color:var(--gray-400);margin-top:3px">
-              선택 시 자동 입력 — 공사명 없으면 <button type="button" onclick="DispatchPage.Modal.close();DispatchPage.openCnameModal()" style="background:none;border:none;color:#1B365D;cursor:pointer;font-size:11px;padding:0;text-decoration:underline">공사명 관리</button>에서 등록
+              선택 시 자동 입력 — 공사명 없으면 <button type="button" onclick="Modal.close();DispatchPage.openCnameModal()" style="background:none;border:none;color:#1B365D;cursor:pointer;font-size:11px;padding:0;text-decoration:underline">공사명 관리</button>에서 등록
             </div>
           </div>
         </div>
