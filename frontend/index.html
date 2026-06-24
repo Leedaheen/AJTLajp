@@ -9,6 +9,72 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" href="data:,">
 
+  <!-- 인앱 브라우저 감지 (카카오톡·네이버 → 외부 브라우저 유도) -->
+  <script>
+  (function () {
+    var ua = navigator.userAgent;
+    var isKakao = /KAKAOTALK/i.test(ua);
+    var isNaver = /NAVER\(inapp/i.test(ua);
+    var isInApp = isKakao || isNaver || /Instagram|FBAN|FBAV|Line\/|MicroMessenger/i.test(ua);
+    if (!isInApp) return;
+
+    var isAndroid = /Android/i.test(ua);
+    var isIOS    = /iPhone|iPad|iPod/i.test(ua);
+    var appName  = isKakao ? '카카오톡' : isNaver ? '네이버' : '앱';
+    var url      = location.href;
+
+    // Android: Chrome 인텐트로 자동 전환 시도
+    if (isAndroid) {
+      try { location.href = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end'; } catch (e) {}
+    }
+
+    // 링크 복사 함수
+    window._inappCopy = function () {
+      var btn = document.getElementById('inapp-copy-btn');
+      (navigator.clipboard
+        ? navigator.clipboard.writeText(url)
+        : Promise.resolve(document.execCommand('copy', false, (function(){ var t=document.createElement('textarea'); t.value=url; document.body.appendChild(t); t.select(); document.body.removeChild(t); }())))
+      ).then(function () {
+        if (btn) { btn.textContent = '복사 완료!'; btn.style.background = '#10b981'; }
+      }).catch(function () {
+        // clipboard API 실패 시 fallback
+        try {
+          var t = document.createElement('textarea'); t.value = url;
+          document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+          if (btn) { btn.textContent = '복사 완료!'; btn.style.background = '#10b981'; }
+        } catch(e2) {}
+      });
+    };
+
+    // 앱·OS별 안내 문구
+    var guide = '';
+    if (isKakao && isIOS) {
+      guide = '<div style="background:#EFF6FF;border-radius:10px;padding:14px 16px;margin-bottom:16px;text-align:left"><p style="font-size:13px;font-weight:700;color:#1E40AF;margin:0 0 8px">iPhone 방법</p><p style="font-size:13px;color:#374151;line-height:2;margin:0">1. 우측 하단 <strong>···</strong> 버튼 탭<br>2. <strong>Safari로 열기</strong> 선택</p></div>';
+    } else if (isNaver && isIOS) {
+      guide = '<div style="background:#EFF6FF;border-radius:10px;padding:14px 16px;margin-bottom:16px;text-align:left"><p style="font-size:13px;font-weight:700;color:#1E40AF;margin:0 0 8px">iPhone 방법</p><p style="font-size:13px;color:#374151;line-height:2;margin:0">1. 하단 <strong>공유</strong> 버튼 탭<br>2. <strong>Safari에서 열기</strong> 선택</p></div>';
+    } else if (isAndroid) {
+      guide = '<div style="background:#EFF6FF;border-radius:10px;padding:14px 16px;margin-bottom:16px;text-align:left"><p style="font-size:13px;font-weight:700;color:#1E40AF;margin:0 0 8px">Android 방법</p><p style="font-size:13px;color:#374151;line-height:2;margin:0">1. 우측 상단 <strong>···</strong> 버튼 탭<br>2. <strong>외부 브라우저로 열기</strong> 선택</p></div>';
+    }
+
+    var overlay =
+      '<div id="inapp-overlay" style="position:fixed;inset:0;z-index:99999;background:#fff;display:flex;align-items:center;justify-content:center;padding:24px;font-family:\'Noto Sans KR\',sans-serif">' +
+        '<div style="max-width:360px;width:100%;text-align:center">' +
+          '<div style="width:64px;height:64px;background:#FCEBEB;border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">' +
+            '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#E8192C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+          '</div>' +
+          '<p style="font-size:18px;font-weight:700;color:#1B365D;margin:0 0 8px">' + appName + '에서 로그인 불가</p>' +
+          '<p style="font-size:13px;color:#6B7280;line-height:1.8;margin:0 0 20px">Google 로그인은 ' + appName + ' 내부 브라우저를 지원하지 않습니다.<br><strong style="color:#374151">Chrome</strong> 또는 <strong style="color:#374151">Safari</strong>에서 열어주세요.</p>' +
+          guide +
+          '<button id="inapp-copy-btn" onclick="window._inappCopy()" style="width:100%;padding:14px;border-radius:10px;border:none;background:#1B365D;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px">링크 복사하기</button>' +
+          '<p style="font-size:11px;color:#9CA3AF;margin:0">복사 후 Chrome 또는 Safari 주소창에 붙여넣기</p>' +
+        '</div>' +
+      '</div>';
+
+    function show() { document.body.insertAdjacentHTML('beforeend', overlay); }
+    document.body ? show() : document.addEventListener('DOMContentLoaded', show);
+  })();
+  </script>
+
   <!-- CSS -->
   <link rel="stylesheet" href="/css/base.css?v=10">
   <link rel="stylesheet" href="/css/layout.css?v=10">
