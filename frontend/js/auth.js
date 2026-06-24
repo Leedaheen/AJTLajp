@@ -172,8 +172,22 @@ const Auth = (() => {
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">연락처</label>
+          <label class="form-label">연락처 <span style="color:var(--red)">*</span></label>
           <input id="inp-phone" type="tel" class="form-input" placeholder="010-0000-0000">
+        </div>
+        <div style="margin-top:16px;padding:12px 14px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+            <input type="checkbox" id="chk-privacy" style="margin-top:3px;flex-shrink:0;width:15px;height:15px;accent-color:#1B365D">
+            <span style="font-size:12px;color:var(--gray-700);line-height:1.7">
+              <strong style="color:#1B365D">[필수] 개인정보 수집·이용에 동의합니다.</strong><br>
+              <span style="color:var(--gray-500)">
+                수집 주체: AJ네트웍스<br>
+                수집 항목: 이름, 이메일, 연락처, 소속 업체, 역할<br>
+                수집 목적: 고소작업대 운영 시스템 서비스 제공 및 사용자 식별<br>
+                보유 기간: 서비스 이용 종료 시까지
+              </span>
+            </span>
+          </label>
         </div>
       `,
       footer: `
@@ -208,22 +222,26 @@ const Auth = (() => {
     const role    = document.getElementById('sel-role').value;
     const siteId  = document.getElementById('sel-site').value;
     const name    = document.getElementById('inp-name').value.trim();
-    const phone   = document.getElementById('inp-phone').value;
+    const phone   = document.getElementById('inp-phone').value.trim();
     const company = document.getElementById('sel-company').value;
     const client  = ['tech','partner','pro'].includes(role)
       ? (document.getElementById('sel-client')?.value || '') : '';
     const center  = role === 'aj_center'
       ? (document.getElementById('sel-center')?.value || '') : '';
+    const privacy = document.getElementById('chk-privacy')?.checked;
 
     if (!role)    { Toast.error('역할을 선택해주세요.'); return; }
+    if (!siteId)  { Toast.error('담당 현장을 선택해주세요.'); return; }
     if (!name)    { Toast.error('이름을 입력해주세요.'); return; }
     if (!company) { Toast.error('업체명을 선택해주세요.'); return; }
+    if (!phone)   { Toast.error('연락처를 입력해주세요.'); return; }
     if (['tech','partner','pro'].includes(role) && !client) {
       Toast.error('소속을 선택해주세요.'); return;
     }
     if (role === 'aj_center' && !center) {
       Toast.error('담당 센터를 선택해주세요.'); return;
     }
+    if (!privacy) { Toast.error('개인정보 수집·이용에 동의해주세요.'); return; }
 
     const btn = document.getElementById('btn-role-confirm');
     btn.disabled = true;
