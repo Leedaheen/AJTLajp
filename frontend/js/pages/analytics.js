@@ -295,10 +295,6 @@ const AnalyticsAsPage = (() => {
           <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">날짜별 AS 접수 추이</div>
           <canvas id="chart-as-trend" height="160"></canvas>
         </div>
-        <div class="card">
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray-600)">기사별 처리 건수</div>
-          <canvas id="chart-as-tech" height="160"></canvas>
-        </div>
       </div>
     `;
     _loadData();
@@ -317,7 +313,7 @@ const AnalyticsAsPage = (() => {
     const STATUS_LABEL = { requested:'접수대기', in_progress:'처리중', material_pending:'자재수급', held:'보류', completed:'완료', cancelled:'취소' };
 
     // 집계
-    const byFault = {}, byStatus = {}, byDate = {}, byTech = {};
+    const byFault = {}, byStatus = {}, byDate = {};
     let resolvedCount = 0, elapsedTotal = 0;
 
     rows.forEach(r => {
@@ -325,8 +321,6 @@ const AnalyticsAsPage = (() => {
       byStatus[r.status || '?'] = (byStatus[r.status || '?'] || 0) + 1;
       const d = (r.requested_at || '').slice(0, 10);
       if (d) byDate[d] = (byDate[d] || 0) + 1;
-      const tech = r.tech_name || '미배정';
-      byTech[tech] = (byTech[tech] || 0) + 1;
       if (r.status === 'completed' && r.elapsed_min) { resolvedCount++; elapsedTotal += r.elapsed_min; }
     });
 
@@ -379,18 +373,6 @@ const AnalyticsAsPage = (() => {
       });
     } else _emptyChart('chart-as-trend');
 
-    const techSorted = Object.entries(byTech).sort((a, b) => b[1] - a[1]);
-    if (techSorted.length) {
-      _charts.tech = new Chart(document.getElementById('chart-as-tech'), {
-        type: 'bar',
-        data: { labels: techSorted.map(([k]) => k), datasets: [{ data: techSorted.map(([, v]) => v), backgroundColor: '#1B365D', borderRadius: 4 }] },
-        options: {
-          layout: { padding: { top: 20 } },
-          plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', formatter: v => v > 0 ? v + '건' : '', font: { size: 11, weight: '600' }, color: '#374151' } },
-          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
-        },
-      });
-    } else _emptyChart('chart-as-tech');
   }
 
   return { render, reload };
